@@ -11,14 +11,14 @@ export interface UserAccount {
 }
 
 export interface StoreSettings {
-  id: string; // 'current_store_settings'
+  id: string;
   storeName: string;
-  subTitle: string; // e.g. "KORAT CAT x เรือนโคราชเฉลิมวัฒนา"
+  subTitle: string;
   tagline: string;
   address: string;
   phone: string;
   taxId: string;
-  promptPayId: string; // Phone number or Tax ID for QR payment
+  promptPayId: string;
   promptPayType: 'MOBILE' | 'TAX_ID';
   receiptHeader: string;
   receiptFooter: string;
@@ -43,9 +43,8 @@ export interface ProductVariant {
   category: string;
   sku: string;
   barcode: string;
-  // Attributes: e.g. { size: "XL", color: "ดำ", technique: "DTF", pattern: "แมวโคราช-เรือนเฉลิมวัฒนา" }
   attributes: Record<string, string>;
-  costPrice: number; // Only visible to OWNER
+  costPrice: number;
   salePrice: number;
   stockQuantity: number;
   minStockAlert: number;
@@ -60,6 +59,7 @@ export interface PromotionRule {
   type: 'MIX_AND_MATCH' | 'TIERED' | 'DISCOUNT_PERCENT';
   requiredQty: number;
   bundlePrice: number;
+  targetAudience: 'ALL' | 'MEMBER_ONLY'; // สิทธิ์โปรโมชั่น: ทั่วไป หรือ เฉพาะสมาชิก
   eligibleCategories?: string[];
   eligibleVariantIds?: string[];
   startDate: string;
@@ -83,9 +83,12 @@ export interface CartItem {
 export interface Customer {
   id: string;
   phone: string;
-  name: string;
+  name: string; // ชื่อ-นามสกุล
+  contactChannel?: string; // LINE ID, Facebook, Email
+  address?: string;
   rewardPoints: number;
   totalSpent: number;
+  createdAt?: string;
 }
 
 export type PaymentMethodType = 'CASH' | 'PROMPTPAY' | 'CREDIT_CARD';
@@ -142,3 +145,15 @@ export interface Shift {
   status: 'OPEN' | 'CLOSED';
   notes?: string;
 }
+
+// หมวดหมู่เริ่มต้นที่รองรับการขยายตัวในอนาคต
+export const DEFAULT_PRODUCT_CATEGORIES = [
+  'เสื้อผ้าแฟชั่นไฮเอนด์',
+  'หมวกและแอคเซสเซอรี่',
+  'งานฝีมือ & วิสาหกิจชุมชน',
+  'กิจกรรม Workshop ในร้าน',
+  'ของที่ระลึก & ของตกแต่ง',
+  'กระเป๋าและเครื่องหนัง',
+  'เครื่องดื่มและเบเกอรี่',
+  'สินค้าอื่นๆ'
+];

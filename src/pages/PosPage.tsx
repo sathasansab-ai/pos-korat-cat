@@ -14,9 +14,12 @@ import {
   Receipt, 
   Sparkles, 
   User, 
+  UserPlus,
   CheckCircle2, 
   RotateCcw,
   Printer,
+  Phone,
+  MessageSquare,
   Image as ImageIcon
 } from 'lucide-react';
 import { db } from '../db';
@@ -34,7 +37,6 @@ import { DualMonitorSync } from '../services/dualMonitorSync';
 import { AuthService } from '../services/auth';
 import { PinModal } from '../components/PinModal';
 import { ReceiptModal } from '../components/ReceiptModal';
-import { PromptPayService } from '../services/promptPay';
 
 interface PosPageProps {
   currentUser: UserAccount;
@@ -57,6 +59,11 @@ export const PosPage: React.FC<PosPageProps> = ({
   // Member & Customer
   const [customerPhone, setCustomerPhone] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isRegisterMemberOpen, setIsRegisterMemberOpen] = useState(false);
+  const [regName, setRegName] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regContactChannel, setRegContactChannel] = useState('');
+  const [regAddress, setRegAddress] = useState('');
 
   // Payment Modal
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -164,13 +171,13 @@ export const PosPage: React.FC<PosPageProps> = ({
     setCart(prev => prev.filter(i => i.variantId !== variantId));
   };
 
-  // Run Promotion Engine Calculation
+  // Run Promotion Engine Calculation (Passes whether customer is member or not)
   const [promotions, setPromotions] = useState<any[]>([]);
   useEffect(() => {
     db.promotions.where({ isActive: true }).toArray().then(setPromotions);
   }, []);
 
-  const promoResult = PromotionEngine.calculate(cart, promotions);
+  const promoResult = PromotionEngine.calculate(cart, promotions, !!selectedCustomer);
 
   // Broadcast to Customer-Facing Dual Screen
   useEffect(() => {
@@ -231,28 +238,53 @@ export const PosPage: React.FC<PosPageProps> = ({
     }
   };
 
+  // Lookup Customer
   const handleLookupCustomer = async () => {
     if (!customerPhone.trim()) return;
-    const cust = await db.customers.where({ phone: customerPhone.trim() }).first();
+    const cust = await db.customers
+      .filter(c => c.phone.includes(customerPhone.trim()) || c.name.toLowerCase().includes(customerPhone.toLowerCase()))
+      .first();
+
     if (cust) {
       setSelectedCustomer(cust);
+      setCustomerPhone('');
     } else {
-      const name = prompt('ไม่พบข้อมูลสมาชิก ต้องการเพิ่มใหม่หรือไม่? กรุณาใส่ชื่อลูกค้า:');
-      if (name) {
-        const newCust: Customer = {
-          id: `cust-${Date.now()}`,
-          phone: customerPhone.trim(),
-          name,
-          rewardPoints: 0,
-          totalSpent: 0
-        };
-        await db.customers.add(newCust);
-        setSelectedCustomer(newCust);
-      }
+      // Auto open Register Member Modal with pre-filled phone!
+      setRegPhone(customerPhone.trim());
+      setIsRegisterMemberOpen(true);
     }
   };
 
-  // Finalize Checkout, Cut Inventory Stock, and Open Receipt Modal
+  // Register New Member
+  const handleRegisterMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regName.trim() || !regPhone.trim()) {
+      alert('กรุณากรอกชื่อและเบอร์โทรศัพท์');
+      return;
+    }
+
+    const newCust: Customer = {
+      id: `cust-${Date.now()}`,
+      name: regName.trim(),
+      phone: regPhone.trim(),
+      contactChannel: regContactChannel.trim() || undefined,
+      address: regAddress.trim() || undefined,
+      rewardPoints: 0,
+      totalSpent: 0,
+      createdAt: new Date().toISOString()
+    };
+
+    await db.customers.add(newCust);
+    setSelectedCustomer(newCust);
+    setIsRegisterMemberOpen(false);
+    setRegName('');
+    setRegPhone('');
+    setRegContactChannel('');
+    setRegAddress('');
+    alert(`สมัครสมาชิกคุณ ${newCust.name} สำเร็จเรียบร้อย! สามารถรับสิทธิ์โปรโมชั่นและสะสมแต้มได้ทันที`);
+  };
+
+  // Finalize Checkout
   const handleCompleteOrder = async () => {
     if (!activeShift) {
       alert('กรุณาเปิดกะก่อนทำการคิดเงิน');
@@ -308,10 +340,9 @@ export const PosPage: React.FC<PosPageProps> = ({
       isSynced: false
     };
 
-    // 1. Save to Database
     await db.orders.add(order);
 
-    // 2. Cut Inventory Stock
+    // Cut Inventory Stock
     for (const item of cart) {
       const v = await db.variants.get(item.variantId);
       if (v) {
@@ -321,7 +352,7 @@ export const PosPage: React.FC<PosPageProps> = ({
       }
     }
 
-    // 3. Update Shift Totals
+    // Update Shift Totals
     const cashPortion = isSplitPayment ? cashVal : net;
     const promptPayPortion = isSplitPayment ? promptPayVal : 0;
     await db.shifts.update(activeShift.id, {
@@ -330,7 +361,7 @@ export const PosPage: React.FC<PosPageProps> = ({
       totalTransactions: (activeShift.totalTransactions || 0) + 1
     });
 
-    // 4. Update Customer Reward Points
+    // Update Customer Reward Points
     if (selectedCustomer) {
       const earnedPoints = Math.floor(net / 100);
       await db.customers.update(selectedCustomer.id, {
@@ -339,7 +370,7 @@ export const PosPage: React.FC<PosPageProps> = ({
       });
     }
 
-    // 5. Broadcast to Customer Screen
+    // Broadcast to Customer Screen
     DualMonitorSync.broadcast({
       cart: [],
       subtotal: 0,
@@ -352,7 +383,7 @@ export const PosPage: React.FC<PosPageProps> = ({
 
     setCompletedOrder(order);
     setIsPaymentModalOpen(false);
-    setIsReceiptModalOpen(true); // Open Thermal Receipt dialog
+    setIsReceiptModalOpen(true);
     setCart([]);
     setSelectedCustomer(null);
     setCashTendered('');
@@ -418,7 +449,7 @@ export const PosPage: React.FC<PosPageProps> = ({
           </div>
         )}
 
-        {/* Quick Keys (สินค้าขายดีพร้อมรูปภาพเพื่อความแม่นยำ) */}
+        {/* Quick Keys */}
         <div className="flex-1 overflow-y-auto">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -440,7 +471,6 @@ export const PosPage: React.FC<PosPageProps> = ({
                   className="bg-white hover:border-amber-500 active:scale-95 border border-slate-200 rounded-2xl p-2.5 flex flex-col justify-between text-left shadow-xs transition group h-36 relative overflow-hidden"
                 >
                   <div className="flex gap-2">
-                    {/* Thumbnail Image */}
                     {item.imageUrl ? (
                       <img
                         src={item.imageUrl}
@@ -489,7 +519,7 @@ export const PosPage: React.FC<PosPageProps> = ({
 
       {/* RIGHT: Cart, Calculations, Hold Bills & Payment (40%) */}
       <div className="w-[440px] bg-white flex flex-col shadow-xl">
-        {/* Customer & Member Bar */}
+        {/* Customer & Member Bar with "+ สมัครสมาชิก" */}
         <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
           {selectedCustomer ? (
             <div className="flex items-center justify-between w-full">
@@ -498,13 +528,18 @@ export const PosPage: React.FC<PosPageProps> = ({
                   <User className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-slate-800">{selectedCustomer.name}</div>
-                  <div className="text-[11px] text-amber-700 font-mono">แต้มสะสม: {selectedCustomer.rewardPoints} pt</div>
+                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                    <span>{selectedCustomer.name}</span>
+                    <span className="text-[9px] bg-amber-100 text-amber-900 px-1 rounded font-bold">MEMBER</span>
+                  </div>
+                  <div className="text-[11px] text-amber-700 font-mono">
+                    แต้ม: {selectedCustomer.rewardPoints} pt | โทร: {selectedCustomer.phone}
+                  </div>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedCustomer(null)}
-                className="text-xs text-slate-400 hover:text-rose-600"
+                className="text-xs text-slate-400 hover:text-rose-600 font-medium"
               >
                 ยกเลิก
               </button>
@@ -515,14 +550,25 @@ export const PosPage: React.FC<PosPageProps> = ({
                 type="text"
                 value={customerPhone}
                 onChange={e => setCustomerPhone(e.target.value)}
-                placeholder="ค้นหาเบอร์โทรสมาชิกสะสมแต้ม..."
+                placeholder="ค้นหาเบอร์โทร / ชื่อสมาชิก..."
                 className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:ring-1 focus:ring-amber-500 outline-none"
               />
               <button
                 onClick={handleLookupCustomer}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold"
+                className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold"
               >
                 ค้นหา
+              </button>
+              <button
+                onClick={() => {
+                  setRegPhone(customerPhone.trim());
+                  setIsRegisterMemberOpen(true);
+                }}
+                title="สมัครสมาชิกใหม่เพื่อรับสิทธิพิเศษและแจ้งโปรโมชั่น"
+                className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition flex-shrink-0"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>+ สมัคร</span>
               </button>
             </div>
           )}
@@ -572,7 +618,6 @@ export const PosPage: React.FC<PosPageProps> = ({
                   </div>
                 </div>
 
-                {/* Qty controller */}
                 <div className="flex items-center space-x-1">
                   <button
                     onClick={() => updateQty(item.variantId, -1)}
@@ -664,6 +709,88 @@ export const PosPage: React.FC<PosPageProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Register Member Modal */}
+      {isRegisterMemberOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-amber-600" />
+              <span>สมัครสมาชิกใหม่ (KORAT CAT BOUTIQUE)</span>
+            </h3>
+
+            <form onSubmit={handleRegisterMember} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ชื่อ-นามสกุล *</label>
+                <input
+                  type="text"
+                  required
+                  value={regName}
+                  onChange={e => setRegName(e.target.value)}
+                  placeholder="เช่น คุณวิภาวี นครราช"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">เบอร์โทรศัพท์ (ใช้เป็นรหัสสมาชิก) *</label>
+                <input
+                  type="tel"
+                  required
+                  value={regPhone}
+                  onChange={e => setRegPhone(e.target.value)}
+                  placeholder="เช่น 0812345678"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  ช่องทางติดต่อเพิ่มเติม (LINE ID / Facebook / IG / Email)
+                </label>
+                <input
+                  type="text"
+                  value={regContactChannel}
+                  onChange={e => setRegContactChannel(e.target.value)}
+                  placeholder="เช่น LINE: @vip_cat, FB: Wipavee..."
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  สำหรับแจ้งข่าวสาร คอลเลกชันใหม่ และโปรโมชั่นส่วนลดพิเศษ
+                </span>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ที่อยู่ (ถ้ามี / สำหรับจัดส่งของขวัญ)</label>
+                <textarea
+                  rows={2}
+                  value={regAddress}
+                  onChange={e => setRegAddress(e.target.value)}
+                  placeholder="บ้านเลขที่ ตำบล อำเภอ จังหวัด..."
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRegisterMemberOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow"
+                >
+                  ยืนยันการสมัคร
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Payment Modal */}
       {isPaymentModalOpen && (

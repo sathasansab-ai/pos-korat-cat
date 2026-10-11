@@ -246,6 +246,7 @@ export async function seedInitialData() {
         type: 'MIX_AND_MATCH',
         requiredQty: 2,
         bundlePrice: 899,
+        targetAudience: 'ALL',
         eligibleCategories: ['เสื้อผ้าแฟชั่นไฮเอนด์', 'หมวกและแอคเซสเซอรี่'],
         startDate: '2025-01-01',
         endDate: '2028-12-31',

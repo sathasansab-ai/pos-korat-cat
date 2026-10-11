@@ -16,11 +16,12 @@ export interface PromotionCalculationResult {
 
 export class PromotionEngine {
   /**
-   * คำนวณโปรโมชั่น Mix & Match แบบ Greedy Matching พร้อมคืนค่า Upsell
+   * คำนวณโปรโมชั่น Mix & Match พร้อมตรวจสอบสิทธิ์ (ทั่วไป vs เฉพาะสมาชิก)
    */
   public static calculate(
     cart: CartItem[],
-    rules: PromotionRule[]
+    rules: PromotionRule[],
+    isMember = false
   ): PromotionCalculationResult {
     let originalSubtotal = 0;
     cart.forEach(item => {
@@ -51,17 +52,23 @@ export class PromotionEngine {
       }
     });
 
-    // เรียงราคาสินค้าจากมากไปน้อยเพื่อผลประโยชน์สูงสุดของลูกค้า
     unassignedUnits.sort((a, b) => b.unitPrice - a.unitPrice);
 
     for (const rule of rules) {
       if (!rule.isActive) continue;
 
-      // กรองชิ้นสินค้าที่ตรงตามเงื่อนไขของโปรโมชั่นนี้
+      // กรองชิ้นสินค้าที่เข้าเงื่อนไขหมวดหมู่
       const eligibleIndices: number[] = [];
       unassignedUnits.forEach((unit, idx) => {
-        const isCatMatch = !rule.eligibleCategories || rule.eligibleCategories.length === 0 || rule.eligibleCategories.includes(unit.category);
-        const isVariantMatch = !rule.eligibleVariantIds || rule.eligibleVariantIds.length === 0 || rule.eligibleVariantIds.includes(unit.variantId);
+        const isCatMatch = 
+          !rule.eligibleCategories || 
+          rule.eligibleCategories.length === 0 || 
+          rule.eligibleCategories.includes(unit.category);
+        
+        const isVariantMatch = 
+          !rule.eligibleVariantIds || 
+          rule.eligibleVariantIds.length === 0 || 
+          rule.eligibleVariantIds.includes(unit.variantId);
         
         if (isCatMatch && isVariantMatch) {
           eligibleIndices.push(idx);
@@ -71,10 +78,23 @@ export class PromotionEngine {
       const fullBundles = Math.floor(eligibleIndices.length / rule.requiredQty);
       const remainder = eligibleIndices.length % rule.requiredQty;
 
-      // Upsell Prompt: ถ้าขาด 1 ชิ้นครบเซ็ต
+      // ตรวจสอบเงื่อนไขกลุ่มเป้าหมาย (สิทธิ์เฉพาะสมาชิก)
+      const isMemberOnly = rule.targetAudience === 'MEMBER_ONLY';
+
+      if (isMemberOnly && !isMember) {
+        // ถ้าลูกค้าไม่ได้เป็นสมาชิก แต่ยอดเข้าเกณฑ์โปรโมชั่น -> แจ้งเตือนพนักงานให้ชวนสมัครสมาชิกทันที!
+        if (fullBundles > 0 || (remainder > 0 && remainder === rule.requiredQty - 1)) {
+          upsellPrompts.push(
+            `💎 สิทธิพิเศษเฉพาะสมาชิก: "${rule.name}" (กรุณาสมัครหรือค้นหาสมาชิกเพื่อรับส่วนลดทันที!)`
+          );
+        }
+        continue; // ข้ามการตัดส่วนลดเพราะยังไม่ได้เป็นสมาชิก
+      }
+
+      // Upsell Prompt: ถ้าขาดอีก 1 ชิ้นจะครบเซ็ต
       if (remainder > 0 && remainder === rule.requiredQty - 1) {
         upsellPrompts.push(
-          `💡 แนะนำลูกค้า: ซื้อกลุ่ม "${rule.name}" เพิ่มอีก 1 ชิ้น เพื่อรับราคาเซ็ตสุดคุ้มเพียง ${rule.bundlePrice.toLocaleString()} บาท!`
+          `💡 แนะนำลูกค้า: ซื้อกลุ่ม "${rule.name}" เพิ่มอีก 1 ชิ้น เพื่อรับราคาพิเศษ ${rule.bundlePrice.toLocaleString()} บาท!`
         );
       }
 
@@ -94,7 +114,6 @@ export class PromotionEngine {
             0
           );
 
-          // ส่วนลด = ราคาเต็มของชุด - ราคาโปรโมชั่น
           const discount = Math.max(0, bundleOriginalPrice - rule.bundlePrice);
           ruleDiscount += discount;
           itemsUsedCount += rule.requiredQty;
