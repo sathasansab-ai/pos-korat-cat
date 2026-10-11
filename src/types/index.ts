@@ -6,7 +6,24 @@ export interface UserAccount {
   id: string;
   name: string;
   role: UserRole;
-  pin: string; // 4-6 digit PIN for fast cashier lock/unlock
+  pin: string; // 4-6 digit PIN
+  isActive?: boolean;
+}
+
+export interface StoreSettings {
+  id: string; // 'current_store_settings'
+  storeName: string;
+  subTitle: string; // e.g. "KORAT CAT x เรือนโคราชเฉลิมวัฒนา"
+  tagline: string;
+  address: string;
+  phone: string;
+  taxId: string;
+  promptPayId: string; // Phone number or Tax ID for QR payment
+  promptPayType: 'MOBILE' | 'TAX_ID';
+  receiptHeader: string;
+  receiptFooter: string;
+  logoUrl?: string;
+  printerPaperWidth: '58mm' | '80mm';
 }
 
 export interface Product {
@@ -15,6 +32,7 @@ export interface Product {
   name: string;
   category: string;
   description?: string;
+  imageUrl?: string;
   isActive: boolean;
 }
 
@@ -25,12 +43,13 @@ export interface ProductVariant {
   category: string;
   sku: string;
   barcode: string;
-  // Attributes: e.g. { size: "XL", color: "Black", technique: "DTF", pattern: "Korat Cat 01" }
+  // Attributes: e.g. { size: "XL", color: "ดำ", technique: "DTF", pattern: "แมวโคราช-เรือนเฉลิมวัฒนา" }
   attributes: Record<string, string>;
   costPrice: number; // Only visible to OWNER
   salePrice: number;
   stockQuantity: number;
   minStockAlert: number;
+  imageUrl?: string;
   supplierName?: string;
   isActive: boolean;
 }
@@ -39,8 +58,8 @@ export interface PromotionRule {
   id: string;
   name: string;
   type: 'MIX_AND_MATCH' | 'TIERED' | 'DISCOUNT_PERCENT';
-  requiredQty: number; // e.g. 3 pieces
-  bundlePrice: number; // e.g. 500 baht
+  requiredQty: number;
+  bundlePrice: number;
   eligibleCategories?: string[];
   eligibleVariantIds?: string[];
   startDate: string;
@@ -53,6 +72,7 @@ export interface CartItem {
   productName: string;
   sku: string;
   barcode: string;
+  imageUrl?: string;
   attributes: Record<string, string>;
   category: string;
   costPrice: number;
@@ -88,6 +108,7 @@ export interface Order {
     variantId: string;
     productName: string;
     sku: string;
+    imageUrl?: string;
     attributes: Record<string, string>;
     qty: number;
     unitPrice: number;

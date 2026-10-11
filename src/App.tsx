@@ -11,6 +11,7 @@ import { PromotionsPage } from './pages/PromotionsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { GoogleSheetPage } from './pages/GoogleSheetPage';
 import { CustomerFacingPage } from './pages/CustomerFacingPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
@@ -26,19 +27,26 @@ export function App() {
     setActiveShift(shift || null);
   };
 
+  const refreshUser = async () => {
+    let user = AuthService.getCurrentUser();
+    if (!user) {
+      user = (await db.users.where({ role: 'OWNER' }).first()) || null;
+      if (user) AuthService.setCurrentUser(user);
+    } else {
+      // Re-fetch from DB in case name or pin was updated in Settings
+      const freshUser = await db.users.get(user.id);
+      if (freshUser) {
+        user = freshUser;
+        AuthService.setCurrentUser(freshUser);
+      }
+    }
+    setCurrentUser(user);
+  };
+
   useEffect(() => {
     const init = async () => {
       await seedInitialData();
-      
-      // Load current user from session or default to Owner
-      let user = AuthService.getCurrentUser();
-      if (!user) {
-        user = (await db.users.where({ role: 'OWNER' }).first()) || null;
-        if (user) AuthService.setCurrentUser(user);
-      }
-      setCurrentUser(user);
-
-      // Load active shift
+      await refreshUser();
       await refreshShift();
       setIsReady(true);
     };
@@ -52,9 +60,11 @@ export function App() {
 
   if (!isReady || !currentUser) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
-        <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-semibold tracking-wide">กำลังเตรียมระบบ POS Korat Cat...</p>
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
+        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm font-semibold tracking-wide text-amber-200">
+          กำลังเตรียมระบบ KORAT CAT x เรือนโคราชเฉลิมวัฒนา...
+        </p>
       </div>
     );
   }
@@ -69,7 +79,7 @@ export function App() {
         onUserChanged={(user) => {
           setCurrentUser(user);
           // If switched to Cashier and active tab is an owner-only tab, redirect to POS
-          if (user.role === 'CASHIER' && ['inventory', 'promotions', 'reports', 'sheets'].includes(activeTab)) {
+          if (user.role === 'CASHIER' && ['inventory', 'promotions', 'reports', 'sheets', 'settings'].includes(activeTab)) {
             setActiveTab('pos');
           }
         }}
@@ -94,6 +104,14 @@ export function App() {
         {activeTab === 'promotions' && <PromotionsPage />}
         {activeTab === 'reports' && <ReportsPage />}
         {activeTab === 'sheets' && <GoogleSheetPage />}
+        {activeTab === 'settings' && (
+          <SettingsPage
+            currentUser={currentUser}
+            onSettingsUpdated={() => {
+              refreshUser();
+            }}
+          />
+        )}
       </main>
     </div>
   );

@@ -27,3 +27,28 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* THERMAL PRINTER OPTIMIZATIONS (58mm / 80mm) */
+@media print {
+  /* Hide standard web UI headers and backgrounds during print */
+  header, 
+  nav, 
+  .no-print {
+    display: none !important;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #printable-thermal-receipt {
+    width: 100% !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 2mm !important;
+    font-size: 11px !important;
+  }
+}
