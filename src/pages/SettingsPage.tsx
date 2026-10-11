@@ -14,11 +14,13 @@ import {
   Upload, 
   CheckCircle2,
   KeyRound,
-  QrCode
+  QrCode,
+  Image as ImageIcon
 } from 'lucide-react';
 import { db } from '../db';
 import type { StoreSettings, UserAccount } from '../types';
 import { AuthService } from '../services/auth';
+import { ImageOptimizer } from '../services/imageOptimizer';
 
 interface SettingsPageProps {
   currentUser: UserAccount;
@@ -68,6 +70,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await ImageOptimizer.resizeAndCompress(file, 256, 256, 0.9);
+      setSettings(prev => prev ? { ...prev, logoUrl: base64 } : prev);
+    } catch {
+      alert('ไม่สามารถประมวลผลไฟล์รูปภาพได้');
+    }
+  };
 
   const handleSaveStoreSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,14 +299,69 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
 
             <div className="md:col-span-2">
-              <label className="block font-bold text-slate-700 mb-1">ลิงก์รูปภาพโลโก้ร้าน (Logo Image URL)</label>
-              <input
-                type="text"
-                value={settings.logoUrl || ''}
-                onChange={e => setSettings({ ...settings, logoUrl: e.target.value })}
-                placeholder="เช่น https://... หรือใส่ลิงก์รูปภาพโลโก้ร้าน"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-              />
+              <label className="block font-bold text-slate-700 mb-2">
+                🖼️ รูปภาพโลโก้ร้าน (แสดงที่แถบเมนูด้านบน, จอฝั่งลูกค้า และหัวใบเสร็จสลิป)
+              </label>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
+                {settings.logoUrl ? (
+                  <div className="relative group flex-shrink-0">
+                    <img
+                      src={settings.logoUrl}
+                      alt="Store Logo Preview"
+                      className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500 shadow-md bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, logoUrl: '' })}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center shadow text-xs font-bold transition"
+                      title="ลบโลโก้และใช้ไอคอนเริ่มต้น"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl bg-slate-200 border border-slate-300 flex flex-col items-center justify-center text-slate-400 flex-shrink-0">
+                    <ImageIcon className="w-8 h-8 mb-1" />
+                    <span className="text-[9px]">ไอคอน 🐱</span>
+                  </div>
+                )}
+
+                <div className="space-y-2 flex-1 w-full">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5 shadow transition">
+                      <Upload className="w-4 h-4" />
+                      <span>เลือกไฟล์ภาพโลโก้จากเครื่อง (PNG, JPG)</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {settings.logoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setSettings({ ...settings, logoUrl: '' })}
+                        className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-semibold transition"
+                      >
+                        ใช้ไอคอนเริ่มต้น (🐱)
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] text-slate-500">
+                    หรือใส่ลิงก์รูปภาพโดยตรง:
+                  </div>
+                  <input
+                    type="text"
+                    value={settings.logoUrl || ''}
+                    onChange={e => setSettings({ ...settings, logoUrl: e.target.value })}
+                    placeholder="https://... หรืออัปโหลดไฟล์จากเครื่องด้านบน"
+                    className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>

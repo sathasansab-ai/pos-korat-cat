@@ -40,9 +40,17 @@ export const CustomerFacingPage: React.FC = () => {
       {/* Top Banner (Luxury Boutique Header) */}
       <div className="flex items-center justify-between pb-6 border-b border-slate-800">
         <div className="flex items-center space-x-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center text-3xl shadow-xl border border-amber-400/30">
-            🐱
-          </div>
+          {settings?.logoUrl ? (
+            <img
+              src={settings.logoUrl}
+              alt="Store Logo"
+              className="w-14 h-14 rounded-2xl object-cover shadow-xl border border-amber-400/40 bg-white"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center text-3xl shadow-xl border border-amber-400/30">
+              🐱
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black tracking-wide text-white uppercase">

@@ -24,6 +24,7 @@ interface NavbarProps {
   currentUser: UserAccount | null;
   activeShift: Shift | null;
   activeTab: string;
+  settingsVer?: number;
   onSelectTab: (tab: string) => void;
   onUserChanged: (user: UserAccount) => void;
 }
@@ -32,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   activeShift,
   activeTab,
+  settingsVer = 0,
   onSelectTab,
   onUserChanged
 }) => {
@@ -54,7 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [activeTab]);
+  }, [activeTab, settingsVer]);
 
   const handleOpenPin = (targetRole: 'OWNER' | 'CASHIER') => {
     setPinTargetRole(targetRole);
@@ -83,9 +85,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="px-4 py-2.5 flex items-center justify-between gap-2">
           {/* Logo & Brand */}
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center text-xl shadow-md border border-amber-400/30">
-              🐱
-            </div>
+            {settings?.logoUrl ? (
+              <img
+                src={settings.logoUrl}
+                alt="Store Logo"
+                className="w-10 h-10 rounded-xl object-cover shadow-md border border-amber-400/40 bg-white"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center text-xl shadow-md border border-amber-400/30">
+                🐱
+              </div>
+            )}
             <div>
               <div className="font-extrabold text-sm tracking-wide flex items-center gap-1.5 uppercase">
                 <span className="text-white">{settings?.storeName || 'KORAT CAT x เรือนโคราช'}</span>

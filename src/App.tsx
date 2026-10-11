@@ -17,6 +17,7 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [activeTab, setActiveTab] = useState<string>('pos');
+  const [settingsVer, setSettingsVer] = useState(0);
   const [isReady, setIsReady] = useState(false);
 
   // Check if current page is the dual screen monitor (/display)
@@ -75,6 +76,7 @@ export function App() {
         currentUser={currentUser}
         activeShift={activeShift}
         activeTab={activeTab}
+        settingsVer={settingsVer}
         onSelectTab={setActiveTab}
         onUserChanged={(user) => {
           setCurrentUser(user);
@@ -109,6 +111,7 @@ export function App() {
             currentUser={currentUser}
             onSettingsUpdated={() => {
               refreshUser();
+              setSettingsVer(v => v + 1);
             }}
           />
         )}
