@@ -1,15 +1,26 @@
 // src/services/dualMonitorSync.ts
-import type { CartItem } from '../types';
+import type { CartItem, CustomerScreenTheme } from '../types';
 
 export interface CustomerDisplayState {
   cart: CartItem[];
   subtotal: number;
   promoDiscount: number;
+  customDiscount?: number;
+  vatAmount?: number;
   netTotal: number;
   upsellPrompts: string[];
   lastScannedItem?: string;
   isPaid?: boolean;
   changeGiven?: number;
+  cashReceived?: number;
+  paymentMethod?: 'CASH' | 'PROMPTPAY' | 'SPLIT';
+  
+  // Customization passed from cashier
+  theme?: CustomerScreenTheme;
+  welcomeTitle?: string;
+  welcomeSubtitle?: string;
+  welcomeImageUrl?: string;
+  thankYouMessage?: string;
 }
 
 const CHANNEL_NAME = 'pos_korat_dual_screen_channel';

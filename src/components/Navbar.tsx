@@ -38,11 +38,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   onUserChanged
 }) => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
+  const [logoError, setLogoError] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [pinTargetRole, setPinTargetRole] = useState<'OWNER' | 'CASHIER'>('OWNER');
 
   useEffect(() => {
+    setLogoError(false);
     db.settings.get('current_store_settings').then(s => {
       if (s) setSettings(s);
     });
@@ -85,10 +87,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="px-4 py-2.5 flex items-center justify-between gap-2">
           {/* Logo & Brand */}
           <div className="flex items-center space-x-3">
-            {settings?.logoUrl ? (
+            {settings?.logoUrl && !logoError ? (
               <img
                 src={settings.logoUrl}
                 alt="Store Logo"
+                onError={() => setLogoError(true)}
                 className="w-10 h-10 rounded-xl object-cover shadow-md border border-amber-400/40 bg-white"
               />
             ) : (

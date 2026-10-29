@@ -11,30 +11,47 @@ import {
   Filter, 
   Download, 
   ChevronRight,
-  PieChart
+  PieChart,
+  FileSpreadsheet,
+  FileText,
+  Printer
 } from 'lucide-react';
 import { db } from '../db';
-import type { Order, Shift } from '../types';
+import type { Order, Shift, StoreSettings } from '../types';
 import { GoogleSheetsBridge } from '../services/googleSheets';
+import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 
 export const ReportsPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [settings, setSettings] = useState<StoreSettings | null>(null);
   
+  // Tax Invoice Modal State
+  const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<Order | null>(null);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+
   // Date Range Filters
   const [dateFilterMode, setDateFilterMode] = useState<'TODAY' | '7DAYS' | 'THIS_MONTH' | 'LAST_MONTH' | 'ALL' | 'CUSTOM'>('THIS_MONTH');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   
   // Active Report Sub-Tab
-  const [reportTab, setReportTab] = useState<'OVERVIEW' | 'SHIFTS' | 'DAILY' | 'ORDERS'>('OVERVIEW');
+  const [reportTab, setReportTab] = useState<'OVERVIEW' | 'SHIFTS' | 'DAILY' | 'ACCOUNTING' | 'ORDERS'>('OVERVIEW');
 
-  useEffect(() => {
-    Promise.all([db.orders.toArray(), db.shifts.toArray()]).then(([o, s]) => {
+  const loadData = () => {
+    Promise.all([
+      db.orders.toArray(),
+      db.shifts.toArray(),
+      db.settings.get('current_store_settings')
+    ]).then(([o, s, sett]) => {
       setOrders(o);
       setShifts(s);
+      if (sett) setSettings(sett);
     });
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   // Filter Orders based on selected Date Range
@@ -122,17 +139,22 @@ export const ReportsPage: React.FC = () => {
     GoogleSheetsBridge.downloadCsv(csv, `POS_Report_${dateFilterMode}_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
+  const handleOpenTaxInvoice = (order: Order) => {
+    setSelectedOrderForInvoice(order);
+    setIsInvoiceModalOpen(true);
+  };
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 pb-16">
       {/* Top Header & Export */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-amber-500" />
-            <span>รายงานการเงิน, สรุปกะ และกำไรสุทธิ (แอดมินเจ้าของร้าน)</span>
+            <span>รายงานการเงิน, สรุปกะ, บัญชี และกำไรสุทธิ (แอดมินเจ้าของร้าน)</span>
           </h1>
-          <p className="text-xs text-slate-500">
-            วิเคราะห์ยอดขาย กำไรขั้นต้น (Gross Profit) สรุปกะพนักงาน สรุปรายวัน และรายเดือน
+          <p className="text-xs text-slate-500 mt-0.5">
+            วิเคราะห์ยอดขาย กำไรขั้นต้น (Gross Profit) สรุปกะพนักงาน สรุปรายวัน บัญชีแจกแจงรายการ และพิมพ์ใบกำกับภาษีย้อนหลัง
           </p>
         </div>
 
@@ -141,7 +163,7 @@ export const ReportsPage: React.FC = () => {
           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
         >
           <Download className="w-4 h-4" />
-          <span>ส่งออกรายงานเป็น CSV (Google Sheets)</span>
+          <span>ส่งออกรายงานเป็น CSV (Google Sheets / Excel)</span>
         </button>
       </div>
 
@@ -281,9 +303,9 @@ export const ReportsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* SUB-TABS: ภาพรวม / สรุปกะ / สรุปรายวัน / ประวัติบิล */}
+      {/* SUB-TABS: ภาพรวม / สรุปกะ / สรุปรายวัน / บัญชีแจกแจงละเอียด / ประวัติบิล */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-2 bg-slate-50 border-b border-slate-200 flex gap-1">
+        <div className="p-2 bg-slate-50 border-b border-slate-200 flex flex-wrap gap-1">
           <button
             onClick={() => setReportTab('OVERVIEW')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
@@ -309,12 +331,20 @@ export const ReportsPage: React.FC = () => {
             📅 สรุปยอดรายวัน ({dailyMap.size})
           </button>
           <button
+            onClick={() => setReportTab('ACCOUNTING')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+              reportTab === 'ACCOUNTING' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
+            }`}
+          >
+            📑 บัญชีและรายการขายละเอียด ({filteredOrders.length})
+          </button>
+          <button
             onClick={() => setReportTab('ORDERS')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
               reportTab === 'ORDERS' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            🧾 ประวัติการขาย ({filteredOrders.length})
+            🧾 ประวัติการขาย & ออกใบกำกับภาษี ({filteredOrders.length})
           </button>
         </div>
 
@@ -449,7 +479,113 @@ export const ReportsPage: React.FC = () => {
           </div>
         )}
 
-        {/* 4. ORDERS HISTORY TABLE */}
+        {/* 4. DETAILED ACCOUNTING LEDGER */}
+        {reportTab === 'ACCOUNTING' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
+                <tr>
+                  <th className="p-3">วันที่ / เวลา</th>
+                  <th className="p-3">เลขที่บิล</th>
+                  <th className="p-3">แคชเชียร์</th>
+                  <th className="p-3">ลูกค้า / สมาชิก</th>
+                  <th className="p-3">รายการสินค้าที่ขาย</th>
+                  <th className="p-3 text-center">ชำระเงิน</th>
+                  <th className="p-3 text-right">ยอดขายสุทธิ</th>
+                  <th className="p-3 text-right">ต้นทุนสินค้า</th>
+                  <th className="p-3 text-right">กำไรขั้นต้น</th>
+                  <th className="p-3 text-center">เอกสาร</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredOrders.slice().reverse().map(order => {
+                  const orderCogs = order.items.reduce((s, i) => s + (i.costPrice || 0) * i.qty, 0);
+                  const orderProfit = order.netTotal - orderCogs;
+                  return (
+                    <tr key={order.id} className="hover:bg-slate-50">
+                      <td className="p-3 font-mono text-slate-500 whitespace-nowrap">
+                        {new Date(order.timestamp).toLocaleString('th-TH', { 
+                          day: '2-digit', 
+                          month: 'short', 
+                          year: '2-digit', 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </td>
+                      <td className="p-3 font-mono font-bold text-slate-800">{order.localOrderId}</td>
+                      <td className="p-3 text-slate-700 whitespace-nowrap">{order.cashierName}</td>
+                      <td className="p-3 text-slate-700 whitespace-nowrap">{order.customerName || '-'}</td>
+                      <td className="p-3 text-slate-700">
+                        <div className="space-y-0.5">
+                          {order.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between gap-2 text-[11px]">
+                              <span>• {item.productName}</span>
+                              <span className="font-mono text-slate-400">x{item.qty} (฿{item.lineTotal.toLocaleString()})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-3 text-center whitespace-nowrap">
+                        {order.payments.map((p, idx) => (
+                          <span
+                            key={idx}
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold mr-1 ${
+                              p.method === 'CASH'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-sky-100 text-sky-800'
+                            }`}
+                          >
+                            {p.method === 'CASH' ? '💵 สด' : '📱 โอน'} ฿{p.amount.toLocaleString()}
+                          </span>
+                        ))}
+                      </td>
+                      <td className="p-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
+                        ฿{order.netTotal.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right font-mono text-slate-500 whitespace-nowrap">
+                        ฿{orderCogs.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right font-mono font-bold text-amber-700 whitespace-nowrap">
+                        ฿{orderProfit.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <button
+                          onClick={() => handleOpenTaxInvoice(order)}
+                          className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition"
+                          title="ดูและพิมพ์ใบกำกับภาษีเต็มรูป"
+                        >
+                          <FileText className="w-3 h-3 text-amber-600" />
+                          <span>ใบกำกับ</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+
+              {/* Grand Total Sticky Footer */}
+              <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
+                <tr>
+                  <td colSpan={6} className="p-3.5 text-right uppercase text-xs tracking-wider">
+                    ยอดรวมสุทธิทั้งสิ้น ({filteredOrders.length} บิล):
+                  </td>
+                  <td className="p-3.5 text-right font-mono text-sm text-emerald-700">
+                    ฿{totalRevenue.toLocaleString()}
+                  </td>
+                  <td className="p-3.5 text-right font-mono text-sm text-slate-600">
+                    ฿{totalCogs.toLocaleString()}
+                  </td>
+                  <td className="p-3.5 text-right font-mono text-sm text-amber-700">
+                    ฿{grossProfit.toLocaleString()}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {/* 5. ORDERS HISTORY TABLE */}
         {reportTab === 'ORDERS' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -464,6 +600,7 @@ export const ReportsPage: React.FC = () => {
                   <th className="p-3 text-right">ส่วนลด</th>
                   <th className="p-3 text-right">ยอดสุทธิ</th>
                   <th className="p-3 text-center">ชำระด้วย</th>
+                  <th className="p-3 text-center">ใบกำกับภาษี</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -486,6 +623,15 @@ export const ReportsPage: React.FC = () => {
                         {order.payments.map(p => p.method).join(' + ')}
                       </span>
                     </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => handleOpenTaxInvoice(order)}
+                        className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold inline-flex items-center gap-1 transition"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-amber-600" />
+                        <span>พิมพ์ A4 / สลิป</span>
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -493,6 +639,20 @@ export const ReportsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Tax Invoice Modal */}
+      {selectedOrderForInvoice && settings && (
+        <TaxInvoiceModal
+          isOpen={isInvoiceModalOpen}
+          order={selectedOrderForInvoice}
+          settings={settings}
+          onClose={() => {
+            setIsInvoiceModalOpen(false);
+            setSelectedOrderForInvoice(null);
+          }}
+          onSaved={loadData}
+        />
+      )}
     </div>
   );
 };

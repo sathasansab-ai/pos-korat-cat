@@ -6,9 +6,11 @@ export interface UserAccount {
   id: string;
   name: string;
   role: UserRole;
-  pin: string; // 4-6 digit PIN
+  pin: string; // 4-12 alphanumeric characters
   isActive?: boolean;
 }
+
+export type CustomerScreenTheme = 'BLACK_GOLD' | 'BROWN_GOLD' | 'WHITE_GOLD' | 'EMERALD_GOLD';
 
 export interface StoreSettings {
   id: string;
@@ -24,6 +26,18 @@ export interface StoreSettings {
   receiptFooter: string;
   logoUrl?: string;
   printerPaperWidth: '58mm' | '80mm';
+  
+  // Tax / VAT Settings
+  vatType: 'NONE' | 'INCLUSIVE' | 'EXCLUSIVE'; // ไม่คิด VAT, รวม VAT ในราคาแล้ว, หรือ คิด VAT เพิ่ม 7%
+  vatRate: number; // e.g. 7%
+  taxInvoiceTitle: string; // เช่น ใบเสร็จรับเงิน / ใบกำกับภาษีแบบเต็มรูป
+
+  // Customer Facing Screen Customization
+  customerScreenTheme: CustomerScreenTheme;
+  welcomeTitle: string;
+  welcomeSubtitle: string;
+  welcomeImageUrl?: string;
+  thankYouMessage: string;
 }
 
 export interface Product {
@@ -59,7 +73,7 @@ export interface PromotionRule {
   type: 'MIX_AND_MATCH' | 'TIERED' | 'DISCOUNT_PERCENT';
   requiredQty: number;
   bundlePrice: number;
-  targetAudience: 'ALL' | 'MEMBER_ONLY'; // สิทธิ์โปรโมชั่น: ทั่วไป หรือ เฉพาะสมาชิก
+  targetAudience: 'ALL' | 'MEMBER_ONLY';
   eligibleCategories?: string[];
   eligibleVariantIds?: string[];
   startDate: string;
@@ -83,9 +97,10 @@ export interface CartItem {
 export interface Customer {
   id: string;
   phone: string;
-  name: string; // ชื่อ-นามสกุล
-  contactChannel?: string; // LINE ID, Facebook, Email
+  name: string;
+  contactChannel?: string; // LINE, FB, Email
   address?: string;
+  taxId?: string;
   rewardPoints: number;
   totalSpent: number;
   createdAt?: string;
@@ -96,6 +111,14 @@ export type PaymentMethodType = 'CASH' | 'PROMPTPAY' | 'CREDIT_CARD';
 export interface PaymentEntry {
   method: PaymentMethodType;
   amount: number;
+}
+
+export interface CustomerTaxInfo {
+  name: string;
+  taxId: string;
+  branch: string; // สำนักงานใหญ่ หรือ สาขาที่...
+  address: string;
+  phone?: string;
 }
 
 export interface Order {
@@ -120,12 +143,31 @@ export interface Order {
   }[];
   subtotal: number;
   promoDiscount: number;
+  
+  // Custom discount
+  customDiscountType?: 'PERCENT' | 'AMOUNT';
+  customDiscountValue?: number;
+  customDiscountAmount?: number;
+  customDiscountReason?: string;
+  
+  // VAT breakdown
+  vatType?: 'NONE' | 'INCLUSIVE' | 'EXCLUSIVE';
+  vatRate?: number;
+  preTaxAmount?: number;
+  vatAmount?: number;
+
   netTotal: number;
   payments: PaymentEntry[];
   cashReceived?: number;
   changeGiven?: number;
   status: 'COMPLETED' | 'HOLD' | 'VOIDED';
   isSynced: boolean;
+
+  // Tax Invoice Info
+  isTaxInvoiceIssued?: boolean;
+  taxInvoiceNo?: string;
+  taxInvoiceDate?: string;
+  customerTaxInfo?: CustomerTaxInfo;
 }
 
 export interface Shift {
@@ -146,7 +188,6 @@ export interface Shift {
   notes?: string;
 }
 
-// หมวดหมู่เริ่มต้นที่รองรับการขยายตัวในอนาคต
 export const DEFAULT_PRODUCT_CATEGORIES = [
   'เสื้อผ้าแฟชั่นไฮเอนด์',
   'หมวกและแอคเซสเซอรี่',

@@ -20,7 +20,10 @@ import {
   Printer,
   Phone,
   MessageSquare,
-  Image as ImageIcon
+  Percent,
+  FileText,
+  SlidersHorizontal,
+  ChevronDown
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
@@ -37,6 +40,7 @@ import { DualMonitorSync } from '../services/dualMonitorSync';
 import { AuthService } from '../services/auth';
 import { PinModal } from '../components/PinModal';
 import { ReceiptModal } from '../components/ReceiptModal';
+import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 
 interface PosPageProps {
   currentUser: UserAccount;
@@ -56,8 +60,9 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [heldBills, setHeldBills] = useState<{ id: string; time: string; cart: CartItem[]; customer?: Customer }[]>([]);
   
-  // Member & Customer
-  const [customerPhone, setCustomerPhone] = useState('');
+  // Member & Customer Live Search
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isRegisterMemberOpen, setIsRegisterMemberOpen] = useState(false);
   const [regName, setRegName] = useState('');
@@ -65,15 +70,23 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [regContactChannel, setRegContactChannel] = useState('');
   const [regAddress, setRegAddress] = useState('');
 
-  // Payment Modal
+  // Custom Discount Modal State
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [discountType, setDiscountType] = useState<'PERCENT' | 'AMOUNT'>('PERCENT');
+  const [discountValue, setDiscountValue] = useState<number>(0);
+  const [discountReason, setDiscountReason] = useState<string>('');
+
+  // Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<'CASH' | 'PROMPTPAY' | 'SPLIT'>('CASH');
   const [cashTendered, setCashTendered] = useState<string>('');
-  const [promptPayAmount, setPromptPayAmount] = useState<number>(0);
-  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitCashAmount, setSplitCashAmount] = useState<number>(0);
+  const [splitPromptPayAmount, setSplitPromptPayAmount] = useState<number>(0);
   
-  // Receipt Modal
+  // Receipt & Tax Invoice Modals
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isTaxInvoiceModalOpen, setIsTaxInvoiceModalOpen] = useState(false);
 
   // Security Override
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -93,7 +106,21 @@ export const PosPage: React.FC<PosPageProps> = ({
     loadQuick();
   }, []);
 
-  // Search filter
+  // Customer Live Search
+  useEffect(() => {
+    if (!customerSearchQuery.trim()) {
+      setCustomerSearchResults([]);
+      return;
+    }
+    const q = customerSearchQuery.trim().toLowerCase();
+    db.customers
+      .filter(c => c.phone.includes(q) || c.name.toLowerCase().includes(q))
+      .limit(6)
+      .toArray()
+      .then(setCustomerSearchResults);
+  }, [customerSearchQuery]);
+
+  // Product Search filter
   useEffect(() => {
     if (!searchTerm.trim()) {
       setSearchResults([]);
@@ -171,7 +198,7 @@ export const PosPage: React.FC<PosPageProps> = ({
     setCart(prev => prev.filter(i => i.variantId !== variantId));
   };
 
-  // Run Promotion Engine Calculation (Passes whether customer is member or not)
+  // Run Promotion Engine Calculation
   const [promotions, setPromotions] = useState<any[]>([]);
   useEffect(() => {
     db.promotions.where({ isActive: true }).toArray().then(setPromotions);
@@ -179,17 +206,51 @@ export const PosPage: React.FC<PosPageProps> = ({
 
   const promoResult = PromotionEngine.calculate(cart, promotions, !!selectedCustomer);
 
+  // Calculate Custom Discount
+  let customDiscountAmount = 0;
+  if (discountValue > 0) {
+    const baseForDiscount = Math.max(0, promoResult.originalSubtotal - promoResult.discountTotal);
+    if (discountType === 'PERCENT') {
+      customDiscountAmount = (baseForDiscount * discountValue) / 100;
+    } else {
+      customDiscountAmount = Math.min(baseForDiscount, discountValue);
+    }
+  }
+
+  // Calculate Tax (VAT)
+  const afterDiscountTotal = Math.max(0, promoResult.netTotal - customDiscountAmount);
+  const vatRate = settings?.vatRate || 7;
+  let vatAmount = 0;
+  let preTaxAmount = afterDiscountTotal;
+  let finalNetTotal = afterDiscountTotal;
+
+  if (settings?.vatType === 'EXCLUSIVE') {
+    vatAmount = (afterDiscountTotal * vatRate) / 100;
+    finalNetTotal = afterDiscountTotal + vatAmount;
+  } else if (settings?.vatType === 'INCLUSIVE') {
+    preTaxAmount = (afterDiscountTotal * 100) / (100 + vatRate);
+    vatAmount = afterDiscountTotal - preTaxAmount;
+    finalNetTotal = afterDiscountTotal;
+  }
+
   // Broadcast to Customer-Facing Dual Screen
   useEffect(() => {
     DualMonitorSync.broadcast({
       cart,
       subtotal: promoResult.originalSubtotal,
       promoDiscount: promoResult.discountTotal,
-      netTotal: promoResult.netTotal,
+      customDiscount: customDiscountAmount,
+      vatAmount,
+      netTotal: finalNetTotal,
       upsellPrompts: promoResult.upsellPrompts,
-      lastScannedItem: cart.length > 0 ? cart[cart.length - 1].productName : undefined
+      lastScannedItem: cart.length > 0 ? cart[cart.length - 1].productName : undefined,
+      theme: settings?.customerScreenTheme,
+      welcomeTitle: settings?.welcomeTitle,
+      welcomeSubtitle: settings?.welcomeSubtitle,
+      welcomeImageUrl: settings?.welcomeImageUrl,
+      thankYouMessage: settings?.thankYouMessage
     });
-  }, [cart, promoResult.originalSubtotal, promoResult.discountTotal, promoResult.netTotal]);
+  }, [cart, promoResult.originalSubtotal, promoResult.discountTotal, customDiscountAmount, finalNetTotal, settings]);
 
   // Hold Bill
   const handleHoldBill = () => {
@@ -218,6 +279,7 @@ export const PosPage: React.FC<PosPageProps> = ({
     if (AuthService.isOwner()) {
       setCart([]);
       setSelectedCustomer(null);
+      setDiscountValue(0);
     } else {
       setPinAction('VOID_BILL');
       setIsPinModalOpen(true);
@@ -230,28 +292,12 @@ export const PosPage: React.FC<PosPageProps> = ({
       if (pinAction === 'VOID_BILL') {
         setCart([]);
         setSelectedCustomer(null);
+        setDiscountValue(0);
       }
       setIsPinModalOpen(false);
       setPinAction(null);
     } else {
       alert('รหัสแอดมินเจ้าของร้านไม่ถูกต้อง!');
-    }
-  };
-
-  // Lookup Customer
-  const handleLookupCustomer = async () => {
-    if (!customerPhone.trim()) return;
-    const cust = await db.customers
-      .filter(c => c.phone.includes(customerPhone.trim()) || c.name.toLowerCase().includes(customerPhone.toLowerCase()))
-      .first();
-
-    if (cust) {
-      setSelectedCustomer(cust);
-      setCustomerPhone('');
-    } else {
-      // Auto open Register Member Modal with pre-filled phone!
-      setRegPhone(customerPhone.trim());
-      setIsRegisterMemberOpen(true);
     }
   };
 
@@ -277,32 +323,62 @@ export const PosPage: React.FC<PosPageProps> = ({
     await db.customers.add(newCust);
     setSelectedCustomer(newCust);
     setIsRegisterMemberOpen(false);
+    setCustomerSearchQuery('');
     setRegName('');
     setRegPhone('');
     setRegContactChannel('');
     setRegAddress('');
-    alert(`สมัครสมาชิกคุณ ${newCust.name} สำเร็จเรียบร้อย! สามารถรับสิทธิ์โปรโมชั่นและสะสมแต้มได้ทันที`);
+    alert(`สมัครสมาชิกคุณ ${newCust.name} สำเร็จเรียบร้อย!`);
   };
 
-  // Finalize Checkout
-  const handleCompleteOrder = async () => {
+  // Open Checkout Modal
+  const openCheckout = () => {
     if (!activeShift) {
       alert('กรุณาเปิดกะก่อนทำการคิดเงิน');
       onOpenShiftRequired();
       return;
     }
+    setPaymentMode('CASH');
+    setCashTendered(finalNetTotal.toString());
+    setSplitCashAmount(Math.round(finalNetTotal / 2));
+    setSplitPromptPayAmount(finalNetTotal - Math.round(finalNetTotal / 2));
+    setIsPaymentModalOpen(true);
+  };
 
-    const net = promoResult.netTotal;
-    const cashVal = parseFloat(cashTendered) || 0;
-    const promptPayVal = promptPayAmount;
+  // Finalize Checkout with ACCURATE Cash vs Transfer tracking
+  const handleCompleteOrder = async () => {
+    if (!activeShift) return;
 
+    let finalPayments: { method: 'CASH' | 'PROMPTPAY'; amount: number }[] = [];
+    let cashRcv = 0;
     let change = 0;
-    if (!isSplitPayment) {
-      if (cashVal < net) {
+
+    if (paymentMode === 'CASH') {
+      const val = parseFloat(cashTendered) || 0;
+      if (val < finalNetTotal) {
         alert('ยอดเงินสดที่รับมาไม่เพียงพอ');
         return;
       }
-      change = cashVal - net;
+      cashRcv = val;
+      change = val - finalNetTotal;
+      finalPayments = [{ method: 'CASH', amount: finalNetTotal }];
+    } else if (paymentMode === 'PROMPTPAY') {
+      // 100% Transfer payment
+      cashRcv = 0;
+      change = 0;
+      finalPayments = [{ method: 'PROMPTPAY', amount: finalNetTotal }];
+    } else {
+      // Split payment
+      if (splitCashAmount + splitPromptPayAmount < finalNetTotal) {
+        alert('ยอดชำระรวมยังไม่ครบตามยอดสุทธิ');
+        return;
+      }
+      cashRcv = splitCashAmount;
+      change = 0;
+      finalPayments = [
+        { method: 'CASH', amount: splitCashAmount },
+        { method: 'PROMPTPAY', amount: splitPromptPayAmount }
+      ];
     }
 
     const order: Order = {
@@ -327,22 +403,29 @@ export const PosPage: React.FC<PosPageProps> = ({
       })),
       subtotal: promoResult.originalSubtotal,
       promoDiscount: promoResult.discountTotal,
-      netTotal: net,
-      payments: isSplitPayment
-        ? [
-            { method: 'CASH', amount: cashVal },
-            { method: 'PROMPTPAY', amount: promptPayVal }
-          ]
-        : [{ method: 'CASH', amount: net }],
-      cashReceived: isSplitPayment ? cashVal : cashVal,
+      
+      customDiscountType: discountValue > 0 ? discountType : undefined,
+      customDiscountValue: discountValue > 0 ? discountValue : undefined,
+      customDiscountAmount: customDiscountAmount > 0 ? customDiscountAmount : undefined,
+      customDiscountReason: discountReason || undefined,
+
+      vatType: settings?.vatType,
+      vatRate: settings?.vatRate,
+      preTaxAmount,
+      vatAmount,
+
+      netTotal: finalNetTotal,
+      payments: finalPayments,
+      cashReceived: cashRcv,
       changeGiven: change,
       status: 'COMPLETED',
       isSynced: false
     };
 
+    // 1. Save to Database
     await db.orders.add(order);
 
-    // Cut Inventory Stock
+    // 2. Cut Inventory Stock
     for (const item of cart) {
       const v = await db.variants.get(item.variantId);
       if (v) {
@@ -352,25 +435,26 @@ export const PosPage: React.FC<PosPageProps> = ({
       }
     }
 
-    // Update Shift Totals
-    const cashPortion = isSplitPayment ? cashVal : net;
-    const promptPayPortion = isSplitPayment ? promptPayVal : 0;
+    // 3. Update Shift Totals (Separating Cash vs Transfer accurately!)
+    const cashPortion = finalPayments.find(p => p.method === 'CASH')?.amount || 0;
+    const promptPayPortion = finalPayments.find(p => p.method === 'PROMPTPAY')?.amount || 0;
+
     await db.shifts.update(activeShift.id, {
       totalCashSales: (activeShift.totalCashSales || 0) + cashPortion,
       totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + promptPayPortion,
       totalTransactions: (activeShift.totalTransactions || 0) + 1
     });
 
-    // Update Customer Reward Points
+    // 4. Update Customer Reward Points
     if (selectedCustomer) {
-      const earnedPoints = Math.floor(net / 100);
+      const earnedPoints = Math.floor(finalNetTotal / 100);
       await db.customers.update(selectedCustomer.id, {
         rewardPoints: selectedCustomer.rewardPoints + earnedPoints,
-        totalSpent: selectedCustomer.totalSpent + net
+        totalSpent: selectedCustomer.totalSpent + finalNetTotal
       });
     }
 
-    // Broadcast to Customer Screen
+    // 5. Broadcast Completed State & Thank You to Customer Screen
     DualMonitorSync.broadcast({
       cart: [],
       subtotal: 0,
@@ -378,7 +462,10 @@ export const PosPage: React.FC<PosPageProps> = ({
       netTotal: 0,
       upsellPrompts: [],
       isPaid: true,
-      changeGiven: change
+      changeGiven: change,
+      cashReceived: cashRcv,
+      thankYouMessage: settings?.thankYouMessage,
+      theme: settings?.customerScreenTheme
     });
 
     setCompletedOrder(order);
@@ -386,13 +473,13 @@ export const PosPage: React.FC<PosPageProps> = ({
     setIsReceiptModalOpen(true);
     setCart([]);
     setSelectedCustomer(null);
-    setCashTendered('');
-    setPromptPayAmount(0);
+    setDiscountValue(0);
+    setDiscountReason('');
   };
 
   return (
     <div className="flex h-[calc(100vh-61px)] overflow-hidden bg-slate-100">
-      {/* LEFT: Product Catalog & Quick Keys with Images (60%) */}
+      {/* LEFT: Product Catalog & Quick Keys (60%) */}
       <div className="flex-1 flex flex-col p-4 overflow-hidden border-r border-slate-200">
         {/* Omni Search & Barcode input */}
         <form onSubmit={handleBarcodeSubmit} className="flex gap-2 mb-3">
@@ -517,59 +604,81 @@ export const PosPage: React.FC<PosPageProps> = ({
         )}
       </div>
 
-      {/* RIGHT: Cart, Calculations, Hold Bills & Payment (40%) */}
+      {/* RIGHT: Cart, Member Selector, Calculations & Payments (40%) */}
       <div className="w-[440px] bg-white flex flex-col shadow-xl">
-        {/* Customer & Member Bar with "+ สมัครสมาชิก" */}
-        <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
+        {/* Customer & Member Live Dropdown Selector */}
+        <div className="p-3 bg-slate-50 border-b border-slate-200 relative">
           {selectedCustomer ? (
-            <div className="flex items-center justify-between w-full">
+            <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs">
                   <User className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <span>{selectedCustomer.name}</span>
-                    <span className="text-[9px] bg-amber-100 text-amber-900 px-1 rounded font-bold">MEMBER</span>
+                    <span className="text-[9px] bg-amber-200 text-amber-900 px-1 rounded font-bold">MEMBER</span>
                   </div>
                   <div className="text-[11px] text-amber-700 font-mono">
-                    แต้ม: {selectedCustomer.rewardPoints} pt | โทร: {selectedCustomer.phone}
+                    แต้มสะสม: {selectedCustomer.rewardPoints} pt | โทร: {selectedCustomer.phone}
                   </div>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedCustomer(null)}
-                className="text-xs text-slate-400 hover:text-rose-600 font-medium"
+                className="text-xs text-slate-400 hover:text-rose-600 font-semibold"
               >
-                ยกเลิก
+                เปลี่ยน
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 w-full">
-              <input
-                type="text"
-                value={customerPhone}
-                onChange={e => setCustomerPhone(e.target.value)}
-                placeholder="ค้นหาเบอร์โทร / ชื่อสมาชิก..."
-                className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:ring-1 focus:ring-amber-500 outline-none"
-              />
-              <button
-                onClick={handleLookupCustomer}
-                className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold"
-              >
-                ค้นหา
-              </button>
-              <button
-                onClick={() => {
-                  setRegPhone(customerPhone.trim());
-                  setIsRegisterMemberOpen(true);
-                }}
-                title="สมัครสมาชิกใหม่เพื่อรับสิทธิพิเศษและแจ้งโปรโมชั่น"
-                className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition flex-shrink-0"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>+ สมัคร</span>
-              </button>
+            <div className="relative">
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <User className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={customerSearchQuery}
+                    onChange={e => setCustomerSearchQuery(e.target.value)}
+                    placeholder="พิมพ์เบอร์โทร หรือ ชื่อสมาชิก..."
+                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:ring-1 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+                <button
+                  onClick={() => setIsRegisterMemberOpen(true)}
+                  className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition flex-shrink-0"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>+ สมัคร</span>
+                </button>
+              </div>
+
+              {/* Customer Search Dropdown Results */}
+              {customerSearchResults.length > 0 && (
+                <div className="absolute left-0 right-0 top-10 mt-1 bg-white border border-amber-300 rounded-2xl shadow-2xl z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                  {customerSearchResults.map(c => (
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCustomer(c);
+                        setCustomerSearchQuery('');
+                        setCustomerSearchResults([]);
+                      }}
+                      className="p-2.5 hover:bg-amber-50 cursor-pointer flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-slate-800">{c.name}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">โทร: {c.phone} {c.contactChannel ? `(${c.contactChannel})` : ''}</div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-mono font-bold">
+                          {c.rewardPoints} pt
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -648,15 +757,15 @@ export const PosPage: React.FC<PosPageProps> = ({
           )}
         </div>
 
-        {/* Calculation Summary */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-1.5">
-          <div className="flex justify-between text-xs text-slate-600">
+        {/* Calculation Summary & Custom Discount Button */}
+        <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-1.5 text-xs">
+          <div className="flex justify-between text-slate-600">
             <span>ยอดรวม ({cart.reduce((s, i) => s + i.qty, 0)} ชิ้น):</span>
             <span className="font-mono">฿{promoResult.originalSubtotal.toLocaleString()}</span>
           </div>
 
           {promoResult.discountTotal > 0 && (
-            <div className="flex justify-between text-xs text-emerald-700 font-bold">
+            <div className="flex justify-between text-emerald-700 font-bold">
               <span className="flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-emerald-600" /> ส่วนลดโปรโมชั่น:
               </span>
@@ -664,10 +773,32 @@ export const PosPage: React.FC<PosPageProps> = ({
             </div>
           )}
 
+          {/* Custom Discount line */}
+          <div className="flex justify-between items-center text-slate-600">
+            <button
+              onClick={() => setIsDiscountModalOpen(true)}
+              className="text-amber-700 hover:underline flex items-center gap-1 font-semibold"
+            >
+              <Percent className="w-3 h-3" />
+              <span>{discountValue > 0 ? `ส่วนลดพิเศษ (${discountType === 'PERCENT' ? `${discountValue}%` : `฿${discountValue}`})` : '+ ให้ส่วนลดเพิ่มเติม'}</span>
+            </button>
+            <span className="font-mono font-bold text-rose-600">
+              {customDiscountAmount > 0 ? `-฿${customDiscountAmount.toLocaleString()}` : '-'}
+            </span>
+          </div>
+
+          {/* VAT breakdown if enabled */}
+          {settings?.vatType !== 'NONE' && (
+            <div className="flex justify-between text-slate-500 pt-1 border-t border-slate-200 text-[11px]">
+              <span>ภาษีมูลค่าเพิ่ม VAT ({settings?.vatRate}% {settings?.vatType === 'INCLUSIVE' ? 'รวมในราคา' : 'คิดเพิ่ม'}):</span>
+              <span className="font-mono">฿{vatAmount.toFixed(2)}</span>
+            </div>
+          )}
+
           <div className="flex justify-between items-baseline pt-2 border-t border-slate-200">
             <span className="text-sm font-bold text-slate-800">ยอดชำระสุทธิ:</span>
             <span className="text-2xl font-black text-amber-600 font-mono">
-              ฿{promoResult.netTotal.toLocaleString()}
+              ฿{finalNetTotal.toLocaleString()}
             </span>
           </div>
         </div>
@@ -693,15 +824,7 @@ export const PosPage: React.FC<PosPageProps> = ({
           </button>
 
           <button
-            onClick={() => {
-              if (!activeShift) {
-                alert('กรุณาเปิดกะก่อนทำการคิดเงิน');
-                onOpenShiftRequired();
-                return;
-              }
-              setCashTendered(promoResult.netTotal.toString());
-              setIsPaymentModalOpen(true);
-            }}
+            onClick={openCheckout}
             disabled={cart.length === 0}
             className="py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-xl text-sm flex items-center justify-center space-x-1 shadow-lg disabled:opacity-40 transition"
           >
@@ -710,10 +833,276 @@ export const PosPage: React.FC<PosPageProps> = ({
         </div>
       </div>
 
-      {/* Register Member Modal */}
+      {/* CUSTOM DISCOUNT MODAL */}
+      {isDiscountModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+              <Percent className="w-5 h-5 text-amber-600" />
+              <span>กำหนดส่วนลดเพิ่มเติม</span>
+            </h3>
+
+            <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setDiscountType('PERCENT')}
+                className={`flex-1 py-2 rounded-lg transition ${discountType === 'PERCENT' ? 'bg-white shadow text-amber-800' : 'text-slate-600'}`}
+              >
+                ลดเป็นเปอร์เซ็นต์ (%)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDiscountType('AMOUNT')}
+                className={`flex-1 py-2 rounded-lg transition ${discountType === 'AMOUNT' ? 'bg-white shadow text-amber-800' : 'text-slate-600'}`}
+              >
+                ลดเป็นบาท (฿)
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {discountType === 'PERCENT' ? 'จำนวนเปอร์เซ็นต์ (%)' : 'จำนวนเงินบาท (฿)'}
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={discountType === 'PERCENT' ? 100 : finalNetTotal}
+                value={discountValue || ''}
+                onChange={e => setDiscountValue(parseFloat(e.target.value) || 0)}
+                placeholder="ระบุตัวเลขส่วนลด..."
+                className="w-full text-xl font-mono font-bold p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                autoFocus
+              />
+            </div>
+
+            {/* Quick Percent Presets */}
+            {discountType === 'PERCENT' && (
+              <div className="flex gap-2">
+                {[5, 10, 15, 20].map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setDiscountValue(p)}
+                    className="flex-1 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold rounded-lg text-xs"
+                  >
+                    {p}%
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">เหตุผลของส่วนลด</label>
+              <input
+                type="text"
+                value={discountReason}
+                onChange={e => setDiscountReason(e.target.value)}
+                placeholder="เช่น ส่วนลดลูกค้าคนพิเศษ, ผู้บริหารอนุมัติ..."
+                className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDiscountValue(0);
+                  setDiscountReason('');
+                  setIsDiscountModalOpen(false);
+                }}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+              >
+                ยกเลิกส่วนลด
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDiscountModalOpen(false)}
+                className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* THREE-WAY PAYMENT MODAL (100% Cash / 100% Transfer / Split) */}
+      {isPaymentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-slate-200">
+            <div className="bg-slate-950 text-white p-4 flex items-center justify-between border-b border-slate-800">
+              <h3 className="font-bold text-base flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-amber-400" />
+                <span>ชำระเงิน / ยอดสุทธิ ฿{finalNetTotal.toLocaleString()}</span>
+              </h3>
+              <button onClick={() => setIsPaymentModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* 3 DISTINCT PAYMENT BUTTONS */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMode('CASH');
+                    setCashTendered(finalNetTotal.toString());
+                  }}
+                  className={`py-3 px-2 rounded-2xl border text-center transition flex flex-col items-center justify-center gap-1 ${
+                    paymentMode === 'CASH'
+                      ? 'border-amber-500 bg-amber-50 text-amber-900 font-bold ring-2 ring-amber-400'
+                      : 'border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100'
+                  }`}
+                >
+                  <Banknote className="w-5 h-5 text-emerald-600" />
+                  <span className="text-xs">💵 เงินสด 100%</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMode('PROMPTPAY');
+                    setCashTendered('0');
+                  }}
+                  className={`py-3 px-2 rounded-2xl border text-center transition flex flex-col items-center justify-center gap-1 ${
+                    paymentMode === 'PROMPTPAY'
+                      ? 'border-sky-500 bg-sky-50 text-sky-900 font-bold ring-2 ring-sky-400'
+                      : 'border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100'
+                  }`}
+                >
+                  <QrCode className="w-5 h-5 text-sky-600" />
+                  <span className="text-xs">📱 โอน/QR 100%</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMode('SPLIT');
+                    setSplitCashAmount(Math.round(finalNetTotal / 2));
+                    setSplitPromptPayAmount(finalNetTotal - Math.round(finalNetTotal / 2));
+                  }}
+                  className={`py-3 px-2 rounded-2xl border text-center transition flex flex-col items-center justify-center gap-1 ${
+                    paymentMode === 'SPLIT'
+                      ? 'border-purple-500 bg-purple-50 text-purple-900 font-bold ring-2 ring-purple-400'
+                      : 'border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-5 h-5 text-purple-600" />
+                  <span className="text-xs">⚡ สด + โอน</span>
+                </button>
+              </div>
+
+              {/* CASH MODE */}
+              {paymentMode === 'CASH' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      เงินสดที่ได้รับจากลูกค้า (บาท) *เข้าลิ้นชักเงินสด
+                    </label>
+                    <input
+                      type="number"
+                      value={cashTendered}
+                      onChange={e => setCashTendered(e.target.value)}
+                      className="w-full text-2xl font-mono font-bold text-slate-900 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Quick Cash Buttons */}
+                  <div className="flex gap-2">
+                    {[100, 500, 1000].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setCashTendered(amt.toString())}
+                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-xs font-mono font-bold rounded-lg text-slate-700"
+                      >
+                        ฿{amt}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCashTendered(finalNetTotal.toString())}
+                      className="flex-1 py-2 bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold rounded-lg"
+                    >
+                      พอดี
+                    </button>
+                  </div>
+
+                  <div className="p-3 bg-amber-50 rounded-xl flex justify-between items-center border border-amber-200">
+                    <span className="text-xs font-bold text-amber-900">เงินทอนที่ต้องคืนลูกค้า:</span>
+                    <span className="text-2xl font-black font-mono text-amber-700">
+                      ฿{Math.max(0, (parseFloat(cashTendered) || 0) - finalNetTotal).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* 100% PROMPTPAY TRANSFER MODE */}
+              {paymentMode === 'PROMPTPAY' && (
+                <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl text-center space-y-2">
+                  <div className="flex items-center justify-center gap-2 text-sky-900 font-bold text-sm">
+                    <QrCode className="w-5 h-5 text-sky-600" />
+                    <span>ชำระผ่าน PromptPay QR เต็มจำนวน (100%)</span>
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    ลูกค้าสแกน QR Code หน้าจอลูกค้าแล้วยอดเงิน <b>฿{finalNetTotal.toLocaleString()}</b> จะบันทึกเป็นยอดเงินโอนเข้าบัญชี (ไม่คำนวณเข้าลิ้นชักเงินสด)
+                  </p>
+                </div>
+              )}
+
+              {/* SPLIT PAYMENT MODE */}
+              {paymentMode === 'SPLIT' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      ส่วนที่ 1: รับเงินสด (บาท) *เข้าลิ้นชัก
+                    </label>
+                    <input
+                      type="number"
+                      value={splitCashAmount}
+                      onChange={e => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setSplitCashAmount(val);
+                        setSplitPromptPayAmount(Math.max(0, finalNetTotal - val));
+                      }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      ส่วนที่ 2: สแกน PromptPay QR (บาท) *เข้าบัญชี
+                    </label>
+                    <input
+                      type="number"
+                      value={splitPromptPayAmount}
+                      onChange={e => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setSplitPromptPayAmount(val);
+                        setSplitCashAmount(Math.max(0, finalNetTotal - val));
+                      }}
+                      className="w-full px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl font-mono font-bold text-amber-800 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleCompleteOrder}
+                className="w-full py-3.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-2xl shadow-lg transition flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                <span>บันทึกการขายและพิมพ์สลิป</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REGISTER MEMBER MODAL */}
       {isRegisterMemberOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-amber-600" />
               <span>สมัครสมาชิกใหม่ (KORAT CAT BOUTIQUE)</span>
@@ -734,7 +1123,7 @@ export const PosPage: React.FC<PosPageProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">เบอร์โทรศัพท์ (ใช้เป็นรหัสสมาชิก) *</label>
+                <label className="block font-bold text-slate-700 mb-1">เบอร์โทรศัพท์ (ใช้เป็นรหัสค้นหาหลัก) *</label>
                 <input
                   type="tel"
                   required
@@ -756,9 +1145,6 @@ export const PosPage: React.FC<PosPageProps> = ({
                   placeholder="เช่น LINE: @vip_cat, FB: Wipavee..."
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  สำหรับแจ้งข่าวสาร คอลเลกชันใหม่ และโปรโมชั่นส่วนลดพิเศษ
-                </span>
               </div>
 
               <div>
@@ -792,131 +1178,23 @@ export const PosPage: React.FC<PosPageProps> = ({
         </div>
       )}
 
-      {/* Payment Modal */}
-      {isPaymentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
-              <h3 className="font-bold text-base flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-amber-400" />
-                <span>ชำระเงิน / ยอดสุทธิ ฿{promoResult.netTotal.toLocaleString()}</span>
-              </h3>
-              <button onClick={() => setIsPaymentModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="flex rounded-xl bg-slate-100 p-1">
-                <button
-                  type="button"
-                  onClick={() => setIsSplitPayment(false)}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${!isSplitPayment ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}
-                >
-                  💵 ชำระเต็มจำนวน (เงินสด)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSplitPayment(true);
-                    setPromptPayAmount(Math.floor(promoResult.netTotal / 2));
-                    setCashTendered((promoResult.netTotal - Math.floor(promoResult.netTotal / 2)).toString());
-                  }}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${isSplitPayment ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}
-                >
-                  ⚡ Split Payment (สด + โอน)
-                </button>
-              </div>
-
-              {!isSplitPayment ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    เงินสดที่ได้รับจากลูกค้า (บาท)
-                  </label>
-                  <input
-                    type="number"
-                    value={cashTendered}
-                    onChange={e => setCashTendered(e.target.value)}
-                    className="w-full text-2xl font-mono font-bold text-slate-900 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
-                    autoFocus
-                  />
-
-                  {/* Quick Cash Buttons */}
-                  <div className="flex gap-2 mt-2">
-                    {[100, 500, 1000].map(amt => (
-                      <button
-                        key={amt}
-                        onClick={() => setCashTendered(amt.toString())}
-                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-xs font-mono font-bold rounded-lg text-slate-700"
-                      >
-                        ฿{amt}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setCashTendered(promoResult.netTotal.toString())}
-                      className="flex-1 py-2 bg-amber-100 text-amber-800 hover:bg-amber-200 text-xs font-bold rounded-lg"
-                    >
-                      พอดี
-                    </button>
-                  </div>
-
-                  {/* Change Calculator */}
-                  <div className="mt-4 p-3 bg-amber-50 rounded-xl flex justify-between items-center border border-amber-200">
-                    <span className="text-xs font-bold text-amber-900">เงินทอนที่ต้องคืนลูกค้า:</span>
-                    <span className="text-2xl font-black font-mono text-amber-700">
-                      ฿{Math.max(0, (parseFloat(cashTendered) || 0) - promoResult.netTotal).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      ส่วนที่ 1: เงินสด (บาท)
-                    </label>
-                    <input
-                      type="number"
-                      value={cashTendered}
-                      onChange={e => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setCashTendered(e.target.value);
-                        setPromptPayAmount(Math.max(0, promoResult.netTotal - val));
-                      }}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      ส่วนที่ 2: สแกน PromptPay QR (บาท)
-                    </label>
-                    <input
-                      type="number"
-                      value={promptPayAmount}
-                      readOnly
-                      className="w-full px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl font-mono font-bold text-amber-800 text-sm"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <button
-                onClick={handleCompleteOrder}
-                className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-1.5"
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                <span>บันทึกการขายและพิมพ์ใบเสร็จสลิป</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Thermal Receipt Print Modal */}
+      {/* THERMAL RECEIPT MODAL */}
       {settings && (
         <ReceiptModal
           isOpen={isReceiptModalOpen}
           order={completedOrder}
           settings={settings}
           onClose={() => setIsReceiptModalOpen(false)}
+        />
+      )}
+
+      {/* FULL TAX INVOICE MODAL */}
+      {settings && (
+        <TaxInvoiceModal
+          isOpen={isTaxInvoiceModalOpen}
+          order={completedOrder}
+          settings={settings}
+          onClose={() => setIsTaxInvoiceModalOpen(false)}
         />
       )}
 

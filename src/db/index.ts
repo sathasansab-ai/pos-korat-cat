@@ -58,9 +58,31 @@ export async function seedInitialData() {
       receiptHeader: 'ยินดีต้อนรับสู่ KORAT CAT x เรือนโคราชเฉลิมวัฒนา\nขอบคุณที่สนับสนุนงานหัตถศิลป์และแฟชั่นท้องถิ่นโคราช',
       receiptFooter: 'สินค้าซื้อแล้วสามารถเปลี่ยนไซส์ได้ภายใน 7 วัน (สภาพสมบูรณ์)\nติดตามกิจกรรม Workshop และคอลเลกชันใหม่ได้ที่ FB/IG: @KoratCatHeritage',
       logoUrl: '',
-      printerPaperWidth: '80mm'
+      printerPaperWidth: '80mm',
+      vatType: 'NONE',
+      vatRate: 7,
+      taxInvoiceTitle: 'ใบกำกับภาษี / ใบเสร็จรับเงิน (ต้นฉบับ)',
+      customerScreenTheme: 'BLACK_GOLD',
+      welcomeTitle: 'ยินดีต้อนรับสู่ KORAT CAT',
+      welcomeSubtitle: 'สินค้าแฟชั่นอัตลักษณ์แมวโคราช x เรือนโคราชเฉลิมวัฒนา จะแสดงขึ้นที่นี่เมื่อสแกนบาร์โค้ด',
+      welcomeImageUrl: '',
+      thankYouMessage: 'ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา'
     };
     await db.settings.put(defaultSettings);
+  } else {
+    // Backfill any missing fields on existing database
+    const updated = {
+      ...existingSettings,
+      vatType: existingSettings.vatType || 'NONE',
+      vatRate: existingSettings.vatRate ?? 7,
+      taxInvoiceTitle: existingSettings.taxInvoiceTitle || 'ใบกำกับภาษี / ใบเสร็จรับเงิน (ต้นฉบับ)',
+      customerScreenTheme: existingSettings.customerScreenTheme || 'BLACK_GOLD',
+      welcomeTitle: existingSettings.welcomeTitle || 'ยินดีต้อนรับสู่ KORAT CAT',
+      welcomeSubtitle: existingSettings.welcomeSubtitle || 'สินค้าแฟชั่นอัตลักษณ์แมวโคราช x เรือนโคราชเฉลิมวัฒนา จะแสดงขึ้นที่นี่เมื่อสแกนบาร์โค้ด',
+      welcomeImageUrl: existingSettings.welcomeImageUrl || '',
+      thankYouMessage: existingSettings.thankYouMessage || 'ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา'
+    };
+    await db.settings.put(updated);
   }
 
   const userCount = await db.users.count();

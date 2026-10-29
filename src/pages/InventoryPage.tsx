@@ -5,13 +5,15 @@ import {
   Plus, 
   Sparkles, 
   Search, 
-  Trash2,
-  Layers,
-  Printer,
-  Tag,
-  Upload,
-  Filter,
-  Image as ImageIcon
+  Trash2, 
+  Layers, 
+  Printer, 
+  Tag, 
+  Upload, 
+  Filter, 
+  Image as ImageIcon,
+  Check,
+  X
 } from 'lucide-react';
 import { db } from '../db';
 import type { ProductVariant, StoreSettings } from '../types';
@@ -19,6 +21,11 @@ import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
 import { MatrixBuilder, type AttributeGroup } from '../services/matrixBuilder';
 import { BarcodePrintModal } from '../components/BarcodePrintModal';
 import { ImageOptimizer } from '../services/imageOptimizer';
+
+interface SizeStockEntry {
+  size: string;
+  qty: number;
+}
 
 export const InventoryPage: React.FC = () => {
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -44,21 +51,54 @@ export const InventoryPage: React.FC = () => {
   const [supplierName, setSupplierName] = useState('กลุ่มวิสาหกิจชุมชนหัตถศิลป์โคราช');
   const [matrixImagePreview, setMatrixImagePreview] = useState<string>('');
   
-  // Attribute Groups
+  // Attribute Groups for Matrix
   const [colors, setColors] = useState('ดำ Obsidian, ขาว Ivory, กรมท่า');
   const [sizes, setSizes] = useState('S, M, L, XL');
   const [techniques, setTechniques] = useState('DTF สีสวาดทอง, Flex นูนเมทัลลิก');
   const [patterns, setPatterns] = useState('แมวโคราชลายฉลุเรือนทอง, ตราประทับเฉลิมวัฒนา');
 
-  // Single Item Add State
+  // Single Item Add State (Multi-size Stock Support)
   const [singleName, setSingleName] = useState('');
   const [singleCategory, setSingleCategory] = useState(DEFAULT_PRODUCT_CATEGORIES[0]);
   const [singleCustomCategory, setSingleCustomCategory] = useState('');
   const [singleCost, setSingleCost] = useState(150);
   const [singlePrice, setSinglePrice] = useState(390);
-  const [singleStock, setSingleStock] = useState(20);
   const [singleImagePreview, setSingleImagePreview] = useState<string>('');
-  const [singleAttributes, setSingleAttributes] = useState('สี: ดำ, ไซส์: ฟรีไซส์, งาน: Handcraft');
+  const [singleColor, setSingleColor] = useState('ดำ Obsidian');
+  const [singleTechnique, setSingleTechnique] = useState('DTF คุณภาพสูง');
+  const [hasSizes, setHasSizes] = useState(true);
+  
+  // Size Breakdown Matrix for Single Item
+  const [sizeStocks, setSizeStocks] = useState<SizeStockEntry[]>([
+    { size: 'S', qty: 10 },
+    { size: 'M', qty: 20 },
+    { size: 'L', qty: 20 },
+    { size: 'XL', qty: 10 },
+    { size: '2XL', qty: 5 },
+  ]);
+  const [newSizeName, setNewSizeName] = useState('');
+  const [singleFixedStock, setSingleFixedStock] = useState<number>(20);
+
+  const resetSingleForm = () => {
+    setSingleName('');
+    setSingleCategory(DEFAULT_PRODUCT_CATEGORIES[0]);
+    setSingleCustomCategory('');
+    setSingleCost(150);
+    setSinglePrice(390);
+    setSingleImagePreview('');
+    setSingleColor('ดำ Obsidian');
+    setSingleTechnique('DTF คุณภาพสูง');
+    setHasSizes(true);
+    setSizeStocks([
+      { size: 'S', qty: 10 },
+      { size: 'M', qty: 20 },
+      { size: 'L', qty: 20 },
+      { size: 'XL', qty: 10 },
+      { size: '2XL', qty: 5 },
+    ]);
+    setSingleFixedStock(20);
+    setNewSizeName('');
+  };
 
   const loadVariants = async () => {
     const list = await db.variants.toArray();
@@ -94,8 +134,29 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
+  // Add custom size into list
+  const handleAddCustomSize = () => {
+    if (!newSizeName.trim()) return;
+    const exists = sizeStocks.some(s => s.size.toLowerCase() === newSizeName.trim().toLowerCase());
+    if (exists) {
+      alert('มีไซส์นี้อยู่ในรายการแล้ว');
+      return;
+    }
+    setSizeStocks(prev => [...prev, { size: newSizeName.trim().toUpperCase(), qty: 10 }]);
+    setNewSizeName('');
+  };
+
+  const handleRemoveSize = (sizeToRemove: string) => {
+    setSizeStocks(prev => prev.filter(s => s.size !== sizeToRemove));
+  };
+
+  const handleUpdateSizeQty = (sizeName: string, qty: number) => {
+    setSizeStocks(prev => prev.map(s => s.size === sizeName ? { ...s, qty: Math.max(0, qty) } : s));
+  };
+
+  // Matrix Generator
   const handleGenerateMatrix = async () => {
-    const targetCat = category === 'CUSTOM' ? (singleCustomCategory.trim() || 'สินค้าอื่นๆ') : category;
+    const targetCat = category === 'CUSTOM' ? (customCategory.trim() || 'สินค้าอื่นๆ') : category;
     const attrGroups: AttributeGroup[] = [
       { name: 'สี', key: 'color', values: colors.split(',').map(s => s.trim()) },
       { name: 'ไซส์', key: 'size', values: sizes.split(',').map(s => s.trim()) },
@@ -132,42 +193,83 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
+  // Add Single Product (Now supports saving each size as its own stock variant!)
   const handleAddSingleProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!singleName.trim()) return;
 
     const targetCat = singleCategory === 'CUSTOM' ? (singleCustomCategory.trim() || 'สินค้าทั่วไป') : singleCategory;
-    const autoBarcode = `885${Date.now().toString().slice(-7)}`;
-    const autoSku = `KCAT-${Date.now().toString().slice(-5)}`;
+    const baseProductId = `prod-${Date.now()}`;
+    const cleanPrefix = singleName.trim().slice(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, '') || 'ITEM';
 
-    const attrMap: Record<string, string> = {};
-    singleAttributes.split(',').forEach(part => {
-      const [k, v] = part.split(':').map(s => s?.trim());
-      if (k && v) attrMap[k] = v;
-    });
+    const variantsToAdd: ProductVariant[] = [];
 
-    const newVariant: ProductVariant = {
-      id: `var-${Date.now()}`,
-      productId: `prod-${Date.now()}`,
-      productName: singleName.trim(),
-      category: targetCat,
-      sku: autoSku,
-      barcode: autoBarcode,
-      attributes: attrMap,
-      costPrice: singleCost,
-      salePrice: singlePrice,
-      stockQuantity: singleStock,
-      minStockAlert: 5,
-      imageUrl: singleImagePreview || undefined,
-      isActive: true
-    };
+    if (hasSizes) {
+      // Create a variant for each size entry that has stock > 0
+      const activeSizes = sizeStocks.filter(s => s.qty > 0);
+      if (activeSizes.length === 0) {
+        alert('กรุณาระบุจำนวนสต็อกอย่างน้อย 1 ไซส์');
+        return;
+      }
 
-    await db.variants.add(newVariant);
+      activeSizes.forEach((s, idx) => {
+        const autoBarcode = `885${Date.now().toString().slice(-6)}${idx + 1}`;
+        const autoSku = `KCAT-${cleanPrefix}-${s.size}`;
+
+        variantsToAdd.push({
+          id: `var-${Date.now()}-${idx}`,
+          productId: baseProductId,
+          productName: `${singleName.trim()} (${s.size})`,
+          category: targetCat,
+          sku: autoSku,
+          barcode: autoBarcode,
+          attributes: {
+            color: singleColor,
+            size: s.size,
+            technique: singleTechnique
+          },
+          costPrice: singleCost,
+          salePrice: singlePrice,
+          stockQuantity: s.qty,
+          minStockAlert: 3,
+          imageUrl: singleImagePreview || undefined,
+          isActive: true
+        });
+      });
+    } else {
+      // Single Fixed Item (e.g. Bag, Souvenir, Workshop Ticket)
+      const autoBarcode = `885${Date.now().toString().slice(-7)}`;
+      const autoSku = `KCAT-${cleanPrefix}`;
+
+      variantsToAdd.push({
+        id: `var-${Date.now()}`,
+        productId: baseProductId,
+        productName: singleName.trim(),
+        category: targetCat,
+        sku: autoSku,
+        barcode: autoBarcode,
+        attributes: {
+          color: singleColor,
+          format: 'ฟรีไซส์ / ชิ้นเดียว'
+        },
+        costPrice: singleCost,
+        salePrice: singlePrice,
+        stockQuantity: singleFixedStock,
+        minStockAlert: 3,
+        imageUrl: singleImagePreview || undefined,
+        isActive: true
+      });
+    }
+
+    await db.variants.bulkAdd(variantsToAdd);
+    const totalQty = variantsToAdd.reduce((sum, v) => sum + v.stockQuantity, 0);
+
     setIsSingleModalOpen(false);
+    resetSingleForm(); // Form is cleaned and reset!
     loadVariants();
 
-    if (confirm(`เพิ่มสินค้าสำเร็จ! บาร์โค้ดที่ระบบสร้างให้: ${autoBarcode}\nต้องการพิมพ์สติ๊กเกอร์บาร์โค้ด ${singleStock} ดวงทันทีหรือไม่?`)) {
-      setSelectedVariantForPrint(newVariant);
+    if (confirm(`บันทึกสินค้าเรียบร้อย (${variantsToAdd.length} ตัวเลือก รวม ${totalQty} ชิ้น)!\nต้องการพิมพ์สติ๊กเกอร์บาร์โค้ดทันทีหรือไม่?`)) {
+      setSelectedVariantForPrint(variantsToAdd[0]);
       setIsPrintModalOpen(true);
     }
   };
@@ -184,7 +286,6 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  // Distinct Categories for Filter
   const allCategories = Array.from(new Set(variants.map(v => v.category).filter(Boolean)));
 
   const filteredVariants = variants.filter(v => {
@@ -206,22 +307,25 @@ export const InventoryPage: React.FC = () => {
             <span>คลังสินค้า & สติ๊กเกอร์บาร์โค้ด (แอดมินเจ้าของร้าน)</span>
           </h1>
           <p className="text-xs text-slate-500">
-            จัดการสินค้า ตัวเลือกย่อย หมวดหมู่ อัปโหลดภาพ และพิมพ์บาร์โค้ดติดสินค้า
+            จัดการสินค้าและสต็อกแยกตามไซส์ (S, M, L, XL...) อัปโหลดภาพ และสั่งพิมพ์สติ๊กเกอร์บาร์โค้ด
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setIsSingleModalOpen(true)}
-            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            onClick={() => {
+              resetSingleForm();
+              setIsSingleModalOpen(true);
+            }}
+            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow transition"
           >
             <Plus className="w-4 h-4" />
-            <span>+ เพิ่มสินค้าเดี่ยว (อัปโหลดรูป)</span>
+            <span>+ เพิ่มสินค้า (แยกสต็อกตามไซส์)</span>
           </button>
 
           <button
             onClick={() => setIsMatrixModalOpen(true)}
-            className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-lg transition"
+            className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition"
           >
             <Sparkles className="w-4 h-4" />
             <span>+ สร้าง Matrix Variants (DTF/Flex)</span>
@@ -237,7 +341,7 @@ export const InventoryPage: React.FC = () => {
             type="text"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            placeholder="ค้นหาตามชื่อสินค้า, SKU, Barcode, หรือลายพิมพ์..."
+            placeholder="ค้นหาตามชื่อสินค้า, ไซส์, SKU, หรือ Barcode..."
             className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-amber-500 outline-none"
           />
         </div>
@@ -261,18 +365,18 @@ export const InventoryPage: React.FC = () => {
       </div>
 
       {/* Inventory Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600">
             <thead className="bg-slate-50 text-slate-500 font-bold uppercase border-b border-slate-200">
               <tr>
                 <th className="p-3.5 text-center">รูปภาพ</th>
                 <th className="p-3.5">SKU / บาร์โค้ด</th>
-                <th className="p-3.5">ชื่อสินค้าและตัวเลือก</th>
+                <th className="p-3.5">ชื่อสินค้าและไซส์/ตัวเลือก</th>
                 <th className="p-3.5">หมวดหมู่</th>
                 <th className="p-3.5 text-right">ต้นทุน</th>
                 <th className="p-3.5 text-right">ราคาขาย</th>
-                <th className="p-3.5 text-center">คงเหลือ (ตัดสต็อกอัตโนมัติ)</th>
+                <th className="p-3.5 text-center">สต็อกคงเหลือ</th>
                 <th className="p-3.5 text-center">พิมพ์บาร์โค้ดติดสินค้า</th>
                 <th className="p-3.5 text-center">จัดการ</th>
               </tr>
@@ -320,18 +424,18 @@ export const InventoryPage: React.FC = () => {
                       <div className="inline-flex items-center gap-1">
                         <button
                           onClick={() => handleUpdateStock(item.id, item.stockQuantity - 1)}
-                          className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold"
+                          className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold"
                         >
                           -
                         </button>
-                        <span className={`px-2 py-0.5 rounded font-mono font-bold ${
+                        <span className={`px-2.5 py-0.5 rounded-lg font-mono font-bold ${
                           isLow ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-800'
                         }`}>
                           {item.stockQuantity}
                         </span>
                         <button
                           onClick={() => handleUpdateStock(item.id, item.stockQuantity + 1)}
-                          className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold"
+                          className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold"
                         >
                           +
                         </button>
@@ -354,7 +458,7 @@ export const InventoryPage: React.FC = () => {
                     <td className="p-3.5 text-center">
                       <button
                         onClick={() => handleDeleteVariant(item.id)}
-                        className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded"
+                        className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition"
                         title="ลบตัวเลือกนี้"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -368,36 +472,57 @@ export const InventoryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal Add Single Product (Direct Image Upload) */}
+      {/* MODAL: ADD PRODUCT WITH MULTI-SIZE STOCK MATRIX & FORM RESET */}
       {isSingleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-amber-500" />
-              <span>เพิ่มสินค้าเดี่ยว (อัปโหลดรูปภาพ & คำนวณบาร์โค้ด)</span>
-            </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-amber-500" />
+                <span>เพิ่มสินค้าใหม่ (ระบุจำนวนสต็อกแยกตามแต่ละไซส์)</span>
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => {
+                  resetSingleForm();
+                  setIsSingleModalOpen(false);
+                }} 
+                className="text-slate-400 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
 
-            <form onSubmit={handleAddSingleProduct} className="space-y-3 text-xs">
-              {/* Image Upload Area with Auto Compression */}
+            <form onSubmit={handleAddSingleProduct} className="space-y-4 text-xs">
+              {/* Image Upload Area with Compression */}
               <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-2xl flex items-center gap-4">
                 {singleImagePreview ? (
-                  <img
-                    src={singleImagePreview}
-                    alt="Preview"
-                    className="w-20 h-20 rounded-xl object-cover border border-amber-400 shadow-sm flex-shrink-0"
-                  />
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={singleImagePreview}
+                      alt="Preview"
+                      className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-400 shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSingleImagePreview('')}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 ) : (
-                  <div className="w-20 h-20 rounded-xl bg-slate-200 flex flex-col items-center justify-center text-slate-400 flex-shrink-0">
+                  <div className="w-20 h-20 rounded-2xl bg-slate-200 flex flex-col items-center justify-center text-slate-400 flex-shrink-0">
                     <ImageIcon className="w-6 h-6 mb-1" />
                     <span className="text-[9px]">ไม่มีรูปภาพ</span>
                   </div>
                 )}
                 <div className="flex-1">
                   <label className="block font-bold text-slate-700 mb-1">
-                    📷 อัปโหลดรูปภาพสินค้า (ปรับขนาดและบีบอัดอัตโนมัติ)
+                    📷 รูปภาพสินค้า (ถ่ายจากมือถือ ย่อบีบอัดอัตโนมัติ)
                   </label>
-                  <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 shadow transition">
-                    <Upload className="w-3.5 h-3.5" />
+                  <label className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 shadow transition">
+                    <Upload className="w-3.5 h-3.5 text-amber-400" />
                     <span>เลือกรูปภาพจากเครื่อง</span>
                     <input
                       type="file"
@@ -406,26 +531,26 @@ export const InventoryPage: React.FC = () => {
                       className="hidden"
                     />
                   </label>
-                  <p className="text-[10px] text-slate-400 mt-1">รองรับไฟล์ JPG, PNG จากมือถือ (ไฟล์ใหญ่จะถูกย่อให้อัตโนมัติ)</p>
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">ชื่อสินค้า</label>
+                <label className="block font-bold text-slate-700 mb-1">ชื่อสินค้า *</label>
                 <input
                   type="text"
                   required
                   value={singleName}
                   onChange={e => setSingleName(e.target.value)}
-                  placeholder="เช่น ผ้าพันคอผ้าไหมมัดหมี่ ลายแมวโคราช"
+                  placeholder="เช่น เสื้อยืดลิมิเต็ด KORAT CAT ลายฉลุเรือนโคราช"
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                  autoFocus
                 />
               </div>
 
               {/* Category Dropdown */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">หมวดหมู่ / ประเภทสินค้า</label>
+                  <label className="block font-bold text-slate-700 mb-1">หมวดหมู่สินค้า</label>
                   <select
                     value={singleCategory}
                     onChange={e => setSingleCategory(e.target.value)}
@@ -439,12 +564,13 @@ export const InventoryPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">จำนวนสต็อกที่นำเข้า</label>
+                  <label className="block font-bold text-slate-700 mb-1">สีของสินค้า (Color)</label>
                   <input
-                    type="number"
-                    value={singleStock}
-                    onChange={e => setSingleStock(parseInt(e.target.value, 10) || 0)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold"
+                    type="text"
+                    value={singleColor}
+                    onChange={e => setSingleColor(e.target.value)}
+                    placeholder="เช่น ดำ Obsidian, ขาว Ivory"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
                   />
                 </div>
               </div>
@@ -465,7 +591,7 @@ export const InventoryPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">ต้นทุน (บาท)</label>
+                  <label className="block font-bold text-slate-700 mb-1">ต้นทุนมาตรฐาน (บาท)</label>
                   <input
                     type="number"
                     value={singleCost}
@@ -474,7 +600,7 @@ export const InventoryPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">ราคาขาย (บาท)</label>
+                  <label className="block font-bold text-slate-700 mb-1">ราคาขายมาตรฐาน (บาท)</label>
                   <input
                     type="number"
                     value={singlePrice}
@@ -484,21 +610,97 @@ export const InventoryPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">รายละเอียดตัวเลือก (Attributes)</label>
-                <input
-                  type="text"
-                  value={singleAttributes}
-                  onChange={e => setSingleAttributes(e.target.value)}
-                  placeholder="เช่น สี: ดำ, ไซส์: L, งาน: DTF"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
-                />
+              {/* SIZE BREAKDOWN SELECTOR */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-bold text-slate-800">
+                    📏 การแยกสต็อกตามไซส์ (Size Breakdown)
+                  </div>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={hasSizes}
+                      onChange={e => setHasSizes(e.target.checked)}
+                      className="rounded text-amber-600 focus:ring-amber-500"
+                    />
+                    <span>มีหลายไซส์ (เสื้อผ้า/หมวก)</span>
+                  </label>
+                </div>
+
+                {hasSizes ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-slate-500">
+                      กรอกจำนวนสต็อกที่นำเข้าของแต่ละไซส์ (ระบบจะสร้างบาร์โค้ดเฉพาะของแต่ละไซส์ให้อัตโนมัติ):
+                    </p>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {sizeStocks.map((item) => (
+                        <div key={item.size} className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                          <span className="font-bold font-mono text-slate-800 w-12">{item.size}:</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.qty}
+                            onChange={e => handleUpdateSizeQty(item.size, parseInt(e.target.value, 10) || 0)}
+                            className="w-16 p-1 bg-slate-50 border border-slate-300 rounded-lg text-center font-mono font-bold"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSize(item.size)}
+                            className="text-slate-300 hover:text-rose-500 p-0.5 ml-1"
+                            title="ลบไซส์นี้"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Add Custom Size Input */}
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="text"
+                        value={newSizeName}
+                        onChange={e => setNewSizeName(e.target.value)}
+                        placeholder="เพิ่มไซส์ใหม่ เช่น 3XL, เด็ก..."
+                        className="flex-1 p-2 bg-white border border-slate-300 rounded-xl text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomSize}
+                        className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl text-xs"
+                      >
+                        + เพิ่มไซส์
+                      </button>
+                    </div>
+
+                    <div className="p-2 bg-amber-50 rounded-xl text-right font-bold text-amber-900">
+                      รวมสต็อกทุกไซส์ทั้งหมด: <span className="font-mono text-sm">{sizeStocks.reduce((s, i) => s + i.qty, 0)}</span> ชิ้น
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      จำนวนสต็อกนำเข้าทั้งหมด (ชิ้น)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={singleFixedStock}
+                      onChange={e => setSingleFixedStock(parseInt(e.target.value, 10) || 1)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl font-mono font-bold text-sm"
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsSingleModalOpen(false)}
+                  onClick={() => {
+                    resetSingleForm();
+                    setIsSingleModalOpen(false);
+                  }}
                   className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold"
                 >
                   ยกเลิก
@@ -507,7 +709,7 @@ export const InventoryPage: React.FC = () => {
                   type="submit"
                   className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow"
                 >
-                  บันทึกสินค้า
+                  บันทึกสินค้า & สต็อก
                 </button>
               </div>
             </form>
@@ -515,10 +717,10 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Matrix Generator */}
+      {/* MATRIX MODAL */}
       {isMatrixModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-amber-400" />
@@ -528,37 +730,6 @@ export const InventoryPage: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
-              {/* Matrix Image Upload */}
-              <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-2xl flex items-center gap-4">
-                {matrixImagePreview ? (
-                  <img
-                    src={matrixImagePreview}
-                    alt="Preview"
-                    className="w-16 h-16 rounded-xl object-cover border border-amber-400 shadow-sm"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-xl bg-slate-200 flex flex-col items-center justify-center text-slate-400">
-                    <ImageIcon className="w-5 h-5 mb-0.5" />
-                    <span className="text-[8px]">ไม่มีรูปภาพ</span>
-                  </div>
-                )}
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    📷 รูปภาพของคอลเลกชันนี้ (ติดไปกับทุก Variants)
-                  </label>
-                  <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 shadow transition">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>อัปโหลดรูปภาพ</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleMatrixImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">ชื่อสินค้าแม่</label>
@@ -613,7 +784,7 @@ export const InventoryPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 bg-amber-50/70 rounded-xl border border-amber-200 space-y-3">
+              <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200 space-y-3">
                 <div className="font-bold text-amber-900 text-sm">
                   🎨 กำหนดตัวเลือกย่อย (คั่นด้วยเครื่องหมายจุลภาค ,)
                 </div>
@@ -661,7 +832,7 @@ export const InventoryPage: React.FC = () => {
 
               <button
                 onClick={handleGenerateMatrix}
-                className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm shadow-md transition flex items-center justify-center gap-2"
+                className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl text-sm shadow-md transition flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>คำนวณและสร้าง Matrix Variants ทันที</span>
