@@ -354,7 +354,7 @@ export const InventoryPage: React.FC = () => {
             onChange={e => setSelectedCategoryFilter(e.target.value)}
             className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none"
           >
-            <option value="ALL">📁 ทุกหมวดหมู่ ({variants.length})</option>
+            <option value="ALL">ทุกหมวดหมู่ ({variants.length})</option>
             {allCategories.map(cat => (
               <option key={cat} value={cat}>
                 {cat} ({variants.filter(v => v.category === cat).length})
@@ -394,8 +394,8 @@ export const InventoryPage: React.FC = () => {
                           className="w-11 h-11 rounded-xl object-cover border border-slate-200 mx-auto shadow-2xs"
                         />
                       ) : (
-                        <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-sm mx-auto">
-                          👕
+                        <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+                          <Tag className="w-4 h-4" />
                         </div>
                       )}
                     </td>

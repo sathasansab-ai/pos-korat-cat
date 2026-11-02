@@ -3,16 +3,21 @@
 /**
  * ปรับขนาดและบีบอัดรูปภาพฝั่งเบราว์เซอร์อัตโนมัติ
  * แปลงไฟล์ขนาดใหญ่ (เช่น 5MB-10MB จากมือถือ) ให้เหลือรูปภาพขนาดมาตรฐาน ~40-80KB
- * เพื่อจัดเก็บใน IndexedDB ได้อย่างรวดเร็วและไม่เปลืองพื้นที่
+ * โดยคงความโปร่งใส (Alpha Transparency) สำหรับไฟล์ PNG/WebP ไม่ให้เกิดขอบดำหรือกรอบสี่เหลี่ยม
  */
 export class ImageOptimizer {
   public static async resizeAndCompress(
     file: File,
-    maxWidth = 480,
-    maxHeight = 480,
-    quality = 0.8
+    maxWidth = 600,
+    maxHeight = 600,
+    quality = 0.88
   ): Promise<string> {
     return new Promise((resolve, reject) => {
+      const isPng = file.type === 'image/png' || file.name.toLowerCase().endsWith('.png');
+      const isWebp = file.type === 'image/webp' || file.name.toLowerCase().endsWith('.webp');
+      const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+      const preserveTransparency = isPng || isWebp || isSvg;
+
       const reader = new FileReader();
       reader.onerror = reject;
       reader.onload = (e) => {
@@ -44,9 +49,26 @@ export class ImageOptimizer {
             return;
           }
 
-          // วาดภาพลง Canvas และบีบอัดเป็น WebP หรือ JPEG
+          // เคลียร์ Canvas ให้เป็นพื้นหลังโปร่งใส 100% (Transparent)
+          ctx.clearRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+          let dataUrl: string;
+          if (preserveTransparency) {
+            // สำคัญ: ห้ามแปลงเป็น JPEG เพราะ JPEG ไม่รองรับ Transparency และจะเปลี่ยนพื้นหลังใสเป็น "สีดำ"
+            // ใช้ WebP (รักษาความโปร่งใสและบีบอัดได้ดี) หรือ PNG
+            try {
+              dataUrl = canvas.toDataURL('image/webp', quality);
+              if (!dataUrl.startsWith('data:image/webp')) {
+                dataUrl = canvas.toDataURL('image/png');
+              }
+            } catch {
+              dataUrl = canvas.toDataURL('image/png');
+            }
+          } else {
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+
           resolve(dataUrl);
         };
         img.src = e.target?.result as string;

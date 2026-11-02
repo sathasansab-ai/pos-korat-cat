@@ -108,11 +108,11 @@ export const PromotionsPage: React.FC = () => {
                   {/* Target Audience Badge */}
                   {promo.targetAudience === 'MEMBER_ONLY' ? (
                     <span className="px-2.5 py-0.5 bg-purple-100 text-purple-800 border border-purple-200 text-[10px] font-bold rounded-full flex items-center gap-1">
-                      <span>💎 เฉพาะสมาชิก</span>
+                      <span>เฉพาะสมาชิก (Member Only)</span>
                     </span>
                   ) : (
                     <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full flex items-center gap-1">
-                      <span>👥 ลูกค้าทุกคน</span>
+                      <span>ลูกค้าทุกคน (All Customers)</span>
                     </span>
                   )}
                 </div>

@@ -4,6 +4,7 @@ import {
   ShoppingCart, 
   Boxes, 
   Tag, 
+  Users,
   BarChart3, 
   FileSpreadsheet, 
   Clock, 
@@ -13,7 +14,8 @@ import {
   ShieldCheck, 
   UserCheck, 
   KeyRound,
-  Settings
+  Settings,
+  Lock
 } from 'lucide-react';
 import type { UserAccount, Shift, StoreSettings } from '../types';
 import { AuthService } from '../services/auth';
@@ -27,6 +29,7 @@ interface NavbarProps {
   settingsVer?: number;
   onSelectTab: (tab: string) => void;
   onUserChanged: (user: UserAccount) => void;
+  onLockScreen?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,7 +38,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   settingsVer = 0,
   onSelectTab,
-  onUserChanged
+  onUserChanged,
+  onLockScreen
 }) => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [logoError, setLogoError] = useState(false);
@@ -95,8 +99,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-10 h-10 rounded-xl object-cover shadow-md border border-amber-400/40 bg-white"
               />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center text-xl shadow-md border border-amber-400/30">
-                🐱
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center font-extrabold text-sm text-slate-950 shadow-md border border-amber-400/30">
+                KC
               </div>
             )}
             <div>
@@ -135,7 +139,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <Clock className="w-4 h-4" />
-              <span>กะพนักงาน {activeShift ? '🟢' : '🔴'}</span>
+              <span>กะพนักงาน</span>
+              <span className={`w-2 h-2 rounded-full ml-1 ${activeShift ? 'bg-emerald-400' : 'bg-slate-500'}`} />
             </button>
 
             {/* Owner Only Menus */}
@@ -163,6 +168,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Tag className="w-4 h-4" />
                   <span>โปรโมชั่น</span>
+                </button>
+
+                <button
+                  onClick={() => onSelectTab('members')}
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                    activeTab === 'members' 
+                      ? 'bg-amber-600 text-white shadow' 
+                      : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-amber-300" />
+                  <span>จัดการสมาชิก & บัตร</span>
                 </button>
 
                 <button
@@ -232,7 +249,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="text-right">
                 <div className="text-xs font-bold text-white flex items-center justify-end gap-1">
                   {isOwner ? (
-                    <span className="text-amber-400 flex items-center gap-0.5">👑 เจ้าของร้าน</span>
+                    <span className="text-amber-400 flex items-center gap-1 font-bold">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> เจ้าของร้าน
+                    </span>
                   ) : (
                     <span className="text-emerald-400 flex items-center gap-0.5"><UserCheck className="w-3 h-3" /> แคชเชียร์</span>
                   )}
@@ -249,6 +268,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <KeyRound className="w-4 h-4 text-amber-400" />
               </button>
+
+              {onLockScreen && (
+                <button
+                  onClick={onLockScreen}
+                  title="ล็อคหน้าจอ (PIN Lock)"
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:border-rose-400 transition"
+                >
+                  <Lock className="w-4 h-4 text-slate-300" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -256,7 +285,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       <PinModal
         isOpen={isPinModalOpen}
-        title={pinTargetRole === 'OWNER' ? '👑 ปลดล็อคสิทธิ์เจ้าของร้าน' : '👤 สลับเข้าสู่กะแคชเชียร์'}
+        title={pinTargetRole === 'OWNER' ? 'ปลดล็อคสิทธิ์เจ้าของร้าน (Owner)' : 'สลับเข้าสู่กะแคชเชียร์ (Cashier)'}
         subtitle={pinTargetRole === 'OWNER' ? 'กรุณากรอกรหัส PIN เจ้าของร้าน' : 'กรุณากรอกรหัส PIN แคชเชียร์'}
         onSuccess={handlePinSuccess}
         onClose={() => setIsPinModalOpen(false)}

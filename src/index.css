@@ -28,11 +28,18 @@
   background: #94a3b8;
 }
 
-/* THERMAL PRINTER OPTIMIZATIONS (58mm / 80mm) */
+/* THERMAL PRINTER & A4 TAX INVOICE PRINT OPTIMIZATIONS */
+@page {
+  size: A4 portrait;
+  margin: 8mm 10mm 8mm 10mm;
+}
+
 @media print {
-  /* Hide standard web UI headers and backgrounds during print */
+  /* Hide standard web UI headers, navigation, buttons and overlays */
   header, 
   nav, 
+  footer,
+  aside,
   .no-print {
     display: none !important;
   }
@@ -42,13 +49,98 @@
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
   }
 
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  /* Unset modal overlay constraints for print */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .max-w-4xl, .max-w-sm, .rounded-3xl, .rounded-2xl {
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Thermal Receipt Mode (Optimized for 58mm & 80mm ESC/POS Printers) */
   #printable-thermal-receipt {
+    display: block !important;
+    position: static !important;
     width: 100% !important;
-    max-width: 80mm !important;
+    max-width: 48mm !important;
     margin: 0 auto !important;
-    padding: 2mm !important;
-    font-size: 11px !important;
+    padding: 1mm 2mm 3mm 2mm !important;
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    overflow: hidden !important;
+  }
+
+  /* Shift Handover Report Slip (A4 Single Page) */
+  #printable-shift-handover {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 520px !important;
+    margin: 20px auto !important;
+    padding: 24px !important;
+    font-size: 12.5px !important;
+    line-height: 1.5 !important;
+    border: 2px solid #000000 !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Tax Invoice A4 Mode: Fit cleanly on 1 single page */
+  #printable-tax-invoice {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    font-size: 10.5px !important;
+    line-height: 1.3 !important;
+    box-shadow: none !important;
+    border: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Prevent page breaks inside lines and grids */
+  tr, td, th, .grid, .flex {
+    page-break-inside: avoid !important;
+  }
+
+  /* Remove shadow from everything in print */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
   }
 }

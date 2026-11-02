@@ -38,6 +38,20 @@ export interface StoreSettings {
   welcomeSubtitle: string;
   welcomeImageUrl?: string;
   thankYouMessage: string;
+
+  // POS Display Settings
+  showStockQuantityOnPos?: boolean; // แสดง/ซ่อนตัวเลขจำนวนสต็อกบนการ์ดสินค้าหน้าขาย
+
+  // Member Tier Rules & Privilege Settings
+  goldPointsThreshold?: number; // e.g. 50
+  goldSpentThreshold?: number; // e.g. 5000
+  goldDiscountPercent?: number; // e.g. 5
+  goldPrivilegeText?: string;
+
+  blackWisdomPointsThreshold?: number; // e.g. 150
+  blackWisdomSpentThreshold?: number; // e.g. 15000
+  blackWisdomDiscountPercent?: number; // e.g. 10
+  blackWisdomPrivilegeText?: string;
 }
 
 export interface Product {
@@ -96,6 +110,8 @@ export interface CartItem {
 
 export interface Customer {
   id: string;
+  memberCode: string; // เช่น KCAT-VIP-7892 รหัสบัตรสมาชิกสุ่มเฉพาะตัว
+  tier?: 'SILVER' | 'GOLD' | 'BLACK_WISDOM'; // ระดับสมาชิก Luxury
   phone: string;
   name: string;
   contactChannel?: string; // LINE, FB, Email
@@ -144,6 +160,10 @@ export interface Order {
   subtotal: number;
   promoDiscount: number;
   
+  // Member tier privilege discount
+  memberDiscountAmount?: number;
+  memberTier?: string;
+
   // Custom discount
   customDiscountType?: 'PERCENT' | 'AMOUNT';
   customDiscountValue?: number;

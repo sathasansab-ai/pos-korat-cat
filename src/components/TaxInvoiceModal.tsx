@@ -1,6 +1,6 @@
 // src/components/TaxInvoiceModal.tsx
 import React, { useState, useEffect } from 'react';
-import { FileText, Printer, X, CheckCircle2, Building2, User, Save } from 'lucide-react';
+import { FileText, Printer, X, CheckCircle2, Building2, User, Save, Sparkles } from 'lucide-react';
 import type { Order, StoreSettings, CustomerTaxInfo } from '../types';
 import { formatThaiBahtText } from '../services/thaiBahtText';
 import { db } from '../db';
@@ -24,7 +24,7 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({
 
   const [docTitle, setDocTitle] = useState(
     settings.vatType !== 'NONE'
-      ? 'ใบเสร็จรับเงิน / ใบกำกับภาษี (Tax Invoice / Receipt)'
+      ? 'ใบกำกับภาษี / ใบเสร็จรับเงิน (ต้นฉบับ)'
       : 'ใบเสร็จรับเงิน (Receipt)'
   );
   const [invoiceNo, setInvoiceNo] = useState(
@@ -40,6 +40,7 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({
   const [branch, setBranch] = useState(order.customerTaxInfo?.branch || 'สำนักงานใหญ่ (Head Office)');
   const [address, setAddress] = useState(order.customerTaxInfo?.address || '');
   const [phone, setPhone] = useState(order.customerTaxInfo?.phone || '');
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Calculate VAT based on settings
   const vatRate = settings.vatRate || 7;
@@ -86,30 +87,108 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({
       vatAmount: vat
     });
 
-    alert('บันทึกข้อมูลใบกำกับภาษีเรียบร้อยแล้ว');
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2500);
     if (onSaved) onSaved();
   };
 
   const handlePrint = () => {
-    window.print();
+    // 1. First attempt to use print iframe for 100% isolated single A4 page print
+    const printEl = document.getElementById('printable-tax-invoice');
+    if (!printEl) {
+      window.print();
+      return;
+    }
+
+    try {
+      const existingFrame = document.getElementById('print-tax-invoice-iframe');
+      if (existingFrame) existingFrame.remove();
+
+      const printFrame = document.createElement('iframe');
+      printFrame.id = 'print-tax-invoice-iframe';
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      document.body.appendChild(printFrame);
+
+      const frameDoc = printFrame.contentWindow?.document;
+      if (!frameDoc) {
+        window.print();
+        return;
+      }
+
+      // Copy stylesheets to iframe
+      const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+        .map(el => el.outerHTML)
+        .join('\n');
+
+      frameDoc.open();
+      frameDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${docTitle} - ${invoiceNo}</title>
+            ${styles}
+            <style>
+              @page { size: A4 portrait; margin: 8mm 10mm; }
+              * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              body { background: #ffffff !important; color: #000000 !important; padding: 0 !important; margin: 0 !important; font-family: system-ui, -apple-system, sans-serif; }
+              #printable-tax-invoice { max-width: 100% !important; max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; }
+            </style>
+          </head>
+          <body>
+            ${printEl.outerHTML}
+          </body>
+        </html>
+      `);
+      frameDoc.close();
+
+      setTimeout(() => {
+        printFrame.contentWindow?.focus();
+        printFrame.contentWindow?.print();
+        setTimeout(() => {
+          if (document.getElementById('print-tax-invoice-iframe')) {
+            printFrame.remove();
+          }
+        }, 3000);
+      }, 350);
+    } catch {
+      window.print();
+    }
+  };
+
+  const handleSetQuickIndividual = () => {
+    setCustomerName(order.customerName || 'ลูกค้าทั่วไป');
+    setTaxId('-');
+    setBranch('-');
+    setAddress('ตามที่ระบุในระบบ');
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col my-auto border border-slate-200 animate-in fade-in">
         {/* Action Header (Hidden in Print) */}
         <div className="bg-slate-950 text-white p-4 flex items-center justify-between no-print">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
               <FileText className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white">ออกใบเสร็จรับเงิน / ใบกำกับภาษี (Tax Invoice)</h3>
-              <p className="text-[10px] text-slate-400">อ้างอิงบิลที่ถูกต้องตามระเบียบกรมสรรพากรและหลักบัญชีไทย</p>
+              <h3 className="font-bold text-sm text-white">ออกใบเสร็จรับเงิน / ใบกำกับภาษี (Tax Invoice / Receipt)</h3>
+              <p className="text-[10px] text-slate-400">ขนาดมาตรฐาน A4 หน้าเดียว ถูกต้องตามกรมสรรพากร</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {saveSuccess && (
+              <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> บันทึกแล้ว
+              </span>
+            )}
             <button
+              type="button"
               onClick={handleSaveInfo}
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1 transition"
             >
@@ -117,62 +196,82 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({
               <span>บันทึกข้อมูลบิล</span>
             </button>
             <button
+              type="button"
               onClick={handlePrint}
               className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition"
             >
               <Printer className="w-4 h-4" />
-              <span>สั่งพิมพ์เอกสาร A4</span>
+              <span>สั่งพิมพ์ A4 (1 หน้าพอดี)</span>
             </button>
-            <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
+            <button type="button" onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
         {/* Edit Inputs for Customer Tax Info (Hidden in Print) */}
-        <div className="p-4 bg-slate-50 border-b border-slate-200 text-xs no-print space-y-3">
-          <div className="font-bold text-slate-800 flex items-center gap-1.5">
-            <Building2 className="w-4 h-4 text-amber-600" />
-            <span>ข้อมูลผู้ซื้อสำหรับออกใบเสร็จ / ใบกำกับภาษี:</span>
+        <div className="p-3.5 bg-slate-50 border-b border-slate-200 text-xs no-print space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="font-bold text-slate-800 flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-amber-600" />
+              <span>ข้อมูลผู้ซื้อสำหรับออกใบเสร็จ / ใบกำกับภาษี:</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSetQuickIndividual}
+              className="text-[11px] text-amber-700 hover:underline font-semibold"
+            >
+              + กรอกเป็นลูกค้าทั่วไป (ไม่ต้องระบุเลขภาษี)
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">ชื่อผู้ซื้อ / นิติบุคคล *</label>
+              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">หัวเอกสาร</label>
               <input
                 type="text"
-                value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
-                placeholder="ชื่อบริษัท / ห้างหุ้นส่วน หรือ ชื่อบุคคล..."
-                className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs"
+                value={docTitle}
+                onChange={e => setDocTitle(e.target.value)}
+                className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-amber-800"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">เลขประจำตัวผู้เสียภาษี (13 หลัก) *</label>
+              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">ชื่อผู้ซื้อ / นิติบุคคล *</label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={e => setCustomerName(e.target.value)}
+                placeholder="ชื่อบริษัท หรือ ชื่อลูกค้า..."
+                className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">เลขประจำตัวผู้เสียภาษี (13 หลัก)</label>
               <input
                 type="text"
                 maxLength={13}
                 value={taxId}
                 onChange={e => setTaxId(e.target.value)}
-                placeholder="01055xxxxxxxx"
+                placeholder="01055xxxxxxxx หรือ -"
                 className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">สาขา</label>
+              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">สาขา</label>
               <input
                 type="text"
                 value={branch}
                 onChange={e => setBranch(e.target.value)}
-                placeholder="เช่น สำนักงานใหญ่ หรือ สาขาที่ 00001"
+                placeholder="สำนักงานใหญ่ หรือ -"
                 className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs"
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">ที่อยู่ตามทะเบียนภาษี *</label>
+            <div className="sm:col-span-3">
+              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">ที่อยู่ตามทะเบียนภาษี *</label>
               <input
                 type="text"
                 value={address}
@@ -183,51 +282,51 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">เบอร์โทรติดต่อ</label>
+              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">เบอร์โทรศัพท์</label>
               <input
                 type="text"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
-                placeholder="02-xxx-xxxx / 081-xxx-xxxx"
+                placeholder="08x-xxx-xxxx"
                 className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono"
               />
             </div>
           </div>
         </div>
 
-        {/* PRINTABLE A4 TAX INVOICE CONTENT */}
+        {/* PRINTABLE A4 TAX INVOICE CONTENT (Engineered to fit precisely on 1 A4 page) */}
         <div 
-          className="p-8 bg-white text-slate-900 font-sans text-xs select-text overflow-y-auto max-h-[65vh] print:max-h-none print:overflow-visible print:p-0 print:m-0"
+          className="p-6 bg-white text-slate-900 font-sans text-xs select-text overflow-y-auto max-h-[62vh] print:max-h-none print:overflow-visible print:p-0 print:m-0"
           id="printable-tax-invoice"
         >
           {/* Company / Store Header */}
-          <div className="flex justify-between items-start pb-4 border-b-2 border-slate-900 gap-4">
+          <div className="flex justify-between items-start pb-3 border-b-2 border-slate-900 gap-4">
             <div className="flex items-center space-x-3">
               {settings.logoUrl && (
                 <img
                   src={settings.logoUrl}
                   alt="Logo"
-                  className="w-16 h-16 rounded-xl object-contain border border-slate-200"
+                  className="max-h-16 max-w-[130px] w-auto h-auto object-contain flex-shrink-0 select-none"
                 />
               )}
               <div>
-                <h1 className="text-base font-extrabold uppercase tracking-tight text-slate-900">
+                <h1 className="text-sm sm:text-base font-extrabold uppercase tracking-tight text-slate-900 leading-tight">
                   {settings.storeName}
                 </h1>
-                <div className="text-[11px] text-slate-600 mt-0.5">{settings.subTitle}</div>
-                <div className="text-[10px] text-slate-600 mt-0.5">{settings.address}</div>
-                <div className="text-[10px] text-slate-600">
+                <div className="text-[10px] text-slate-600 mt-0.5">{settings.subTitle}</div>
+                <div className="text-[10px] text-slate-600 leading-tight mt-0.5">{settings.address}</div>
+                <div className="text-[10px] text-slate-600 mt-0.5">
                   โทร: {settings.phone} | เลขประจำตัวผู้เสียภาษีอากร: <b>{settings.taxId}</b> (สำนักงานใหญ่)
                 </div>
               </div>
             </div>
 
-            <div className="text-right">
-              <h2 className="text-sm font-black text-amber-700 uppercase tracking-wide">
+            <div className="text-right flex-shrink-0">
+              <h2 className="text-xs sm:text-sm font-black text-amber-800 uppercase tracking-wide">
                 {docTitle}
               </h2>
-              <div className="mt-1 space-y-0.5 text-[11px]">
-                <div><b>เลขที่เอกสาร:</b> <span className="font-mono">{invoiceNo}</span></div>
+              <div className="mt-1 space-y-0.5 text-[10px] sm:text-[11px]">
+                <div><b>เลขที่เอกสาร:</b> <span className="font-mono font-bold">{invoiceNo}</span></div>
                 <div><b>วันที่:</b> {new Date(invoiceDate).toLocaleDateString('th-TH')}</div>
                 <div><b>อ้างอิงบิลขาย:</b> <span className="font-mono">{order.localOrderId}</span></div>
               </div>
@@ -235,63 +334,63 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({
           </div>
 
           {/* Customer / Buyer Section */}
-          <div className="my-4 p-3 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 gap-4 text-xs">
+          <div className="my-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 gap-3 text-xs leading-snug">
             <div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">ข้อมูลผู้ซื้อ / ข้อมูลลูกค้า</div>
-              <div className="font-bold text-slate-900 text-sm">{customerName || 'ลูกค้าทั่วไป (Walk-in Customer)'}</div>
-              <div className="text-slate-600 mt-0.5">{address || 'ที่อยู่: ตามที่ระบุ'}</div>
-              {phone && <div className="text-slate-600">โทร: {phone}</div>}
+              <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ข้อมูลผู้ซื้อ / ข้อมูลลูกค้า</div>
+              <div className="font-bold text-slate-900 text-xs sm:text-sm">{customerName || 'ลูกค้าทั่วไป (Walk-in Customer)'}</div>
+              <div className="text-slate-600 text-[10.5px] mt-0.5">{address || 'ที่อยู่: ตามที่ระบุ'}</div>
+              {phone && <div className="text-slate-600 text-[10px]">โทร: {phone}</div>}
             </div>
 
-            <div className="text-right sm:text-left">
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">ข้อมูลภาษี</div>
+            <div className="text-right sm:text-left text-[10.5px]">
+              <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">ข้อมูลภาษี & พนักงาน</div>
               <div><b>เลขประจำตัวผู้เสียภาษี:</b> <span className="font-mono font-bold">{taxId || '-'}</span></div>
               <div><b>สาขา:</b> {branch}</div>
-              <div><b>พนักงานผู้รับเงิน:</b> {order.cashierName}</div>
+              <div><b>แคชเชียร์ผู้รับเงิน:</b> {order.cashierName}</div>
             </div>
           </div>
 
           {/* Line Items Table */}
-          <table className="w-full text-left text-xs border border-slate-300 rounded-lg overflow-hidden mb-4">
-            <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-300">
+          <table className="w-full text-left text-[11px] border border-slate-300 rounded-lg overflow-hidden mb-2.5">
+            <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-300 text-[10px]">
               <tr>
-                <th className="p-2.5 text-center w-12">ลำดับ</th>
-                <th className="p-2.5">รายการสินค้า / บริการ</th>
-                <th className="p-2.5 text-center w-20">จำนวน</th>
-                <th className="p-2.5 text-right w-28">ราคา/หน่วย</th>
-                <th className="p-2.5 text-right w-28">จำนวนเงิน</th>
+                <th className="p-2 text-center w-10">ลำดับ</th>
+                <th className="p-2">รายการสินค้า / บริการ</th>
+                <th className="p-2 text-center w-16">จำนวน</th>
+                <th className="p-2 text-right w-24">ราคา/หน่วย</th>
+                <th className="p-2 text-right w-24">จำนวนเงิน</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {order.items.map((item, index) => (
                 <tr key={index}>
-                  <td className="p-2.5 text-center font-mono text-slate-500">{index + 1}</td>
-                  <td className="p-2.5">
-                    <div className="font-bold text-slate-900">{item.productName}</div>
+                  <td className="p-1.5 text-center font-mono text-slate-500">{index + 1}</td>
+                  <td className="p-1.5">
+                    <div className="font-bold text-slate-900 leading-tight">{item.productName}</div>
                     {item.attributes && (
-                      <div className="text-[10px] text-slate-500">
+                      <div className="text-[9.5px] text-slate-500">
                         {Object.values(item.attributes).join(' • ')} (SKU: {item.sku})
                       </div>
                     )}
                   </td>
-                  <td className="p-2.5 text-center font-mono font-semibold">{item.qty}</td>
-                  <td className="p-2.5 text-right font-mono">฿{item.unitPrice.toLocaleString()}</td>
-                  <td className="p-2.5 text-right font-mono font-bold">฿{item.lineTotal.toLocaleString()}</td>
+                  <td className="p-1.5 text-center font-mono font-semibold">{item.qty}</td>
+                  <td className="p-1.5 text-right font-mono">฿{item.unitPrice.toLocaleString()}</td>
+                  <td className="p-1.5 text-right font-mono font-bold">฿{item.lineTotal.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
           {/* Financial Totals & Baht Text */}
-          <div className="grid grid-cols-12 gap-4 pb-4 border-b border-slate-200">
+          <div className="grid grid-cols-12 gap-3 pb-2.5 border-b border-slate-200">
             {/* Thai Baht Text */}
-            <div className="col-span-7 flex flex-col justify-end p-3 bg-amber-50/60 rounded-xl border border-amber-200">
-              <span className="text-[10px] font-bold uppercase text-amber-800 tracking-wider">จำนวนเงินตัวอักษร</span>
-              <div className="font-bold text-slate-900 text-sm mt-0.5">{bahtText}</div>
+            <div className="col-span-7 flex flex-col justify-end p-2.5 bg-amber-50/60 rounded-xl border border-amber-200">
+              <span className="text-[9px] font-bold uppercase text-amber-800 tracking-wider">จำนวนเงินตัวอักษร</span>
+              <div className="font-bold text-slate-900 text-xs sm:text-sm mt-0.5 leading-snug">{bahtText}</div>
             </div>
 
             {/* Calculations Breakdown */}
-            <div className="col-span-5 space-y-1 text-xs">
+            <div className="col-span-5 space-y-0.5 text-[11px]">
               <div className="flex justify-between text-slate-600">
                 <span>มูลค่ารวม (Subtotal):</span>
                 <span className="font-mono">฿{order.subtotal.toLocaleString()}</span>
@@ -306,7 +405,7 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({
 
               {settings.vatType !== 'NONE' && (
                 <>
-                  <div className="flex justify-between text-slate-600 pt-1 border-t border-slate-200">
+                  <div className="flex justify-between text-slate-600 pt-0.5 border-t border-slate-200">
                     <span>มูลค่าสินค้าก่อนภาษี:</span>
                     <span className="font-mono">฿{preTax.toFixed(2)}</span>
                   </div>
@@ -317,30 +416,30 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({
                 </>
               )}
 
-              <div className="flex justify-between items-baseline pt-2 border-t-2 border-slate-900 text-sm font-black text-slate-900">
-                <span>จำนวนเงินรวมทั้งสิ้น:</span>
-                <span className="text-base font-mono text-amber-700">฿{grandTotal.toLocaleString()}</span>
+              <div className="flex justify-between items-baseline pt-1 border-t-2 border-slate-900 font-black text-slate-900">
+                <span className="text-xs">จำนวนเงินรวมทั้งสิ้น:</span>
+                <span className="text-sm sm:text-base font-mono text-amber-800">฿{grandTotal.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
           {/* Signatures Section */}
-          <div className="grid grid-cols-2 gap-8 pt-8 text-center text-xs">
+          <div className="grid grid-cols-2 gap-6 pt-4 text-center text-xs">
             <div>
-              <div className="border-b border-slate-400 w-48 mx-auto mb-2 h-10"></div>
-              <div className="font-bold text-slate-800">( {customerName || 'ผู้จ่ายเงิน'} )</div>
-              <div className="text-[10px] text-slate-500">ผู้รับบริการ / ผู้จ่ายเงิน</div>
+              <div className="border-b border-slate-400 w-44 mx-auto mb-1.5 h-7"></div>
+              <div className="font-bold text-slate-800 text-[11px]">( {customerName || 'ผู้จ่ายเงิน'} )</div>
+              <div className="text-[9.5px] text-slate-500">ผู้รับบริการ / ผู้จ่ายเงิน</div>
             </div>
 
             <div>
-              <div className="border-b border-slate-400 w-48 mx-auto mb-2 h-10"></div>
-              <div className="font-bold text-slate-800">( {order.cashierName} )</div>
-              <div className="text-[10px] text-slate-500">ผู้รับเงิน / แคชเชียร์ผู้มีอำนาจลงนาม</div>
+              <div className="border-b border-slate-400 w-44 mx-auto mb-1.5 h-7"></div>
+              <div className="font-bold text-slate-800 text-[11px]">( {order.cashierName} )</div>
+              <div className="text-[9.5px] text-slate-500">ผู้รับเงิน / แคชเชียร์ผู้มีอำนาจลงนาม</div>
             </div>
           </div>
 
           {/* Footer note */}
-          <div className="mt-8 text-center text-[10px] text-slate-400 pt-2 border-t border-slate-100">
+          <div className="mt-4 text-center text-[9.5px] text-slate-400 pt-1.5 border-t border-slate-100">
             เอกสารนี้ออกโดยระบบ POS Korat Cat • ในนาม {settings.storeName}
           </div>
         </div>

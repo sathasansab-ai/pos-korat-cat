@@ -66,7 +66,16 @@ export async function seedInitialData() {
       welcomeTitle: 'ยินดีต้อนรับสู่ KORAT CAT',
       welcomeSubtitle: 'สินค้าแฟชั่นอัตลักษณ์แมวโคราช x เรือนโคราชเฉลิมวัฒนา จะแสดงขึ้นที่นี่เมื่อสแกนบาร์โค้ด',
       welcomeImageUrl: '',
-      thankYouMessage: 'ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา'
+      thankYouMessage: 'ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
+      showStockQuantityOnPos: false, // Default to clean boutique look without showing numbers
+      goldPointsThreshold: 50,
+      goldSpentThreshold: 5000,
+      goldDiscountPercent: 5,
+      goldPrivilegeText: 'สิทธิพิเศษ: ส่วนลด 5% ทุกยอดซื้อ + รับแต้มสะสมพิเศษ',
+      blackWisdomPointsThreshold: 150,
+      blackWisdomSpentThreshold: 15000,
+      blackWisdomDiscountPercent: 10,
+      blackWisdomPrivilegeText: 'สิทธิพิเศษ: ส่วนลด 10% ทุกยอดซื้อ + เชิญร่วมกิจกรรม Workshop ฟรี'
     };
     await db.settings.put(defaultSettings);
   } else {
@@ -80,7 +89,16 @@ export async function seedInitialData() {
       welcomeTitle: existingSettings.welcomeTitle || 'ยินดีต้อนรับสู่ KORAT CAT',
       welcomeSubtitle: existingSettings.welcomeSubtitle || 'สินค้าแฟชั่นอัตลักษณ์แมวโคราช x เรือนโคราชเฉลิมวัฒนา จะแสดงขึ้นที่นี่เมื่อสแกนบาร์โค้ด',
       welcomeImageUrl: existingSettings.welcomeImageUrl || '',
-      thankYouMessage: existingSettings.thankYouMessage || 'ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา'
+      thankYouMessage: existingSettings.thankYouMessage || 'ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
+      showStockQuantityOnPos: existingSettings.showStockQuantityOnPos ?? false,
+      goldPointsThreshold: existingSettings.goldPointsThreshold ?? 50,
+      goldSpentThreshold: existingSettings.goldSpentThreshold ?? 5000,
+      goldDiscountPercent: existingSettings.goldDiscountPercent ?? 5,
+      goldPrivilegeText: existingSettings.goldPrivilegeText || 'สิทธิพิเศษ: ส่วนลด 5% ทุกยอดซื้อ + รับแต้มสะสมพิเศษ',
+      blackWisdomPointsThreshold: existingSettings.blackWisdomPointsThreshold ?? 150,
+      blackWisdomSpentThreshold: existingSettings.blackWisdomSpentThreshold ?? 15000,
+      blackWisdomDiscountPercent: existingSettings.blackWisdomDiscountPercent ?? 10,
+      blackWisdomPrivilegeText: existingSettings.blackWisdomPrivilegeText || 'สิทธิพิเศษ: ส่วนลด 10% ทุกยอดซื้อ + เชิญร่วมกิจกรรม Workshop ฟรี'
     };
     await db.settings.put(updated);
   }
@@ -283,16 +301,20 @@ export async function seedInitialData() {
     const customers: Customer[] = [
       {
         id: 'cust-001',
+        memberCode: 'KCAT-8891',
+        tier: 'GOLD',
         phone: '0812345678',
         name: 'คุณสมชาย สายสะสมผ้าไหม',
         rewardPoints: 150,
-        totalSpent: 4500
+        totalSpent: 5500
       },
       {
         id: 'cust-002',
+        memberCode: 'KCAT-4512',
+        tier: 'SILVER',
         phone: '0899887766',
-        name: 'คุณวิภาวี นคราช',
-        rewardPoints: 60,
+        name: 'คุณวิภาวี นครราช',
+        rewardPoints: 20,
         totalSpent: 1200
       }
     ];

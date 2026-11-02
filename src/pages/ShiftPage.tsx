@@ -1,6 +1,6 @@
 // src/pages/ShiftPage.tsx
-import React, { useState } from 'react';
-import { Clock, Banknote, ShieldAlert, CheckCircle2, History, AlertTriangle, QrCode, Printer, Calculator } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Clock, Banknote, ShieldAlert, CheckCircle2, History, AlertTriangle, QrCode, Printer, Calculator, RefreshCw } from 'lucide-react';
 import { db } from '../db';
 import type { Shift, UserAccount } from '../types';
 
@@ -21,6 +21,43 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   const [isClosingShift, setIsClosingShift] = useState(false);
   const [printedShift, setPrintedShift] = useState<Shift | null>(null);
 
+  // Live real-time shift stats queried directly from actual orders
+  const [liveShift, setLiveShift] = useState<Shift | null>(activeShift);
+  const [liveCashSales, setLiveCashSales] = useState(0);
+  const [livePromptPaySales, setLivePromptPaySales] = useState(0);
+  const [liveTxCount, setLiveTxCount] = useState(0);
+
+  const refreshLiveShift = async () => {
+    const shift = (await db.shifts.where({ status: 'OPEN' }).last()) || activeShift;
+    setLiveShift(shift || null);
+
+    if (shift) {
+      // Query completed orders for this shift to get 100% exact sales
+      const orders = await db.orders.where('shiftId').equals(shift.id).toArray();
+      let cash = 0;
+      let promptpay = 0;
+      let count = 0;
+
+      orders.forEach(o => {
+        if (o.status === 'COMPLETED') {
+          count++;
+          o.payments.forEach(p => {
+            if (p.method === 'CASH') cash += p.amount;
+            if (p.method === 'PROMPTPAY') promptpay += p.amount;
+          });
+        }
+      });
+
+      setLiveCashSales(cash);
+      setLivePromptPaySales(promptpay);
+      setLiveTxCount(count);
+    }
+  };
+
+  useEffect(() => {
+    refreshLiveShift();
+  }, [activeShift]);
+
   // Open Shift
   const handleOpenShift = async () => {
     const floatAmount = parseFloat(startingCash) || 0;
@@ -39,18 +76,27 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
 
     await db.shifts.add(newShift);
     onShiftUpdated();
+    refreshLiveShift();
   };
+
+  const currentShift = liveShift || activeShift;
+  const expectedCashInDrawer = currentShift ? currentShift.startingCash + liveCashSales : 0;
+  const countedCash = parseFloat(closingCash) || 0;
+  const liveDifference = countedCash - expectedCashInDrawer;
 
   // Close Shift
   const handleCloseShift = async () => {
-    if (!activeShift) return;
+    if (!currentShift) return;
 
     const actual = parseFloat(closingCash) || 0;
-    const expected = activeShift.startingCash + (activeShift.totalCashSales || 0);
+    const expected = currentShift.startingCash + liveCashSales;
     const diff = actual - expected;
 
     const updated: Shift = {
-      ...activeShift,
+      ...currentShift,
+      totalCashSales: liveCashSales,
+      totalPromptPaySales: livePromptPaySales,
+      totalTransactions: liveTxCount,
       endTime: new Date().toISOString(),
       closingCashExpected: expected,
       closingCashActual: actual,
@@ -59,79 +105,167 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
       status: 'CLOSED'
     };
 
-    await db.shifts.update(activeShift.id, updated);
+    await db.shifts.update(currentShift.id, updated);
 
     setPrintedShift(updated);
     setIsClosingShift(false);
     setClosingCash('');
     setClosingNotes('');
     onShiftUpdated();
+    refreshLiveShift();
   };
 
   const handlePrintSlip = () => {
-    window.print();
-  };
+    const printEl = document.getElementById('printable-shift-handover');
+    if (!printEl) {
+      window.print();
+      return;
+    }
 
-  // Live calculation values
-  const expectedCashInDrawer = activeShift ? activeShift.startingCash + (activeShift.totalCashSales || 0) : 0;
-  const countedCash = parseFloat(closingCash) || 0;
-  const liveDifference = countedCash - expectedCashInDrawer;
+    try {
+      const existingFrame = document.getElementById('print-shift-iframe');
+      if (existingFrame) existingFrame.remove();
+
+      const printFrame = document.createElement('iframe');
+      printFrame.id = 'print-shift-iframe';
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      document.body.appendChild(printFrame);
+
+      const frameDoc = printFrame.contentWindow?.document;
+      if (!frameDoc) {
+        window.print();
+        return;
+      }
+
+      const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+        .map(el => el.outerHTML)
+        .join('\n');
+
+      frameDoc.open();
+      frameDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>ใบสรุปส่งมอบกะ - ${printedShift?.cashierName || 'Shift'}</title>
+            ${styles}
+            <style>
+              @page { size: A4 portrait; margin: 12mm 15mm; }
+              * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              body { 
+                background: #ffffff !important; 
+                color: #000000 !important; 
+                padding: 10px !important; 
+                margin: 0 !important; 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                display: flex;
+                justify-content: center;
+              }
+              #printable-shift-handover { 
+                width: 100% !important; 
+                max-width: 520px !important; 
+                border: 2px solid #0f172a !important; 
+                border-radius: 16px !important; 
+                padding: 28px !important; 
+                background: #ffffff !important; 
+                font-size: 13px !important; 
+                line-height: 1.6 !important;
+                box-shadow: none !important; 
+                margin: 0 auto !important;
+              }
+              .no-print { display: none !important; }
+            </style>
+          </head>
+          <body>
+            ${printEl.outerHTML}
+          </body>
+        </html>
+      `);
+      frameDoc.close();
+
+      setTimeout(() => {
+        printFrame.contentWindow?.focus();
+        printFrame.contentWindow?.print();
+      }, 350);
+    } catch (e) {
+      window.print();
+    }
+  };
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between no-print">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Clock className="w-6 h-6 text-amber-500" />
             <span>ระบบจัดการกะ & ตรวจนับเงินสดแคชเชียร์ (Shift Control)</span>
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 mt-0.5">
             คำนวณแยกยอดเงินสดในลิ้นชัก และยอดโอน PromptPay บัญชีธนาคารอย่างแม่นยำ ป้องกันเงินผิดพลาด
           </p>
         </div>
+
+        {currentShift && (
+          <button
+            type="button"
+            onClick={refreshLiveShift}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+            <span>รีเฟรชยอดเงิน</span>
+          </button>
+        )}
       </div>
 
       {/* Active Shift Card or Open Shift Form */}
-      {activeShift ? (
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-amber-200">
+      {currentShift ? (
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-amber-200 no-print">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div>
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">
-                🟢 กำลังเปิดกะใช้งาน
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full inline-flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                กำลังเปิดกะใช้งาน
               </span>
               <h2 className="text-lg font-bold text-slate-900 mt-2">
-                ผู้รับผิดชอบกะ: {activeShift.cashierName}
+                ผู้รับผิดชอบกะ: {currentShift.cashierName}
               </h2>
               <p className="text-xs text-slate-500">
-                เริ่มกะเวลา: {new Date(activeShift.startTime).toLocaleString('th-TH')}
+                เริ่มกะเวลา: {new Date(currentShift.startTime).toLocaleString('th-TH')}
               </p>
             </div>
             <button
-              onClick={() => setIsClosingShift(true)}
+              onClick={() => {
+                refreshLiveShift();
+                setIsClosingShift(true);
+              }}
               className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm shadow transition"
             >
-              🔒 ตรวจนับและปิดกะ
+              ตรวจนับและปิดกะ
             </button>
           </div>
 
           {/* Current Shift Stats - Clearly Separating Cash vs Transfer */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-              <span className="text-xs text-slate-500 font-semibold">เงินทอนตั้งต้น (Float)</span>
+              <span className="text-xs text-slate-500 font-semibold">1. เงินทอนตั้งต้น (Float)</span>
               <div className="text-lg font-bold font-mono text-slate-900 mt-1">
-                ฿{activeShift.startingCash.toLocaleString()}
+                ฿{currentShift.startingCash.toLocaleString()}
               </div>
-              <span className="text-[10px] text-slate-400">เงินสดตอนเปิดกะ</span>
+              <span className="text-[10px] text-slate-400">เงินก้นลิ้นชักตอนเปิดกะ</span>
             </div>
 
             <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
               <span className="text-xs text-emerald-800 font-semibold flex items-center gap-1">
-                <Banknote className="w-3.5 h-3.5" /> ยอดขายเงินสด
+                <Banknote className="w-3.5 h-3.5" /> 2. ยอดขายเงินสดรวม
               </span>
               <div className="text-lg font-bold font-mono text-emerald-700 mt-1">
-                ฿{(activeShift.totalCashSales || 0).toLocaleString()}
+                +฿{liveCashSales.toLocaleString()}
               </div>
-              <span className="text-[10px] text-emerald-600">เข้าลิ้นชักเงินสด</span>
+              <span className="text-[10px] text-emerald-600">เงินสดที่รับเพิ่มเข้าลิ้นชัก</span>
             </div>
 
             <div className="p-4 bg-sky-50 rounded-2xl border border-sky-200">
@@ -139,38 +273,42 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
                 <QrCode className="w-3.5 h-3.5" /> ยอดขาย PromptPay
               </span>
               <div className="text-lg font-bold font-mono text-sky-700 mt-1">
-                ฿{(activeShift.totalPromptPaySales || 0).toLocaleString()}
+                ฿{livePromptPaySales.toLocaleString()}
               </div>
               <span className="text-[10px] text-sky-600">เข้าบัญชีธนาคาร (ไม่เข้าลิ้นชัก)</span>
             </div>
 
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-              <span className="text-xs text-slate-500 font-semibold">จำนวนบิลทั้งหมด</span>
+              <span className="text-xs text-slate-500 font-semibold">จำนวนบิลที่ขายได้</span>
               <div className="text-lg font-bold font-mono text-slate-800 mt-1">
-                {activeShift.totalTransactions || 0} บิล
+                {liveTxCount} บิล
               </div>
               <span className="text-[10px] text-slate-400">
-                รวมยอด: ฿{((activeShift.totalCashSales || 0) + (activeShift.totalPromptPaySales || 0)).toLocaleString()}
+                รวมยอดขาย: ฿{(liveCashSales + livePromptPaySales).toLocaleString()}
               </span>
             </div>
           </div>
 
-          <div className="mt-4 p-4 bg-amber-50 rounded-2xl border border-amber-200 flex items-center justify-between">
+          <div className="mt-4 p-4 bg-amber-50 rounded-2xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <span className="text-xs font-bold text-amber-900">
-                💵 ยอดเงินสดที่ควรมีในลิ้นชัก ณ ขณะนี้:
+              <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <Banknote className="w-4 h-4 text-amber-700" />
+                <span>รวมเงินสดที่ต้องมีในลิ้นชัก ณ ขณะนี้ (Expected Cash):</span>
               </span>
               <p className="text-[11px] text-amber-800 mt-0.5">
-                (เงินทอนตั้งต้น ฿{activeShift.startingCash.toLocaleString()} + ยอดขายเงินสด ฿{(activeShift.totalCashSales || 0).toLocaleString()} *ไม่รวมยอดโอน)
+                คำนวณจาก: เงินทอนตั้งต้น (฿{currentShift.startingCash.toLocaleString()}) + ยอดขายสดสุทธิ (+฿{liveCashSales.toLocaleString()})
               </p>
             </div>
-            <span className="text-2xl font-black font-mono text-amber-700">
-              ฿{expectedCashInDrawer.toLocaleString()}
-            </span>
+            <div className="text-right">
+              <span className="text-2xl font-black font-mono text-amber-800">
+                ฿{expectedCashInDrawer.toLocaleString()}
+              </span>
+              <span className="text-[10px] text-slate-500 block">(*ไม่นับรวมยอดโอน PromptPay)</span>
+            </div>
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 max-w-lg mx-auto">
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 max-w-lg mx-auto no-print">
           <div className="text-center mb-6">
             <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-2">
               <AlertTriangle className="w-6 h-6" />
@@ -216,7 +354,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
       )}
 
       {/* CLOSE SHIFT CALCULATOR MODAL */}
-      {isClosingShift && activeShift && (
+      {isClosingShift && currentShift && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
@@ -225,54 +363,79 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
             </h3>
 
             {/* Shift Breakdown */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl text-xs space-y-1.5 border border-slate-200">
-              <div className="flex justify-between">
-                <span className="text-slate-500">เงินทอนตั้งต้น (Float):</span>
-                <span className="font-mono">฿{activeShift.startingCash.toLocaleString()}</span>
+            <div className="p-4 bg-slate-50 rounded-2xl text-xs space-y-2.5 border border-slate-200">
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                สูตรคำนวณเงินสดที่ต้องมีในลิ้นชัก:
               </div>
-              <div className="flex justify-between text-emerald-700 font-semibold">
-                <span>+ ยอดขายเงินสด:</span>
-                <span className="font-mono">฿{(activeShift.totalCashSales || 0).toLocaleString()}</span>
+
+              <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-amber-950 font-mono space-y-1">
+                <div className="flex justify-between">
+                  <span>(ก) เงินทอนตั้งต้น (Float):</span>
+                  <span className="font-bold">฿{currentShift.startingCash.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-emerald-800">
+                  <span>(ข) + ยอดขายเงินสดในกะ:</span>
+                  <span className="font-bold">+฿{liveCashSales.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-amber-300 font-bold text-sm text-slate-900">
+                  <span>= ยอดรวมในลิ้นชักที่ต้องนับได้ (ก + ข):</span>
+                  <span className="text-amber-700 text-base">฿{expectedCashInDrawer.toLocaleString()}</span>
+                </div>
               </div>
-              <div className="flex justify-between text-sky-700">
-                <span>📱 ยอดโอนเข้าบัญชี (ไม่นับรวมในลิ้นชัก):</span>
-                <span className="font-mono">฿{(activeShift.totalPromptPaySales || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between font-bold text-slate-900 pt-2 border-t border-slate-200">
-                <span>ยอดเงินสดที่ระบบคาดหมายในลิ้นชัก:</span>
-                <span className="font-mono text-base text-amber-700">
-                  ฿{expectedCashInDrawer.toLocaleString()}
+
+              <div className="flex justify-between text-sky-800 pt-1 text-[11px]">
+                <span className="flex items-center gap-1">
+                  <QrCode className="w-3.5 h-3.5 text-sky-600" />
+                  <span>ยอดโอน PromptPay (เข้าบัญชีธนาคาร ไม่เข้าลิ้นชัก):</span>
                 </span>
+                <span className="font-mono font-bold">฿{livePromptPaySales.toLocaleString()}</span>
               </div>
             </div>
 
             {/* Input actual counted cash */}
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
-                ยอดเงินสดที่นับได้จริงจากลิ้นชัก (บาท) *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-800">
+                  ใส่ยอดเงินสดที่นับได้จริงจากลิ้นชัก (บาท) *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setClosingCash(expectedCashInDrawer.toString())}
+                  className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-bold rounded-lg transition"
+                >
+                  ⚡ นับได้ตรงพอดี (฿{expectedCashInDrawer.toLocaleString()})
+                </button>
+              </div>
+
               <input
                 type="number"
                 value={closingCash}
                 onChange={e => setClosingCash(e.target.value)}
-                placeholder="นับเหรียญและธนบัตรจริงแล้วใส่ยอดที่นี่..."
+                placeholder={`กรอกยอดรวม เช่น ${expectedCashInDrawer}`}
                 autoFocus
                 className="w-full text-2xl font-mono font-bold px-4 py-2.5 bg-slate-50 border-2 border-amber-400 rounded-2xl outline-none focus:bg-white"
               />
+              <span className="text-[11px] text-slate-500 mt-1 block">
+                * ต้องนับรวมทั้งเงินทอนเดิม ({currentShift.startingCash.toLocaleString()} บ.) + เงินสดที่ขายได้ ({liveCashSales.toLocaleString()} บ.)
+              </span>
             </div>
 
             {/* Real-Time Live Variance Calculation */}
             {closingCash !== '' && (
-              <div className={`p-3 rounded-2xl border flex items-center justify-between text-xs font-bold ${
+              <div className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs font-bold ${
                 liveDifference === 0
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
                   : liveDifference < 0
                   ? 'bg-rose-50 border-rose-300 text-rose-800'
                   : 'bg-amber-50 border-amber-300 text-amber-800'
               }`}>
-                <span>ผลต่างเงินในลิ้นชัก:</span>
+                <span>ผลต่างการตรวจนับ:</span>
                 <span className="text-base font-mono">
-                  {liveDifference === 0 ? '✓ ยอดตรงพอดี (0 บาท)' : liveDifference > 0 ? `+฿${liveDifference.toLocaleString()} (เงินเกิน)` : `-฿${Math.abs(liveDifference).toLocaleString()} (เงินขาด)`}
+                  {liveDifference === 0 
+                    ? '✓ ยอดตรงพอดี ครบถ้วน (0 บาท)' 
+                    : liveDifference > 0 
+                    ? `+฿${liveDifference.toLocaleString()} (เงินเกิน)` 
+                    : `-฿${Math.abs(liveDifference).toLocaleString()} (เงินขาด)`}
                 </span>
               </div>
             )}
@@ -282,7 +445,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               <textarea
                 value={closingNotes}
                 onChange={e => setClosingNotes(e.target.value)}
-                placeholder="เช่น ส่งเงินให้เจ้าของร้าน 3,000 บาท เหลือก้นลิ้นชัก 1,000 บาท..."
+                placeholder="เช่น ส่งเงินให้เจ้าของร้าน 450 บาท เหลือก้นลิ้นชัก 1,000 บาท..."
                 rows={2}
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs outline-none"
               />
@@ -299,56 +462,104 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               <button
                 type="button"
                 onClick={handleCloseShift}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow transition"
+                disabled={closingCash === ''}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white font-bold rounded-xl text-xs shadow transition"
               >
-                ยืนยันการปิดกะ
+                ยืนยันปิดกะ
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* PRINTABLE SHIFT HANDOVER REPORT SLIP */}
+      {/* PRINTABLE SHIFT HANDOVER REPORT SLIP (ใบปิดกะ / ส่งมอบกะ เดิมที่สมบูรณ์) */}
       {printedShift && (
         <div className="bg-white rounded-3xl p-6 border border-emerald-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 no-print">
             <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
               <span>สรุปปิดกะสำเร็จแล้ว! ต้องการพิมพ์ใบส่งมอบกะหรือไม่?</span>
             </div>
-            <button
-              onClick={handlePrintSlip}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow"
-            >
-              <Printer className="w-4 h-4" />
-              <span>พิมพ์ใบส่งมอบกะ (Shift Z-Report)</span>
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPrintedShift(null)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+              >
+                ปิด
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintSlip}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition"
+              >
+                <Printer className="w-4 h-4" />
+                <span>พิมพ์ใบส่งมอบกะ (A4)</span>
+              </button>
+            </div>
           </div>
 
-          <div id="printable-thermal-receipt" className="text-xs font-mono p-4 bg-slate-50 rounded-2xl space-y-1">
-            <div className="text-center font-bold text-sm">=== ใบสรุปส่งมอบกะแคชเชียร์ ===</div>
-            <div className="text-center text-[10px] text-slate-500">KORAT CAT x เรือนโคราชเฉลิมวัฒนา</div>
+          <div
+            id="printable-shift-handover"
+            className="text-xs font-mono p-6 bg-slate-50 rounded-2xl space-y-1.5 max-w-sm mx-auto border border-slate-200"
+          >
+            <div className="text-center font-bold text-sm uppercase tracking-wide">=== ใบสรุปส่งมอบกะแคชเชียร์ ===</div>
+            <div className="text-center text-[10px] text-slate-500 font-sans">KORAT CAT x เรือนโคราชเฉลิมวัฒนา</div>
             <div className="border-b border-dashed border-slate-400 my-2"></div>
             <div>แคชเชียร์: {printedShift.cashierName}</div>
             <div>เปิดกะ: {new Date(printedShift.startTime).toLocaleString('th-TH')}</div>
             <div>ปิดกะ: {printedShift.endTime ? new Date(printedShift.endTime).toLocaleString('th-TH') : '-'}</div>
             <div className="border-b border-dashed border-slate-400 my-2"></div>
-            <div className="flex justify-between"><span>เงินทอนตั้งต้น:</span><span>฿{printedShift.startingCash.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span>ยอดขายสด:</span><span>฿{printedShift.totalCashSales.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span>ยอดขาย PromptPay:</span><span>฿{printedShift.totalPromptPaySales.toLocaleString()}</span></div>
-            <div className="flex justify-between font-bold"><span>ยอดขายรวม:</span><span>฿{(printedShift.totalCashSales + printedShift.totalPromptPaySales).toLocaleString()}</span></div>
-            <div className="border-b border-dashed border-slate-400 my-2"></div>
-            <div className="flex justify-between"><span>เงินสดที่ควรมี:</span><span>฿{(printedShift.closingCashExpected || 0).toLocaleString()}</span></div>
-            <div className="flex justify-between"><span>เงินสดนับได้จริง:</span><span>฿{(printedShift.closingCashActual || 0).toLocaleString()}</span></div>
-            <div className="flex justify-between font-bold">
-              <span>ผลต่าง (ขาด/เกิน):</span>
-              <span>{(printedShift.cashDifference || 0) === 0 ? '✓ พอดี' : `฿${printedShift.cashDifference?.toLocaleString()}`}</span>
+            <div className="flex justify-between">
+              <span>เงินทอนตั้งต้น (Float):</span>
+              <span>฿{printedShift.startingCash.toLocaleString()}</span>
             </div>
-            {printedShift.notes && <div className="mt-2 text-[10px]">หมายเหตุ: {printedShift.notes}</div>}
+            <div className="flex justify-between">
+              <span>ยอดขายเงินสด:</span>
+              <span>฿{(printedShift.totalCashSales || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-sky-700">
+              <span>ยอดขาย PromptPay (เข้าบัญชี):</span>
+              <span>฿{(printedShift.totalPromptPaySales || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between font-bold">
+              <span>ยอดขายรวมกะนี้:</span>
+              <span>฿{((printedShift.totalCashSales || 0) + (printedShift.totalPromptPaySales || 0)).toLocaleString()}</span>
+            </div>
+            <div className="border-b border-dashed border-slate-400 my-2"></div>
+            <div className="flex justify-between font-bold">
+              <span>รวมเงินสดที่ต้องมีในลิ้นชัก:</span>
+              <span>฿{(printedShift.closingCashExpected || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between font-bold">
+              <span>เงินสดที่นับได้จริง:</span>
+              <span>฿{(printedShift.closingCashActual || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between font-bold text-amber-800">
+              <span>ผลต่าง (ขาด/เกิน):</span>
+              <span>
+                {(printedShift.cashDifference || 0) === 0
+                  ? '✓ ยอดตรงพอดี (0)'
+                  : (printedShift.cashDifference || 0) > 0
+                  ? `+฿${(printedShift.cashDifference || 0).toLocaleString()} (เงินเกิน)`
+                  : `-฿${Math.abs(printedShift.cashDifference || 0).toLocaleString()} (เงินขาด)`}
+              </span>
+            </div>
+            {printedShift.notes && (
+              <div className="mt-2 text-[10px] text-slate-600 bg-white p-2 rounded border border-slate-200">
+                หมายเหตุ: {printedShift.notes}
+              </div>
+            )}
             <div className="border-b border-dashed border-slate-400 my-3"></div>
-            <div className="grid grid-cols-2 gap-4 text-center text-[10px] pt-4">
-              <div>ลงชื่อ............................<br/>( ผู้ส่งมอบกะ )</div>
-              <div>ลงชื่อ............................<br/>( ผู้รับมอบกะ / แอดมิน )</div>
+            <div className="grid grid-cols-2 gap-4 text-center text-[10px] pt-4 font-sans text-slate-700">
+              <div>
+                ลงชื่อ............................<br />
+                ( ผู้ส่งมอบกะ )
+              </div>
+              <div>
+                ลงชื่อ............................<br />
+                ( ผู้รับมอบกะ / แอดมิน )
+              </div>
             </div>
           </div>
         </div>

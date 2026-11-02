@@ -56,6 +56,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [resetPin, setResetPin] = useState('');
   const [resetConfirmWord, setResetConfirmWord] = useState('');
+  const [resetCustomers, setResetCustomers] = useState(false);
   const [resetError, setResetError] = useState('');
 
   const loadData = async () => {
@@ -71,7 +72,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         welcomeTitle: s.welcomeTitle || 'ยินดีต้อนรับสู่ KORAT CAT',
         welcomeSubtitle: s.welcomeSubtitle || 'สินค้าแฟชั่นอัตลักษณ์แมวโคราช x เรือนโคราชเฉลิมวัฒนา จะแสดงขึ้นที่นี่เมื่อสแกนบาร์โค้ด',
         welcomeImageUrl: s.welcomeImageUrl || '',
-        thankYouMessage: s.thankYouMessage || 'ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา'
+        thankYouMessage: s.thankYouMessage || 'ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
+        showStockQuantityOnPos: s.showStockQuantityOnPos ?? false,
+        goldPointsThreshold: s.goldPointsThreshold ?? 50,
+        goldSpentThreshold: s.goldSpentThreshold ?? 5000,
+        goldDiscountPercent: s.goldDiscountPercent ?? 5,
+        goldPrivilegeText: s.goldPrivilegeText || 'สิทธิพิเศษ: ส่วนลด 5% ทุกยอดซื้อ + รับแต้มสะสมพิเศษ',
+        blackWisdomPointsThreshold: s.blackWisdomPointsThreshold ?? 150,
+        blackWisdomSpentThreshold: s.blackWisdomSpentThreshold ?? 15000,
+        blackWisdomDiscountPercent: s.blackWisdomDiscountPercent ?? 10,
+        blackWisdomPrivilegeText: s.blackWisdomPrivilegeText || 'สิทธิพิเศษ: ส่วนลด 10% ทุกยอดซื้อ + เชิญร่วมกิจกรรม Workshop ฟรี'
       });
     }
 
@@ -141,7 +151,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
 
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    // Auto-scroll smoothly to top so user sees the top view
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTo({ top: 0, behavior: 'smooth' });
+
+    setTimeout(() => setSaveSuccess(false), 3500);
     onSettingsUpdated();
     loadData();
   };
@@ -261,12 +276,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     try {
       await db.orders.clear();
       await db.shifts.clear();
-      setIsResetModalOpen(false);
-      setResetPin('');
-      setResetConfirmWord('');
-      alert('✨ ล้างข้อมูลการขายและกะทดสอบเรียบร้อยแล้ว! ระบบพร้อมสำหรับการเปิดร้านจริง');
-      loadData();
-      onSettingsUpdated();
+      if (resetCustomers) {
+        await db.customers.clear();
+      }
+
+      AuthService.logout();
+      alert('ล้างข้อมูลการขายและกะทดสอบเรียบร้อยแล้ว!\nระบบจะออกจากระบบและกลับสู่หน้าใส่ PIN เพื่อเริ่มต้นกะแรกของการเปิดร้านจริง');
+      window.location.reload();
     } catch (err: any) {
       setResetError('เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);
     }
@@ -275,7 +291,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   if (!settings) return null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8 pb-16">
+    <div className="p-6 max-w-5xl mx-auto space-y-8 pb-16 relative">
+      {/* FLOATING SUCCESS TOAST (Always visible on screen when saved) */}
+      {saveSuccess && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm border-2 border-emerald-400 animate-in slide-in-from-top duration-300">
+          <CheckCircle2 className="w-5 h-5 text-white animate-bounce" />
+          <span>✓ บันทึกการตั้งค่าระบบเรียบร้อยแล้ว! หน้าจอและระบบอัปเดตทันที</span>
+        </div>
+      )}
+
       {/* Page Title */}
       <div className="flex items-center justify-between">
         <div>
@@ -368,7 +392,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Store Logo Uploader */}
             <div className="md:col-span-2">
               <label className="block font-bold text-slate-700 mb-2">
-                🖼️ รูปภาพโลโก้ร้าน (แสดงที่แถบเมนูด้านบน, จอฝั่งลูกค้า และหัวใบเสร็จสลิป)
+                รูปภาพโลโก้ร้าน (แสดงที่แถบเมนูด้านบน, จอฝั่งลูกค้า และหัวใบเสร็จสลิป)
               </label>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
                 {settings.logoUrl ? (
@@ -391,8 +415,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-amber-100/60 border border-amber-300 flex flex-col items-center justify-center text-amber-700 flex-shrink-0 font-bold">
-                    <span className="text-2xl">🐱</span>
+                  <div className="w-20 h-20 rounded-2xl bg-amber-100/60 border border-amber-300 flex flex-col items-center justify-center text-amber-800 flex-shrink-0 font-bold">
+                    <span className="text-xl font-black font-mono">KC</span>
                     <span className="text-[9px] mt-0.5">ไอคอนเริ่มต้น</span>
                   </div>
                 )}
@@ -416,13 +440,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         onClick={() => setSettings({ ...settings, logoUrl: '' })}
                         className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-semibold transition"
                       >
-                        ใช้ไอคอนเริ่มต้น (🐱)
+                        ใช้ไอคอนเริ่มต้น (KC)
                       </button>
                     )}
                   </div>
 
                   <div className="text-[11px] text-slate-500">
-                    💡 แนะนำ: อัปโหลดไฟล์จากเครื่อง รูปภาพจะถูกบันทึกไว้ในเครื่องแบบ Offline 100% ใช้งานได้ตลอดเวลาแม้ไม่มีอินเทอร์เน็ต
+                    คำแนะนำ: อัปโหลดไฟล์จากเครื่อง รูปภาพจะถูกบันทึกไว้ในเครื่องแบบ Offline 100% ใช้งานได้ตลอดเวลาแม้ไม่มีอินเทอร์เน็ต
                   </div>
                   <input
                     type="text"
@@ -433,6 +457,27 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   />
                 </div>
               </div>
+            </div>
+
+            {/* POS Display Preferences */}
+            <div className="md:col-span-2 p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+              <div>
+                <div className="font-bold text-slate-800 text-xs">
+                  แสดงตัวเลขจำนวนสต็อกคงเหลือบนการ์ดสินค้าในหน้าขาย (POS)
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  หากปิด (แนะนำ): การ์ดสินค้าจะแสดงเฉพาะชื่อและราคา เหมาะกับร้านแฟชั่นบูทีคเรียบหรู (ระบบยังคงบล็อคไม่ให้ขายเมื่อสินค้าหมดเป็น 0 ชิ้น)
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
+                <input
+                  type="checkbox"
+                  checked={settings.showStockQuantityOnPos ?? false}
+                  onChange={e => setSettings({ ...settings, showStockQuantityOnPos: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+              </label>
             </div>
           </div>
         </div>
@@ -455,7 +500,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Theme Selector */}
             <div className="md:col-span-2">
               <label className="block font-bold text-slate-700 mb-2">
-                🎨 เลือกธีมสีหน้าจอฝั่งลูกค้า (Luxury Boutique Themes)
+                เลือกธีมสีหน้าจอฝั่งลูกค้า (Luxury Boutique Themes)
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
@@ -509,7 +554,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Welcome Poster / Crest Uploader */}
             <div className="md:col-span-2">
               <label className="block font-bold text-slate-700 mb-2">
-                🖼️ ภาพต้อนรับกลางจอฝั่งลูกค้า (เปลี่ยนแทนไอคอนดาว ✨ ที่วงกลมไว้)
+                ภาพต้อนรับกลางจอฝั่งลูกค้า (เปลี่ยนแทนกราฟิกเริ่มต้น)
               </label>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
                 {settings.welcomeImageUrl ? (
@@ -530,7 +575,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </div>
                 ) : (
                   <div className="w-24 h-24 rounded-2xl bg-indigo-50 border border-indigo-200 flex flex-col items-center justify-center text-indigo-600 flex-shrink-0 text-center p-2">
-                    <span className="text-2xl mb-1">🏛️</span>
+                    <ImageIcon className="w-8 h-8 text-indigo-400 mb-1" />
                     <span className="text-[9px] font-bold">ใช้โลโก้ / ตราสัญลักษณ์</span>
                   </div>
                 )}
@@ -788,10 +833,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <div className="flex justify-end">
           <button
             type="submit"
-            className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs shadow-lg flex items-center gap-2 transition"
+            className={`px-7 py-3.5 text-white font-bold rounded-2xl text-xs shadow-xl flex items-center gap-2 transition duration-300 ${
+              saveSuccess 
+                ? 'bg-emerald-600 ring-4 ring-emerald-300 scale-105' 
+                : 'bg-amber-600 hover:bg-amber-700 active:scale-95'
+            }`}
           >
-            <Save className="w-4 h-4" />
-            <span>บันทึกการตั้งค่าทั้งหมด</span>
+            {saveSuccess ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 text-white animate-bounce" />
+                <span>✓ บันทึกการตั้งค่าสำเร็จเรียบร้อย!</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>บันทึกการตั้งค่าทั้งหมด</span>
+              </>
+            )}
           </button>
         </div>
       </form>
@@ -999,13 +1057,24 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
 
             <div className="bg-rose-50 p-3.5 rounded-xl text-xs text-rose-800 space-y-1">
-              <p className="font-bold">⚠️ รายการที่จะถูกล้าง:</p>
+              <p className="font-bold">รายการที่จะถูกล้าง:</p>
               <ul className="list-disc list-inside space-y-0.5 pl-1 text-[11px]">
                 <li>บิลการขายทั้งหมด ({dbStats.orders} บิล)</li>
                 <li>บันทึกเปิด-ปิดกะทั้งหมด ({dbStats.shifts} กะ)</li>
               </ul>
-              <p className="pt-1 text-[11px] text-slate-600">
-                ข้อมูลสต็อกสินค้า รายชื่อสมาชิก และพนักงานจะ <b>ยังคงอยู่ครบถ้วน</b>
+              <div className="pt-2 border-t border-rose-200 mt-2">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-rose-900">
+                  <input
+                    type="checkbox"
+                    checked={resetCustomers}
+                    onChange={e => setResetCustomers(e.target.checked)}
+                    className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4"
+                  />
+                  <span>ล้างรายชื่อสมาชิกที่ทดลองสมัครด้วย ({dbStats.customers} คน)</span>
+                </label>
+              </div>
+              <p className="pt-1.5 text-[11px] text-slate-600">
+                ข้อมูลสินค้าในคลัง ({dbStats.variants} รายการ) และบัญชีพนักงานจะ <b>ยังคงอยู่ครบถ้วน ไม่ถูกลบ</b>
               </p>
             </div>
 

@@ -5,12 +5,15 @@ export interface CustomerDisplayState {
   cart: CartItem[];
   subtotal: number;
   promoDiscount: number;
+  memberDiscount?: number;
+  memberTier?: string;
   customDiscount?: number;
   vatAmount?: number;
   netTotal: number;
   upsellPrompts: string[];
   lastScannedItem?: string;
   isPaid?: boolean;
+  isCheckoutStep?: boolean;
   changeGiven?: number;
   cashReceived?: number;
   paymentMethod?: 'CASH' | 'PROMPTPAY' | 'SPLIT';
@@ -21,6 +24,18 @@ export interface CustomerDisplayState {
   welcomeSubtitle?: string;
   welcomeImageUrl?: string;
   thankYouMessage?: string;
+
+  // Digital Pass Showcase (โชว์บัตรสมาชิกหรูหราที่หน้าจอลูกค้าเพื่อสแกน)
+  showDigitalPass?: boolean;
+  memberPassData?: {
+    name: string;
+    phone: string;
+    memberCode: string;
+    tier: string;
+    points: number;
+    qrDataUrl?: string;
+    barcodeDataUrl?: string;
+  };
 }
 
 const CHANNEL_NAME = 'pos_korat_dual_screen_channel';
