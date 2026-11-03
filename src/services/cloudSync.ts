@@ -1,0 +1,345 @@
+// src/services/cloudSync.ts
+import { db } from '../db';
+import type { 
+  ProductVariant, 
+  Product, 
+  Customer, 
+  Order, 
+  Shift, 
+  StockTransfer, 
+  CustomMadeOrder 
+} from '../types';
+
+export const SUPABASE_CONFIG = {
+  url: 'https://jfzfestdintwwsnoxiwv.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmemZlc3RkaW50d3dzbm94aXd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM3MTA5NjUsImV4cCI6MjEwOTI4Njk2NX0.ZrQXdlMuAc_QnGsJCQFPwKAsaXf0mnzOlnfeP3woBd4'
+};
+
+class CloudSyncService {
+  private getHeaders() {
+    return {
+      'apikey': SUPABASE_CONFIG.anonKey,
+      'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    };
+  }
+
+  /**
+   * ตรวจสอบว่าสามารถเชื่อมต่อ Supabase ได้หรือไม่
+   */
+  public async testConnection(): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?select=id&limit=1`, {
+        headers: this.getHeaders()
+      });
+      if (res.ok) {
+        return { success: true, message: 'เชื่อมต่อฐานข้อมูล Supabase สำเร็จเรียบร้อย' };
+      }
+      if (res.status === 404 || res.status === 400) {
+        return { 
+          success: false, 
+          message: 'เชื่อมต่อได้ แต่ยังไม่ได้รันสคริปต์สร้างตาราง (supabase_schema.sql) ใน SQL Editor' 
+        };
+      }
+      return { success: false, message: `เกิดข้อผิดพลาดจาก Supabase (HTTP ${res.status})` };
+    } catch (err: any) {
+      return { success: false, message: `ไม่สามารถเชื่อมต่ออินเทอร์เน็ตหรือ Supabase ได้: ${err.message}` };
+    }
+  }
+
+  /**
+   * ดึงข้อมูลทั้งหมดจาก Supabase Cloud ลงมาอัปเดตในเครื่องนี้ (Cloud -> Local)
+   */
+  public async pullFromCloud(): Promise<{ success: boolean; summary: string }> {
+    try {
+      // 1. Pull Variants
+      const vRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?select=*`, {
+        headers: this.getHeaders()
+      });
+      if (vRes.ok) {
+        const cloudVariants: any[] = await vRes.json();
+        for (const cv of cloudVariants) {
+          const localVar: ProductVariant = {
+            id: cv.id,
+            productId: cv.product_id,
+            productName: cv.product_name,
+            category: cv.category,
+            sku: cv.sku,
+            barcode: cv.barcode,
+            attributes: cv.attributes || {},
+            costPrice: Number(cv.cost_price || 0),
+            salePrice: Number(cv.sale_price || 0),
+            stockQuantity: Number(cv.stock_quantity || 0),
+            warehouseStock: Number(cv.warehouse_stock || 0),
+            shopStock: Number(cv.shop_stock || 0),
+            minStockAlert: Number(cv.min_stock_alert || 5),
+            imageUrl: cv.image_url,
+            supplierName: cv.supplier_name,
+            isActive: cv.is_active !== false
+          };
+          await db.variants.put(localVar);
+        }
+      }
+
+      // 2. Pull Customers
+      const cRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/customers?select=*`, {
+        headers: this.getHeaders()
+      });
+      if (cRes.ok) {
+        const cloudCust: any[] = await cRes.json();
+        for (const cc of cloudCust) {
+          const localCust: Customer = {
+            id: cc.id,
+            memberCode: cc.member_code,
+            tier: cc.tier || 'SILVER',
+            phone: cc.phone,
+            name: cc.name,
+            contactChannel: cc.contact_channel,
+            address: cc.address,
+            taxId: cc.tax_id,
+            rewardPoints: Number(cc.reward_points || 0),
+            totalSpent: Number(cc.total_spent || 0),
+            createdAt: cc.created_at
+          };
+          await db.customers.put(localCust);
+        }
+      }
+
+      // 3. Pull Transfers
+      const tRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?select=*`, {
+        headers: this.getHeaders()
+      });
+      if (tRes.ok) {
+        const cloudTransfers: any[] = await tRes.json();
+        for (const ct of cloudTransfers) {
+          const localTransfer: StockTransfer = {
+            id: ct.id,
+            transferNo: ct.transfer_no,
+            timestamp: ct.timestamp,
+            fromBranch: ct.from_branch,
+            toBranch: ct.to_branch,
+            items: ct.items || [],
+            totalQty: Number(ct.total_qty || 0),
+            senderName: ct.sender_name,
+            receiverName: ct.receiver_name,
+            receivedAt: ct.received_at,
+            status: ct.status,
+            notes: ct.notes
+          };
+          await db.transfers.put(localTransfer);
+        }
+      }
+
+      // 4. Pull Custom Orders
+      const coRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/custom_orders?select=*`, {
+        headers: this.getHeaders()
+      });
+      if (coRes.ok) {
+        const cloudCO: any[] = await coRes.json();
+        for (const co of cloudCO) {
+          const localCO: CustomMadeOrder = {
+            id: co.id,
+            orderNo: co.order_no,
+            createdAt: co.created_at,
+            staffName: co.staff_name,
+            branch: co.branch,
+            customerName: co.customer_name,
+            customerPhone: co.customer_phone,
+            deliveryMethod: co.delivery_method,
+            shippingAddress: co.shipping_address,
+            dueDate: co.due_date,
+            itemDescription: co.item_description,
+            qty: Number(co.qty || 1),
+            totalPrice: Number(co.total_price || 0),
+            depositAmount: Number(co.deposit_amount || 0),
+            balanceDue: Number(co.balance_due || 0),
+            depositPaymentMethod: co.deposit_payment_method,
+            status: co.status,
+            finalPaymentMethod: co.final_payment_method,
+            finalPaidAmount: co.final_paid_amount ? Number(co.final_paid_amount) : undefined,
+            finalPaidAt: co.final_paid_at,
+            notes: co.notes
+          };
+          await db.customOrders.put(localCO);
+        }
+      }
+
+      return { success: true, summary: 'ดึงข้อมูลล่าสุดจาก Cloud อัปเดตลงเครื่องสำเร็จ' };
+    } catch (err: any) {
+      return { success: false, summary: `เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message}` };
+    }
+  }
+
+  /**
+   * ส่งข้อมูลทั้งหมดจากเครื่องนี้ขึ้นไปเก็บบน Supabase Cloud (Local -> Cloud)
+   */
+  public async pushAllToCloud(): Promise<{ success: boolean; message: string }> {
+    try {
+      // 1. Push Variants
+      const localVariants = await db.variants.toArray();
+      if (localVariants.length > 0) {
+        const payload = localVariants.map(v => ({
+          id: v.id,
+          product_id: v.productId,
+          product_name: v.productName,
+          category: v.category,
+          sku: v.sku,
+          barcode: v.barcode,
+          attributes: v.attributes,
+          cost_price: v.costPrice,
+          sale_price: v.salePrice,
+          stock_quantity: v.stockQuantity,
+          warehouse_stock: v.warehouseStock ?? Math.floor(v.stockQuantity * 0.6),
+          shop_stock: v.shopStock ?? (v.stockQuantity - Math.floor(v.stockQuantity * 0.6)),
+          min_stock_alert: v.minStockAlert,
+          image_url: v.imageUrl,
+          supplier_name: v.supplierName,
+          is_active: v.isActive !== false
+        }));
+
+        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(payload)
+        });
+      }
+
+      // 2. Push Customers
+      const localCustomers = await db.customers.toArray();
+      if (localCustomers.length > 0) {
+        const custPayload = localCustomers.map(c => ({
+          id: c.id,
+          member_code: c.memberCode,
+          tier: c.tier || 'SILVER',
+          phone: c.phone,
+          name: c.name,
+          contact_channel: c.contactChannel,
+          address: c.address,
+          tax_id: c.taxId,
+          reward_points: c.rewardPoints || 0,
+          total_spent: c.totalSpent || 0
+        }));
+
+        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/customers`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(custPayload)
+        });
+      }
+
+      return { success: true, message: `ส่งข้อมูลสินค้าและลูกค้าขึ้น Cloud สำเร็จ (${localVariants.length} รายการ)` };
+    } catch (err: any) {
+      return { success: false, message: `เกิดข้อผิดพลาดในการส่งข้อมูลขึ้น Cloud: ${err.message}` };
+    }
+  }
+
+  /**
+   * ส่งออเดอร์ใหม่ขึ้น Cloud ทันทีที่คิดเงินสำเร็จ
+   */
+  public async pushOrder(order: Order): Promise<void> {
+    try {
+      const payload = {
+        id: order.id,
+        local_order_id: order.localOrderId,
+        timestamp: order.timestamp,
+        cashier_id: order.cashierId,
+        cashier_name: order.cashierName,
+        shift_id: order.shiftId,
+        branch: order.branch || 'SHOP',
+        customer_id: order.customerId,
+        customer_name: order.customerName,
+        items: order.items,
+        subtotal: order.subtotal,
+        promo_discount: order.promoDiscount,
+        member_discount_amount: order.memberDiscountAmount || 0,
+        member_tier: order.memberTier,
+        net_total: order.netTotal,
+        payments: order.payments,
+        cash_received: order.cashReceived,
+        change_given: order.changeGiven,
+        status: order.status,
+        is_synced: true
+      };
+
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.warn('Failed to push order to cloud, cached locally in IndexedDB', e);
+    }
+  }
+
+  /**
+   * ส่งใบโอนสินค้าข้ามคลังขึ้น Cloud
+   */
+  public async pushTransfer(transfer: StockTransfer): Promise<void> {
+    try {
+      const payload = {
+        id: transfer.id,
+        transfer_no: transfer.transferNo,
+        timestamp: transfer.timestamp,
+        from_branch: transfer.fromBranch,
+        to_branch: transfer.toBranch,
+        items: transfer.items,
+        total_qty: transfer.totalQty,
+        sender_name: transfer.senderName,
+        receiver_name: transfer.receiverName,
+        received_at: transfer.receivedAt,
+        status: transfer.status,
+        notes: transfer.notes
+      };
+
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.warn('Failed to push transfer to cloud', e);
+    }
+  }
+
+  /**
+   * ส่งใบสั่งผลิตมัดจำ 50% ขึ้น Cloud
+   */
+  public async pushCustomOrder(co: CustomMadeOrder): Promise<void> {
+    try {
+      const payload = {
+        id: co.id,
+        order_no: co.orderNo,
+        created_at: co.createdAt,
+        staff_name: co.staffName,
+        branch: co.branch,
+        customer_name: co.customerName,
+        customer_phone: co.customerPhone,
+        delivery_method: co.deliveryMethod,
+        shipping_address: co.shippingAddress,
+        due_date: co.dueDate,
+        item_description: co.itemDescription,
+        qty: co.qty,
+        total_price: co.totalPrice,
+        deposit_amount: co.depositAmount,
+        balance_due: co.balanceDue,
+        deposit_payment_method: co.depositPaymentMethod,
+        status: co.status,
+        final_payment_method: co.finalPaymentMethod,
+        final_paid_amount: co.finalPaidAmount,
+        final_paid_at: co.finalPaidAt,
+        notes: co.notes
+      };
+
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/custom_orders`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.warn('Failed to push custom order to cloud', e);
+    }
+  }
+}
+
+export const CloudSync = new CloudSyncService();

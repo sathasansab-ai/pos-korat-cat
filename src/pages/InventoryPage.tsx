@@ -13,13 +13,15 @@ import {
   Filter, 
   Image as ImageIcon,
   Check,
-  X
+  X,
+  Truck
 } from 'lucide-react';
 import { db } from '../db';
 import type { ProductVariant, StoreSettings } from '../types';
 import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
 import { MatrixBuilder, type AttributeGroup } from '../services/matrixBuilder';
 import { BarcodePrintModal } from '../components/BarcodePrintModal';
+import { StockTransferModal } from '../components/StockTransferModal';
 import { ImageOptimizer } from '../services/imageOptimizer';
 
 interface SizeStockEntry {
@@ -36,6 +38,7 @@ export const InventoryPage: React.FC = () => {
   // Modals
   const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
   const [isSingleModalOpen, setIsSingleModalOpen] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   
   // Barcode Label Print Modal
   const [selectedVariantForPrint, setSelectedVariantForPrint] = useState<ProductVariant | null>(null);
@@ -313,6 +316,16 @@ export const InventoryPage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
+            onClick={() => setIsTransferModalOpen(true)}
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition"
+            title="โอนย้ายสต็อกระหว่างโกดัง/โรงงานผลิต เข้าหน้าร้าน"
+          >
+            <Truck className="w-4 h-4 text-emerald-200" />
+            <span>🚚 โอนย้ายสต็อกข้ามคลัง</span>
+          </button>
+
+          <button
             onClick={() => {
               resetSingleForm();
               setIsSingleModalOpen(true);
@@ -376,7 +389,10 @@ export const InventoryPage: React.FC = () => {
                 <th className="p-3.5">หมวดหมู่</th>
                 <th className="p-3.5 text-right">ต้นทุน</th>
                 <th className="p-3.5 text-right">ราคาขาย</th>
-                <th className="p-3.5 text-center">สต็อกคงเหลือ</th>
+                <th className="p-3.5 text-center">
+                  <div>สต็อกคงเหลือ</div>
+                  <div className="text-[10px] text-slate-400 font-normal lowercase">โกดัง / หน้าร้าน / รวม</div>
+                </th>
                 <th className="p-3.5 text-center">พิมพ์บาร์โค้ดติดสินค้า</th>
                 <th className="p-3.5 text-center">จัดการ</th>
               </tr>
@@ -421,24 +437,35 @@ export const InventoryPage: React.FC = () => {
                     <td className="p-3.5 text-right font-mono text-slate-500">฿{item.costPrice.toLocaleString()}</td>
                     <td className="p-3.5 text-right font-mono font-bold text-amber-700">฿{item.salePrice.toLocaleString()}</td>
                     <td className="p-3.5 text-center">
-                      <div className="inline-flex items-center gap-1">
-                        <button
-                          onClick={() => handleUpdateStock(item.id, item.stockQuantity - 1)}
-                          className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold"
-                        >
-                          -
-                        </button>
-                        <span className={`px-2.5 py-0.5 rounded-lg font-mono font-bold ${
-                          isLow ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-800'
-                        }`}>
-                          {item.stockQuantity}
-                        </span>
-                        <button
-                          onClick={() => handleUpdateStock(item.id, item.stockQuantity + 1)}
-                          className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold"
-                        >
-                          +
-                        </button>
+                      <div className="flex flex-col items-center gap-1 font-mono text-[11px]">
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className="text-slate-500">โกดัง:</span>
+                          <span className="font-bold text-amber-700">{item.warehouseStock ?? Math.floor(item.stockQuantity * 0.6)}</span>
+                          <span className="text-slate-300">|</span>
+                          <span className="text-slate-500">หน้าร้าน:</span>
+                          <span className="font-bold text-emerald-700">{item.shopStock ?? (item.stockQuantity - Math.floor(item.stockQuantity * 0.6))}</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1 mt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStock(item.id, item.stockQuantity - 1)}
+                            className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs"
+                          >
+                            -
+                          </button>
+                          <span className={`px-2 py-0.5 rounded font-mono font-bold text-[11px] ${
+                            isLow ? 'bg-rose-100 text-rose-700' : 'bg-slate-900 text-white'
+                          }`} title="ยอดรวมทั้ง 2 คลัง">
+                            รวม: {item.stockQuantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStock(item.id, item.stockQuantity + 1)}
+                            className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
                     </td>
 
@@ -854,6 +881,13 @@ export const InventoryPage: React.FC = () => {
           }}
         />
       )}
+
+      {/* Multi-Location Stock Transfer Modal */}
+      <StockTransferModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        onTransferComplete={loadVariants}
+      />
     </div>
   );
 };

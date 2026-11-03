@@ -26,7 +26,8 @@ import {
   ChevronDown,
   Tag,
   Eye,
-  EyeOff
+  EyeOff,
+  Scissors
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
@@ -47,6 +48,8 @@ import { PinModal } from '../components/PinModal';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 import { DigitalPassModal } from '../components/DigitalPassModal';
+import { CustomOrderModal } from '../components/CustomOrderModal';
+import { CloudSync } from '../services/cloudSync';
 
 interface PosPageProps {
   currentUser: UserAccount;
@@ -114,6 +117,7 @@ export const PosPage: React.FC<PosPageProps> = ({
   // Recent Orders Modal (Cashier can view/reprint or issue tax invoice anytime)
   const [isRecentOrdersModalOpen, setIsRecentOrdersModalOpen] = useState(false);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [isCustomOrderModalOpen, setIsCustomOrderModalOpen] = useState(false);
 
   // Security Override
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -686,6 +690,9 @@ export const PosPage: React.FC<PosPageProps> = ({
       // 1. Save to Database
       await db.orders.add(order);
 
+      // Async Sync to Supabase Cloud
+      CloudSync.pushOrder(order);
+
       // 2. Cut Inventory Stock
       for (const item of cart) {
         const v = await db.variants.get(item.variantId);
@@ -816,6 +823,17 @@ export const PosPage: React.FC<PosPageProps> = ({
           >
             <Receipt className="w-4 h-4 text-amber-600" />
             <span className="hidden sm:inline">🧾 สลิปใบเสร็จ / บิลล่าสุด</span>
+          </button>
+
+          {/* Custom Order & Deposit Modal Button */}
+          <button
+            type="button"
+            onClick={() => setIsCustomOrderModalOpen(true)}
+            className="px-3.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-2xl font-bold flex items-center gap-1.5 shadow-xs transition text-xs whitespace-nowrap"
+            title="ออกใบสั่งผลิตงานสั่งทำ / สั่งตัดเย็บ / งานโหล และรับเงินมัดจำ 50%"
+          >
+            <Scissors className="w-4 h-4 text-amber-200" />
+            <span className="hidden md:inline">✂️ สั่งผลิต/มัดจำ</span>
           </button>
           <button
             type="button"
@@ -1990,6 +2008,13 @@ export const PosPage: React.FC<PosPageProps> = ({
         subtitle="พนักงานไม่สามารถยกเลิกบิลได้ กรุณาให้เจ้าของร้านใส่ PIN ยืนยัน"
         onSuccess={handlePinOverride}
         onClose={() => { setIsPinModalOpen(false); setPinAction(null); }}
+      />
+
+      {/* Custom Made Order & 50% Deposit Modal */}
+      <CustomOrderModal
+        isOpen={isCustomOrderModalOpen}
+        onClose={() => setIsCustomOrderModalOpen(false)}
+        staffName={currentUser.name}
       />
     </div>
   );

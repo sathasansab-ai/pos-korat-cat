@@ -14,11 +14,13 @@ import {
   ShieldCheck, 
   UserCheck, 
   Settings,
-  Lock
+  Lock,
+  Cloud
 } from 'lucide-react';
 import type { UserAccount, Shift, StoreSettings } from '../types';
 import { AuthService } from '../services/auth';
 import { db } from '../db';
+import { CloudSyncModal } from './CloudSyncModal';
 
 interface NavbarProps {
   currentUser: UserAccount | null;
@@ -42,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [logoError, setLogoError] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
 
   useEffect(() => {
     setLogoError(false);
@@ -225,6 +228,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden md:inline">{isOnline ? 'Online' : 'Offline'}</span>
             </div>
 
+            {/* Cloud Sync Button */}
+            <button
+              type="button"
+              onClick={() => setIsCloudSyncOpen(true)}
+              title="ซิงค์ข้อมูล Cloud (Supabase) เชื่อมต่อหน้าร้าน • โกดัง • ที่บ้าน"
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-sky-950/60 hover:bg-sky-900/80 text-sky-300 text-xs font-bold transition border border-sky-800/80 shadow-xs"
+            >
+              <Cloud className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden sm:inline">ซิงค์ Cloud</span>
+            </button>
+
             {/* Role & User Switcher */}
             <div className="flex items-center space-x-2 pl-2 border-l border-slate-800">
               <div className="text-right">
@@ -258,6 +272,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       </header>
+
+      <CloudSyncModal
+        isOpen={isCloudSyncOpen}
+        onClose={() => setIsCloudSyncOpen(false)}
+      />
     </>
   );
 };
