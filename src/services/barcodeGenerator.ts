@@ -55,8 +55,8 @@ export class BarcodeGenerator {
       }
     });
 
-    const moduleWidth = 2; // px per narrow bar
-    const quietZone = 20; // quiet margin
+    const moduleWidth = options.width ? Math.max(2, Math.floor(options.width / (binary.length + 20))) : 2.5; // px per narrow bar
+    const quietZone = Math.max(16, Math.floor(moduleWidth * 10)); // standard quiet margin (at least 10 modules)
     const totalWidth = binary.length * moduleWidth + (quietZone * 2);
 
     // Build SVG Rectangles
@@ -64,18 +64,18 @@ export class BarcodeGenerator {
     let x = quietZone;
     for (let i = 0; i < binary.length; i++) {
       if (binary[i] === '1') {
-        rects += `<rect x="${x}" y="5" width="${moduleWidth}" height="${height}" fill="#000000"/>`;
+        rects += `<rect x="${x}" y="4" width="${moduleWidth}" height="${height}" fill="#000000" shape-rendering="crispEdges"/>`;
       }
       x += moduleWidth;
     }
 
-    const totalHeight = showText ? height + 24 : height + 10;
+    const totalHeight = showText ? height + 24 : height + 8;
     const textSvg = showText
-      ? `<text x="${totalWidth / 2}" y="${height + 20}" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#000000">${text}</text>`
+      ? `<text x="${totalWidth / 2}" y="${height + 20}" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-size="13" font-weight="900" letter-spacing="2" fill="#000000">${text}</text>`
       : '';
 
     return `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" width="${options.width || totalWidth}" height="${totalHeight}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" width="100%" height="${totalHeight}" preserveAspectRatio="xMidYMid meet">
         <rect width="100%" height="100%" fill="#ffffff"/>
         ${rects}
         ${textSvg}

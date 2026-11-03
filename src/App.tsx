@@ -100,7 +100,11 @@ export function App() {
         activeTab={activeTab}
         settingsVer={settingsVer}
         onSelectTab={setActiveTab}
-        onLockScreen={() => setIsAuthenticated(false)}
+        onLockScreen={() => {
+          AuthService.logout();
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+        }}
         onUserChanged={(user) => {
           setCurrentUser(user);
           // If switched to Cashier and active tab is an owner-only tab, redirect to POS

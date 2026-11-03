@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คู่มือการใช้งานระบบ POS Korat Cat x เรือนโคราชเฉลิมวัฒนา</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Prompt:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #92400e;
+      --primary-dark: #78350f;
+      --gold: #d97706;
+      --slate-dark: #0f172a;
+      --slate-light: #f8fafc;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Sarabun', sans-serif;
+      color: var(--text);
+      background-color: #f1f5f9;
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    /* Floating Print Button */
+    .print-bar {
+      position: sticky;
+      top: 0;
+      z-index: 999;
+      background: #0f172a;
+      color: #fff;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .print-btn {
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: #fff;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-family: 'Prompt', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      box-shadow: 0 2px 6px rgba(217, 119, 6, 0.4);
+    }
+
+    .print-btn:hover {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      transform: translateY(-1px);
+    }
+
+    .doc-container {
+      max-width: 900px;
+      margin: 30px auto;
+      background: #ffffff;
+      padding: 60px 70px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Cover / Header Header */
+    .brand-header {
+      border-bottom: 3px solid #d97706;
+      padding-bottom: 24px;
+      margin-bottom: 36px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .brand-logo {
+      width: 70px;
+      height: 70px;
+      background: linear-gradient(135deg, #f59e0b, #b45309);
+      color: #0f172a;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Prompt', sans-serif;
+      font-weight: 900;
+      font-size: 26px;
+      box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Prompt', sans-serif;
+      color: var(--slate-dark);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.3;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--primary);
+      font-weight: 600;
+      margin-top: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin-top: 36px;
+      margin-bottom: 14px;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #fed7aa;
+      break-after: avoid;
+    }
+
+    h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #334155;
+      margin-top: 20px;
+      margin-bottom: 8px;
+      break-after: avoid;
+    }
+
+    p {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+
+    ul, ol {
+      margin-left: 24px;
+      margin-bottom: 16px;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    /* Cards / Boxes */
+    .info-box {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .tip-box {
+      background: #f0fdf4;
+      border-left: 4px solid #22c55e;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 700;
+      color: #334155;
+      font-family: 'Prompt', sans-serif;
+    }
+
+    tr:nth-child(even) td {
+      background: #fafafa;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: 'Prompt', sans-serif;
+    }
+    .badge-gold { background: #fef3c7; color: #92400e; }
+    .badge-silver { background: #f1f5f9; color: #475569; }
+    .badge-black { background: #0f172a; color: #fbbf24; }
+
+    /* Code styling */
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #b45309;
+    }
+
+    /* Print Specific Styles */
+    @media print {
+      body {
+        background: #fff !important;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .print-bar {
+        display: none !important;
+      }
+
+      .doc-container {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+      }
+
+      h2 {
+        break-before: auto;
+        break-after: avoid;
+      }
+
+      .section-break {
+        break-before: page;
+      }
+
+      table, .info-box, .tip-box {
+        break-inside: avoid;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 1.5cm;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Print Action Header -->
+  <div class="print-bar">
+    <div>
+      <span style="font-family: 'Prompt'; font-weight: 700; font-size: 15px; color: #fbbf24;">KORAT CAT x เรือนโคราชเฉลิมวัฒนา</span>
+      <span style="font-size: 12px; color: #94a3b8; margin-left: 8px;">— คู่มือการใช้งานระบบ POS ฉบับเต็ม</span>
+    </div>
+    <button class="print-btn" onclick="window.print()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+      </svg>
+      <span>พิมพ์ / บันทึกเป็น PDF (Ctrl + P)</span>
+    </button>
+  </div>
+
+  <div class="doc-container">
+
+    <!-- Document Header -->
+    <div class="brand-header">
+      <div class="brand-logo">KC</div>
+      <div>
+        <h1>คู่มือการใช้งานระบบ POS Korat Cat x เรือนโคราชเฉลิมวัฒนา</h1>
+        <div class="subtitle">HAUTE COUTURE & HERITAGE CRAFT BOUTIQUE — COMPLETE OPERATION MANUAL</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">เวอร์ชัน 1.0 (พร้อมใช้งานหน้าร้านจริง) • รองรับการทำงานแบบ Offline-First</div>
+      </div>
+    </div>
+
+    <!-- Section 1 -->
+    <h2>1. ภาพรวมระบบและสถาปัตยกรรม (System Overview)</h2>
+    <p>ระบบ POS Korat Cat ถูกออกแบบขึ้นเฉพาะสำหรับร้านจำหน่ายสินค้าแฟชั่น ผ้าไหมโคราช และของที่ระลึกระดับพรีเมียม โดยมีจุดเด่นสำคัญดังนี้:</p>
+    <ul>
+      <li><strong>ทำงานได้ 100% แม้ไม่มีอินเทอร์เน็ต (Offline-First):</strong> ใช้ฐานข้อมูล IndexedDB ในตัวเครื่อง ทำให้สามารถยิงบาร์โค้ด คิดเงิน พักบิล และพิมพ์สลิปได้ตามปกติแม้เน็ตหลุด</li>
+      <li><strong>ระบบความปลอดภัย PIN Security:</strong> ล็อคหน้าจอทุกครั้งที่เปิดเครื่อง แคชเชียร์และแอดมินต้องใส่รหัสผ่านก่อนเข้าใช้งาน</li>
+      <li><strong>ระบบจอคู่เรียลไทม์ (Dual Monitor Sync):</strong> ส่งยอดเงินและ QR Code ให้ลูกค้าสแกนจ่ายได้ทันทีบนจอที่สอง</li>
+    </ul>
+
+    <!-- Section 2 -->
+    <h2>2. การเข้าสู่ระบบและความปลอดภัย (Authentication & PIN Security)</h2>
+    <p>เมื่อเปิดระบบขึ้นมา ระบบจะแสดงหน้าต่างล็อคหน้าจอเพื่อความปลอดภัย:</p>
+    <ol>
+      <li><strong>การกดรหัสผ่าน:</strong> สามารถใช้เมาส์คลิกตัวเลขบนหน้าจอ หรือกดจากแป้นพิมพ์ตัวเลข (Numpad) ได้โดยตรง</li>
+      <li><strong>ไฟบอกสถานะ PIN:</strong> จุดไฟสีทองจะเพิ่มขึ้นตามความยาวของรหัสผ่านจริงอัตโนมัติ (ไม่จำกัดที่ 4 ตัว)</li>
+      <li><strong>การเข้าสู่ระบบ:</strong> กดปุ่ม <code>Enter</code> หรือคลิกปุ่ม <em>"เข้าสู่ระบบ"</em></li>
+    </ol>
+    <div class="info-box">
+      <strong>รหัสเริ่มต้นของผู้ดูแลระบบ (Admin):</strong> <code>1234</code> หรือรหัสผ่านที่ท่านกำหนดไว้ในหน้าตั้งค่า
+    </div>
+
+    <!-- Section 3 -->
+    <h2 class="section-break">3. วงจรกะการทำงานประจำวัน (Cashier Shift Management)</h2>
+
+    <h3>3.1 การเปิดกะหน้าร้าน (Open Shift)</h3>
+    <p>ก่อนเริ่มขายสินค้าบิลแรกของวัน แคชเชียร์จะต้องทำการเปิดกะเพื่อบันทึกเงินทอน:</p>
+    <ol>
+      <li>ไปที่เมนู <strong>"กะพนักงาน"</strong></li>
+      <li>ระบุชื่อพนักงานผู้เปิดกะ (เช่น ADMIN หรือชื่อแคชเชียร์)</li>
+      <li>กรอก <strong>"เงินทอนตั้งต้นในลิ้นชัก (บาท)"</strong> เช่น <code>1000</code> บาท</li>
+      <li>คลิกปุ่ม <strong>"ยืนยันเปิดกะและเริ่มขาย"</strong></li>
+    </ol>
+
+    <h3>3.2 การปิดกะและการตรวจนับเงิน (Close Shift & Reconciliation)</h3>
+    <p>เมื่อสิ้นสุดวันหรือต้องการเปลี่ยนเวร ให้แคชเชียร์นับเงินในลิ้นชักและทำการปิดกะ:</p>
+    <div class="tip-box">
+      <strong>สูตรการคำนวณเงินสดในลิ้นชัก:</strong><br>
+      <code>เงินสดที่ควรมีในลิ้นชัก = เงินทอนตั้งต้น + ยอดขายเฉพาะเงินสด</code><br>
+      <em>(ยอดโอน PromptPay จะวิ่งเข้าบัญชีธนาคาร แยกแสดงต่างหาก ไม่นำมานับรวมในลิ้นชัก)</em>
+    </div>
+    <ol>
+      <li>ไปที่เมนู <strong>"กะพนักงาน"</strong> &gt; คลิก <strong>"ปิดกะแคชเชียร์"</strong></li>
+      <li>นับเงินสดจริงในลิ้นชัก แล้วกรอกในช่อง <strong>"เงินสดนับได้จริง"</strong></li>
+      <li><strong>เคล็ดลับ:</strong> หากนับเงินแล้วตรงเป๊ะ สามารถคลิกปุ่ม <code>[⚡ นับได้ตรงพอดี (฿X,XXX)]</code> เพื่อใส่ยอดเงินให้อัตโนมัติทันที</li>
+      <li>กด <strong>"ยืนยันการปิดกะ"</strong> และสามารถกดพิมพ์ <strong>ใบส่งมอบกะ (A4 / สลิป)</strong> เพื่อลงชื่อผู้ส่งมอบและผู้ตรวจรับกะไว้เป็นหลักฐาน</li>
+    </ol>
+
+    <!-- Section 4 -->
+    <h2 class="section-break">4. การจัดการสินค้า คลัง และพิมพ์ป้ายแท็กบาร์โค้ด (Inventory & Barcodes)</h2>
+
+    <h3>4.1 การเพิ่มสินค้าใหม่และตัวเลือกสินค้า (Variants)</h3>
+    <ol>
+      <li>ไปที่เมนู <strong>"คลัง &amp; บาร์โค้ด"</strong> &gt; คลิก <strong>"+ เพิ่มสินค้าใหม่"</strong></li>
+      <li>ระบุ <strong>ชื่อสินค้า</strong>, <strong>หมวดหมู่</strong> (เสื้อผ้า, ผ้าพันคอ, กระเป๋า, หมวก), <strong>ราคาขายปลีก</strong> และ <strong>ราคาทุน</strong></li>
+      <li>กำหนดตัวเลือกไซส์/สี (เช่น Size M, L, XL / สีดำ, สีขาว) พร้อมระบุจำนวนสต็อกเริ่มต้น</li>
+      <li>ระบบจะรันรหัส SKU และบาร์โค้ดมาตรฐานให้อัตโนมัติ</li>
+    </ol>
+
+    <h3>4.2 การพิมพ์ป้ายห้อยสินค้าพรีเมียม (45 x 70 mm Hangtag)</h3>
+    <p>ระบบรองรับการพิมพ์ป้ายแท็กห้อยเสื้อผ้าและสินค้างานฝีมือขนาดมาตรฐาน <strong>45 x 70 มม.</strong> บนเครื่องพิมพ์สติ๊กเกอร์บาร์โค้ดความร้อน:</p>
+    <ul>
+      <li>คลิกปุ่ม <strong>"พิมพ์ป้ายห้อย (45x70 mm)"</strong> ที่รายการสินค้า</li>
+      <li>เลือกจำนวนดวงที่ต้องการพิมพ์ (หรือคลิกตามจำนวนสต็อกจริง)</li>
+      <li>ป้ายจะพิมพ์ตราสัญลักษณ์แบรนด์, ชื่อสินค้า, รหัสบาร์โค้ดที่คมชัดสแกนติดง่าย, และราคาขาย</li>
+    </ul>
+
+    <!-- Section 5 -->
+    <h2>5. การขายหน้าร้าน (POS Terminal Operations)</h2>
+
+    <h3>5.1 โหมดตารางสินค้า vs โหมดสแกนเนอร์โปร (Minimalist Mode)</h3>
+    <p>แคชเชียร์สามารถเลือกรูปแบบการทำงานที่ถนัดได้ด้วยปุ่มที่มุมขวาบนของช่องค้นหา:</p>
+    <ul>
+      <li><strong>โหมดตารางสินค้า (Grid Mode):</strong> เหมาะกับจอทัชสกรีน แสดงรูปสินค้าชัดเจน แตะเลือกสินค้าลงบิลได้ง่าย</li>
+      <li><strong>โหมดสแกนเนอร์โปร (Minimalist Pro Mode):</strong> คลิกปุ่ม <code>[👁️ ซ่อนตารางสินค้า]</code> จอจะซ่อนรูปภาพทั้งหมด กลายเป็นหน้าจอยิงบาร์โค้ดขนาดใหญ่ โล่ง สะอาดตา เหมาะกับแคชเชียร์มืออาชีพที่ใช้ปืนสแกนเนอร์</li>
+    </ul>
+
+    <h3>5.2 การพักบิลและเรียกบิลกลับมาขาย (Hold Bills)</h3>
+    <ul>
+      <li>กด <strong>F6 (หรือปุ่มพักบิล):</strong> ระบบจะบันทึกตะกร้าสินค้าของลูกค้าไว้ชั่วคราว เพื่อให้คิดเงินลูกค้ารายถัดไปได้ทันทีโดยไม่ต้องยกเลิกรายการเดิม</li>
+      <li>กด <strong>F8 (หรือปุ่มบิลที่พักไว้):</strong> เพื่อเปิดดูรายการบิลที่พักไว้ และคลิกดึงกลับมาคิดเงินต่อได้ทันที</li>
+    </ul>
+
+    <h3>5.3 ตารางคีย์ลัดบนแป้นพิมพ์ (Keyboard Shortcuts)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 120px;">ปุ่มลัด</th>
+          <th>คำสั่ง / หน้าที่การทำงาน</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>F6</strong></td>
+          <td>พักบิลปัจจุบัน (Hold Current Cart)</td>
+        </tr>
+        <tr>
+          <td><strong>F8</strong></td>
+          <td>เปิดดูรายการบิลที่พักไว้ (View Held Bills)</td>
+        </tr>
+        <tr>
+          <td><strong>F9</strong></td>
+          <td>เปิดหน้าต่างชำระเงินทันที (Open Checkout)</td>
+        </tr>
+        <tr>
+          <td><strong>ESC</strong></td>
+          <td>ปิดหน้าต่าง Pop-up / ยกเลิกการค้นหา</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Section 6 -->
+    <h2 class="section-break">6. ระบบสมาชิกและบัตรสะสมแต้มดิจิทัล (Digital Wisdom Pass)</h2>
+
+    <h3>6.1 โครงสร้างระดับบัตร 3 ระดับ</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ระดับบัตร</th>
+          <th>สิทธิประโยชน์</th>
+          <th>เกณฑ์เริ่มต้น</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-silver">SILVER PRIVILEGE</span></td>
+          <td>สะสมแต้มทุกยอดซื้อ (100 บาท = 1 แต้ม)</td>
+          <td>สมาชิกแรกเข้า (ยอดซื้อ &lt; ฿5,000)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-gold">GOLD HERITAGE</span></td>
+          <td><strong>ลด 5% ทันที</strong> อัตโนมัติทุกยอดซื้อ</td>
+          <td>สะสมครบ 50 แต้ม หรือซื้อครบ ฿5,000</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-black">BLACK WISDOM ELITE</span></td>
+          <td><strong>ลด 10% VIP</strong> + สิทธิ์ Workshop ผ้าไหมฟรี</td>
+          <td>สะสมครบ 150 แต้ม หรือซื้อครบ ฿15,000</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6.2 การตั้งค่าเกณฑ์แต้มและส่วนลดอัตโนมัติ</h3>
+    <ol>
+      <li>ไปที่เมนู <strong>"จัดการสมาชิก &amp; บัตร"</strong> &gt; คลิกปุ่ม <code>[⚙️ กำหนดเกณฑ์ &amp; สิทธิประโยชน์บัตร]</code></li>
+      <li>เจ้าของร้านสามารถปรับตัวเลข % ส่วนลด, เกณฑ์แต้ม และเกณฑ์ยอดซื้อได้เองตามต้องการ</li>
+      <li><strong>การอัปเกรดพิเศษ:</strong> คลิกไอคอนดินสอ <code>✏️</code> ท้ายชื่อลูกค้า เพื่อเลื่อนขั้นระดับบัตรให้ลูกค้า VIP ได้ทันที</li>
+    </ol>
+
+    <h3>6.3 การส่งบัตร Digital Pass เข้ามือถือลูกค้า</h3>
+    <p>คลิกที่รหัสบัตรสมาชิก (เช่น <code>[💳 KCAT-8924]</code>) เพื่อเปิดบัตรขนาดมาตรฐานบัตรเครดิตสากล (ISO/IEC 7810 ID-1) ให้ลูกค้าใช้กล้องมือถือสแกนเก็บบัตรหรือกดบันทึกเป็นรูปภาพลงเครื่องได้ทันที</p>
+
+    <!-- Section 7 -->
+    <h2>7. การคิดเงินและการชำระเงิน (Checkout & Payments)</h2>
+    <p>เมื่อพร้อมคิดเงิน ให้กดปุ่ม <strong>"ชำระเงิน (F9)"</strong>:</p>
+    <ul>
+      <li><strong>ชำระด้วยเงินสด:</strong> กรอกจำนวนเงินที่รับ ระบบจะคำนวณเงินทอนตัวใหญ่ชัดเจน พร้อมมีปุ่มลัด ฿100, ฿500, ฿1,000</li>
+      <li><strong>ชำระผ่าน PromptPay QR Code:</strong> เลือกแท็บสแกน QR ระบบจะแสดง QR Code พร้อมยอดสุทธิ (หักส่วนลดสมาชิกอัตโนมัติ) และซิงค์ไปยังจอฝั่งลูกค้าทันที</li>
+      <li><strong>พิมพ์ใบเสร็จรับเงิน:</strong> รองรับเครื่องพิมพ์สลิปความร้อนหน้ากว้าง 80 มม. และ 58 มม. สลิปจะแสดงรายละเอียดรายการสินค้า, ส่วนลดสมาชิก, ยอดชำระ, และแต้มสะสมล่าสุด</li>
+    </ul>
+
+    <!-- Section 8 -->
+    <h2>8. การสำรองข้อมูลและการขึ้นใช้งานจริง (Backup & Deployment)</h2>
+    <ul>
+      <li><strong>สำรองข้อมูล (Backup):</strong> ไปที่ <em>"ตั้งค่าร้าน"</em> &gt; คลิก <code>[ดาวน์โหลดไฟล์สำรองข้อมูล (JSON)]</code> เพื่อเก็บสำรองข้อมูลสินค้าและยอดขายไว้ใน Flash Drive หรือ Google Drive</li>
+      <li><strong>การ Deploy ขึ้น Vercel:</strong> ผูกโค้ดบน GitHub เข้ากับ Vercel เพื่อเปิดใช้งานผ่านโดเมนจริง โดยที่ข้อมูลสต็อกในคอมพิวเตอร์หน้าร้านจะไม่สูญหายเมื่อมีการอัปเดตระบบ</li>
+    </ul>
+
+    <div style="margin-top: 50px; text-align: center; border-top: 1px solid var(--border); padding-top: 24px; color: var(--text-muted); font-size: 13px;">
+      <strong>KORAT CAT x เรือนโคราชเฉลิมวัฒนา</strong> • Haute Couture &amp; Heritage Craft Boutique<br>
+      เอกสารคู่มือการปฏิบัติงานสำหรับพนักงานและผู้ดูแลระบบหน้าร้าน
+    </div>
+
+  </div>
+
+</body>
+</html>

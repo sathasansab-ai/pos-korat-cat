@@ -196,6 +196,76 @@ export const PosPage: React.FC<PosPageProps> = ({
       .then(setSearchResults);
   }, [searchTerm]);
 
+  // Global Barcode Scanner Listener:
+  // Catches rapid scanner keystrokes (< 55ms) even if focus was outside the input field
+  useEffect(() => {
+    let scanBuffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
+
+      // If user is already in the main search input, let standard form submit handle it
+      if (activeEl === barcodeInputRef.current) return;
+      // If typing in another modal input (e.g. member phone, custom discount), ignore
+      if (isInput) return;
+
+      const now = Date.now();
+      const char = e.key;
+
+      if (char === 'Enter') {
+        if (scanBuffer.length >= 3) {
+          e.preventDefault();
+          const scanned = scanBuffer.trim();
+          scanBuffer = '';
+
+          // 1. Check member
+          const memberMatch = await db.customers
+            .filter(c => (c.memberCode && c.memberCode.toLowerCase() === scanned.toLowerCase()) || c.phone === scanned)
+            .first();
+
+          if (memberMatch) {
+            setSelectedCustomer(memberMatch);
+            SoundEffects.playSuccess();
+            return;
+          }
+
+          // 2. Check product variant
+          const matched = await db.variants
+            .filter(v => v.isActive !== false && (
+              v.barcode === scanned || 
+              v.sku.toLowerCase() === scanned.toLowerCase()
+            ))
+            .first();
+
+          if (matched) {
+            addToCart(matched);
+          } else {
+            SoundEffects.playWarning();
+            setStockNotice(`ไม่พบสินค้าสำหรับรหัส: "${scanned}"`);
+            setTimeout(() => setStockNotice(null), 3500);
+          }
+        }
+        scanBuffer = '';
+        return;
+      }
+
+      // If interval is longer than 60ms, it's slow manual human typing, discard buffer
+      if (now - lastKeyTime > 60) {
+        scanBuffer = '';
+      }
+
+      if (char.length === 1) {
+        scanBuffer += char;
+        lastKeyTime = now;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const raw = searchTerm.trim();
@@ -214,7 +284,13 @@ export const PosPage: React.FC<PosPageProps> = ({
     }
 
     // 2. Otherwise, check for Product Barcode / SKU
-    const matched = await db.variants.where({ barcode: raw }).first();
+    const matched = await db.variants
+      .filter(v => v.isActive !== false && (
+        v.barcode === raw || 
+        v.sku.toLowerCase() === raw.toLowerCase()
+      ))
+      .first();
+
     if (matched) {
       addToCart(matched);
       setSearchTerm('');
@@ -223,6 +299,8 @@ export const PosPage: React.FC<PosPageProps> = ({
       setSearchTerm('');
     } else {
       SoundEffects.playWarning();
+      setStockNotice(`ไม่พบสินค้าสำหรับรหัสหรือบาร์โค้ด: "${raw}"`);
+      setTimeout(() => setStockNotice(null), 3500);
     }
   };
 

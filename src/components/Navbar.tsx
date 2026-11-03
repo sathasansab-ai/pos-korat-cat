@@ -13,13 +13,11 @@ import {
   WifiOff, 
   ShieldCheck, 
   UserCheck, 
-  KeyRound,
   Settings,
   Lock
 } from 'lucide-react';
 import type { UserAccount, Shift, StoreSettings } from '../types';
 import { AuthService } from '../services/auth';
-import { PinModal } from './PinModal';
 import { db } from '../db';
 
 interface NavbarProps {
@@ -44,8 +42,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [logoError, setLogoError] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [pinTargetRole, setPinTargetRole] = useState<'OWNER' | 'CASHIER'>('OWNER');
 
   useEffect(() => {
     setLogoError(false);
@@ -63,21 +59,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       window.removeEventListener('offline', handleOffline);
     };
   }, [activeTab, settingsVer]);
-
-  const handleOpenPin = (targetRole: 'OWNER' | 'CASHIER') => {
-    setPinTargetRole(targetRole);
-    setIsPinModalOpen(true);
-  };
-
-  const handlePinSuccess = async (pin: string) => {
-    const user = await AuthService.loginWithPin(pin);
-    if (user) {
-      onUserChanged(user);
-      setIsPinModalOpen(false);
-    } else {
-      alert('รหัส PIN ไม่ถูกต้อง');
-    }
-  };
 
   const openCustomerDisplay = () => {
     window.open('/display', 'CustomerDisplay', 'width=1024,height=768');
@@ -261,35 +242,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
 
-              <button
-                onClick={() => handleOpenPin(isOwner ? 'CASHIER' : 'OWNER')}
-                title="สลับสิทธิ์ผู้ใช้งาน (ใส่ PIN)"
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-amber-500 transition"
-              >
-                <KeyRound className="w-4 h-4 text-amber-400" />
-              </button>
-
+              {/* Logout & Switch Shift Lock Button (No X to bypass) */}
               {onLockScreen && (
                 <button
+                  type="button"
                   onClick={onLockScreen}
-                  title="ล็อคหน้าจอ (PIN Lock)"
-                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:border-rose-400 transition"
+                  title="สลับกะ / ออกจากระบบ (ต้องใส่รหัส PIN ใหม่เพื่อเข้าใช้งาน ป้องกันการกดปิดแล้วใช้กะเดิม)"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/60 text-slate-200 border border-slate-700 hover:border-rose-500/50 text-xs font-bold transition shadow-xs"
                 >
-                  <Lock className="w-4 h-4 text-slate-300" />
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">สลับกะ/ล็อค</span>
                 </button>
               )}
             </div>
           </div>
         </div>
       </header>
-
-      <PinModal
-        isOpen={isPinModalOpen}
-        title={pinTargetRole === 'OWNER' ? 'ปลดล็อคสิทธิ์เจ้าของร้าน (Owner)' : 'สลับเข้าสู่กะแคชเชียร์ (Cashier)'}
-        subtitle={pinTargetRole === 'OWNER' ? 'กรุณากรอกรหัส PIN เจ้าของร้าน' : 'กรุณากรอกรหัส PIN แคชเชียร์'}
-        onSuccess={handlePinSuccess}
-        onClose={() => setIsPinModalOpen(false)}
-      />
     </>
   );
 };

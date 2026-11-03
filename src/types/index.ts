@@ -64,6 +64,8 @@ export interface Product {
   isActive: boolean;
 }
 
+export type BranchLocation = 'SHOP' | 'WAREHOUSE';
+
 export interface ProductVariant {
   id: string;
   productId: string;
@@ -74,11 +76,60 @@ export interface ProductVariant {
   attributes: Record<string, string>;
   costPrice: number;
   salePrice: number;
-  stockQuantity: number;
+  stockQuantity: number; // ยอดรวมทั้งหมด (warehouseStock + shopStock)
+  warehouseStock?: number; // คลังพื้นที่สต็อก / โรงงานผลิต (ร้านเก่า)
+  shopStock?: number;      // คลังหน้าร้าน (เรือนโคราชเฉลิมวัฒนา)
   minStockAlert: number;
   imageUrl?: string;
   supplierName?: string;
   isActive: boolean;
+}
+
+export interface StockTransferItem {
+  variantId: string;
+  productName: string;
+  sku: string;
+  barcode: string;
+  qty: number;
+}
+
+export interface StockTransfer {
+  id: string;
+  transferNo: string;
+  timestamp: string;
+  fromBranch: BranchLocation;
+  toBranch: BranchLocation;
+  items: StockTransferItem[];
+  totalQty: number;
+  senderName: string;
+  receiverName?: string;
+  receivedAt?: string;
+  status: 'PENDING_RECEIPT' | 'COMPLETED' | 'CANCELLED';
+  notes?: string;
+}
+
+export interface CustomMadeOrder {
+  id: string;
+  orderNo: string;
+  createdAt: string;
+  staffName: string;
+  branch: BranchLocation;
+  customerName: string;
+  customerPhone: string;
+  deliveryMethod: 'PICKUP_SHOP' | 'SHIPPING_ADDRESS';
+  shippingAddress?: string;
+  dueDate: string; // วันนัดรับสินค้า
+  itemDescription: string; // รายละเอียดงานสั่งทำ เช่น ปักลาย, สกรีน DTF, งานโหล
+  qty: number;
+  totalPrice: number;
+  depositAmount: number; // เงินมัดจำ
+  balanceDue: number; // ยอดค้างชำระ
+  depositPaymentMethod: 'CASH' | 'PROMPTPAY';
+  status: 'PENDING_PRODUCTION' | 'IN_PRODUCTION' | 'READY_FOR_PICKUP' | 'COMPLETED' | 'CANCELLED';
+  finalPaymentMethod?: 'CASH' | 'PROMPTPAY';
+  finalPaidAmount?: number;
+  finalPaidAt?: string;
+  notes?: string;
 }
 
 export interface PromotionRule {
@@ -177,6 +228,7 @@ export interface Order {
   vatAmount?: number;
 
   netTotal: number;
+  branch?: BranchLocation;
   payments: PaymentEntry[];
   cashReceived?: number;
   changeGiven?: number;
@@ -192,6 +244,7 @@ export interface Order {
 
 export interface Shift {
   id: string;
+  branch?: BranchLocation; // 'SHOP' (หน้าร้าน) หรือ 'WAREHOUSE' (โกดัง/พื้นที่สต็อก)
   cashierId: string;
   cashierName: string;
   startTime: string;

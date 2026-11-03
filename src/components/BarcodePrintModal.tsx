@@ -103,8 +103,8 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     }
   };
 
-  // Adjust barcode height proportionally to sticker height
-  const barcodeHeight = heightMm >= 60 ? 44 : heightMm >= 45 ? 36 : 26;
+  // Adjust barcode height proportionally to sticker height (optimized for physical scanners)
+  const barcodeHeight = heightMm >= 60 ? 70 : heightMm >= 45 ? 55 : 40;
 
   const barcodeSvgDataUrl = BarcodeGenerator.generateDataUrl(variant.barcode, {
     height: barcodeHeight,
@@ -175,10 +175,18 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           align-items: center !important;
           text-align: center !important;
           background: #ffffff !important;
-          padding: 2.5mm !important;
+          padding: 1.5mm !important;
           border: none !important;
           box-sizing: border-box !important;
           overflow: hidden !important;
+        }
+        .sticker-item img {
+          width: 98% !important;
+          max-height: ${Math.round(heightMm * 0.48)}mm !important;
+          height: auto !important;
+          object-fit: contain !important;
+          image-rendering: -webkit-optimize-contrast !important;
+          image-rendering: crisp-edges !important;
         }
       ` : `
         @page { 
@@ -491,14 +499,16 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                   )}
                 </div>
 
-                {/* Middle: Barcode Image */}
-                <div className="my-1.5 w-full flex flex-col items-center justify-center">
+                {/* Middle: Barcode Image (Large & Crisp for Scanners) */}
+                <div className="my-1.5 w-full flex flex-col items-center justify-center flex-1 px-0.5">
                   <img
                     src={barcodeSvgDataUrl}
                     alt={variant.barcode}
-                    className="max-h-12 w-auto object-contain"
+                    className="w-full object-contain"
                     style={{
-                      maxHeight: `${Math.max(24, Math.min(50, heightMm * 0.7))}px`
+                      width: '98%',
+                      maxHeight: `${Math.max(50, Math.min(130, heightMm * 1.6))}px`,
+                      imageRendering: 'crisp-edges'
                     }}
                   />
                 </div>

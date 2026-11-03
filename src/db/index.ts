@@ -8,7 +8,9 @@ import type {
   Order, 
   Shift, 
   UserAccount,
-  StoreSettings 
+  StoreSettings,
+  StockTransfer,
+  CustomMadeOrder
 } from '../types';
 
 export class PosDatabase extends Dexie {
@@ -20,18 +22,22 @@ export class PosDatabase extends Dexie {
   orders!: Table<Order, string>;
   shifts!: Table<Shift, string>;
   settings!: Table<StoreSettings, string>;
+  transfers!: Table<StockTransfer, string>;
+  customOrders!: Table<CustomMadeOrder, string>;
 
   constructor() {
     super('PosKoratCatDB');
-    this.version(2).stores({
+    this.version(3).stores({
       users: 'id, role, pin, isActive',
       products: 'id, skuPrefix, category, isActive',
       variants: 'id, productId, sku, barcode, category, isActive',
       promotions: 'id, type, isActive',
-      customers: 'id, phone',
-      orders: 'id, localOrderId, shiftId, cashierId, status, timestamp, isSynced',
-      shifts: 'id, cashierId, status, startTime',
-      settings: 'id'
+      customers: 'id, phone, memberCode',
+      orders: 'id, localOrderId, shiftId, cashierId, status, timestamp, isSynced, branch',
+      shifts: 'id, cashierId, status, startTime, branch',
+      settings: 'id',
+      transfers: 'id, transferNo, fromBranch, toBranch, status, timestamp',
+      customOrders: 'id, orderNo, branch, status, createdAt, customerPhone'
     });
   }
 }
