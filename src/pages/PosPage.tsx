@@ -552,6 +552,7 @@ export const PosPage: React.FC<PosPageProps> = ({
         barcode: customSku,
         productName: name,
         category: customItemCategory,
+        attributes: {},
         costPrice: 0,
         unitPrice: price,
         qty: qty

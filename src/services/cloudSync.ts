@@ -326,17 +326,17 @@ class CloudSyncService {
         cashier_name: order.cashierName,
         shift_id: order.shiftId,
         branch: order.branch || 'SHOP',
-        customer_id: order.customerId,
-        customer_name: order.customerName,
+        customer_id: order.customerId ?? null,
+        customer_name: order.customerName ?? null,
         items: order.items,
         subtotal: order.subtotal,
         promo_discount: order.promoDiscount,
         member_discount_amount: order.memberDiscountAmount || 0,
-        member_tier: order.memberTier,
+        member_tier: order.memberTier ?? null,
         net_total: order.netTotal,
         payments: order.payments,
-        cash_received: order.cashReceived,
-        change_given: order.changeGiven,
+        cash_received: order.cashReceived ?? null,
+        change_given: order.changeGiven ?? null,
         status: order.status,
         is_synced: true
       };
@@ -344,7 +344,7 @@ class CloudSyncService {
       await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify([payload])
       });
     } catch (e) {
       console.warn('Failed to push order to cloud, cached locally in IndexedDB', e);
@@ -365,16 +365,16 @@ class CloudSyncService {
         items: transfer.items,
         total_qty: transfer.totalQty,
         sender_name: transfer.senderName,
-        receiver_name: transfer.receiverName,
-        received_at: transfer.receivedAt,
+        receiver_name: transfer.receiverName ?? null,
+        received_at: transfer.receivedAt ?? null,
         status: transfer.status,
-        notes: transfer.notes
+        notes: transfer.notes ?? null
       };
 
       await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify([payload])
       });
     } catch (e) {
       console.warn('Failed to push transfer to cloud', e);
@@ -429,8 +429,8 @@ class CloudSyncService {
         customer_name: co.customerName,
         customer_phone: co.customerPhone,
         delivery_method: co.deliveryMethod,
-        shipping_address: co.shippingAddress,
-        due_date: co.dueDate,
+        shipping_address: co.shippingAddress ?? null,
+        due_date: co.dueDate ?? null,
         item_description: co.itemDescription,
         qty: co.qty,
         total_price: co.totalPrice,
@@ -438,16 +438,16 @@ class CloudSyncService {
         balance_due: co.balanceDue,
         deposit_payment_method: co.depositPaymentMethod,
         status: co.status,
-        final_payment_method: co.finalPaymentMethod,
-        final_paid_amount: co.finalPaidAmount,
-        final_paid_at: co.finalPaidAt,
-        notes: co.notes
+        final_payment_method: co.finalPaymentMethod ?? null,
+        final_paid_amount: co.finalPaidAmount ?? null,
+        final_paid_at: co.finalPaidAt ?? null,
+        notes: co.notes ?? null
       };
 
       await fetch(`${SUPABASE_CONFIG.url}/rest/v1/custom_orders?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify([payload])
       });
     } catch (e) {
       console.warn('Failed to push custom order to cloud', e);
