@@ -87,6 +87,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const [widthMm, setWidthMm] = useState<number>(45);
   const [heightMm, setHeightMm] = useState<number>(70);
   const [printMode, setPrintMode] = useState<'ROLL' | 'SHEET'>('ROLL');
+  const [barcodeSizeOption, setBarcodeSizeOption] = useState<'GIANT' | 'NORMAL'>('GIANT');
 
   // Display toggles
   const [showStoreName, setShowStoreName] = useState<boolean>(true);
@@ -103,11 +104,13 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     }
   };
 
-  // Adjust barcode height proportionally to sticker height (optimized for physical scanners)
-  const barcodeHeight = heightMm >= 60 ? 70 : heightMm >= 45 ? 55 : 40;
+  // Adjust barcode height proportionally (Giant mode takes ~52% of the sticker height!)
+  const barcodeHeightMm = barcodeSizeOption === 'GIANT'
+    ? Math.max(26, Math.min(38, Math.round(heightMm * 0.52)))
+    : Math.max(18, Math.min(26, Math.round(heightMm * 0.38)));
 
-  const barcodeSvgDataUrl = BarcodeGenerator.generateDataUrl(variant.barcode, {
-    height: barcodeHeight,
+  const barcodeSvgString = BarcodeGenerator.generateSvg(variant.barcode, {
+    height: barcodeSizeOption === 'GIANT' ? 180 : 120,
     showText: true
   });
 
@@ -180,13 +183,22 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           box-sizing: border-box !important;
           overflow: hidden !important;
         }
-        .sticker-item img {
+        .barcode-svg-wrapper {
           width: 98% !important;
-          max-height: ${Math.round(heightMm * 0.48)}mm !important;
-          height: auto !important;
-          object-fit: contain !important;
-          image-rendering: -webkit-optimize-contrast !important;
-          image-rendering: crisp-edges !important;
+          height: ${barcodeHeightMm}mm !important;
+          max-height: ${barcodeHeightMm}mm !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          margin: 1mm 0 !important;
+          overflow: hidden !important;
+        }
+        .barcode-svg-wrapper svg {
+          width: 100% !important;
+          height: 100% !important;
+          max-height: ${barcodeHeightMm}mm !important;
+          display: block !important;
+          shape-rendering: crispEdges !important;
         }
       ` : `
         @page { 
@@ -213,7 +225,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           max-height: ${heightMm}mm !important;
           border: 1px dashed #94a3b8 !important;
           border-radius: 4px !important;
-          padding: 2.5mm !important;
+          padding: 1.5mm !important;
           page-break-inside: avoid !important;
           break-inside: avoid !important;
           display: flex !important;
@@ -224,6 +236,23 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           background: #ffffff !important;
           box-sizing: border-box !important;
           overflow: hidden !important;
+        }
+        .barcode-svg-wrapper {
+          width: 98% !important;
+          height: ${barcodeHeightMm}mm !important;
+          max-height: ${barcodeHeightMm}mm !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          margin: 1mm 0 !important;
+          overflow: hidden !important;
+        }
+        .barcode-svg-wrapper svg {
+          width: 100% !important;
+          height: 100% !important;
+          max-height: ${barcodeHeightMm}mm !important;
+          display: block !important;
+          shape-rendering: crispEdges !important;
         }
       `;
 
@@ -419,6 +448,35 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                 />
                 <span>รหัส SKU</span>
               </label>
+
+              {/* Barcode Height Selector (Giant vs Normal) */}
+              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-lg ml-1">
+                <span className="text-[10px] font-bold text-amber-900">ขนาดแท่งบาร์โค้ด:</span>
+                <button
+                  type="button"
+                  onClick={() => setBarcodeSizeOption('GIANT')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                    barcodeSizeOption === 'GIANT'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="ความสูง 36 มม. เส้นใหญ่ สแกนติดง่าย 100%"
+                >
+                  ⚡ ใหญ่พิเศษ ({barcodeHeightMm} มม.)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBarcodeSizeOption('NORMAL')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                    barcodeSizeOption === 'NORMAL'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="ความสูงมาตรฐาน 22 มม."
+                >
+                  มาตรฐาน
+                </button>
+              </div>
             </div>
 
             {/* Print Quantity & Action */}
@@ -499,19 +557,16 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                   )}
                 </div>
 
-                {/* Middle: Barcode Image (Large & Crisp for Scanners) */}
-                <div className="my-1.5 w-full flex flex-col items-center justify-center flex-1 px-0.5">
-                  <img
-                    src={barcodeSvgDataUrl}
-                    alt={variant.barcode}
-                    className="w-full object-contain"
-                    style={{
-                      width: '98%',
-                      maxHeight: `${Math.max(50, Math.min(130, heightMm * 1.6))}px`,
-                      imageRendering: 'crisp-edges'
-                    }}
-                  />
-                </div>
+                {/* Middle: Giant High-Resolution Barcode (Pure Vector SVG) */}
+                <div 
+                  className="barcode-svg-wrapper my-1 w-full flex items-center justify-center flex-1 px-0.5"
+                  style={{
+                    height: `${barcodeHeightMm * 3.78}px`,
+                    minHeight: `${barcodeHeightMm * 3.78}px`,
+                    width: '98%'
+                  }}
+                  dangerouslySetInnerHTML={{ __html: barcodeSvgString }}
+                />
 
                 {/* Bottom: Attributes & Price */}
                 <div className="w-full flex items-center justify-between border-t border-slate-200 pt-1 text-[10px]">
@@ -533,12 +588,14 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         </div>
 
         {/* Modal Footer Note */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 no-print px-6">
-          <span>ป้ายแท็กผ้าตัวอย่างจากร้าน: กว้าง 4.5 cm (45 มม.) สูงประมาณ 6.5 - 7.0 cm (65 - 70 มม.)</span>
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 no-print px-6 gap-2">
+          <div className="text-[11px] text-slate-600 leading-tight">
+            💡 <b>คำแนะนำการทดสอบสแกน:</b> เครื่องยิงบาร์โค้ดแบบเลเซอร์ (Laser 1D Gun) จะสแกนอ่านจาก <b>กระดาษหรือป้ายแท็กจริง</b> เท่านั้น ไม่สามารถยิงทะลุแสงสะท้อนของหน้าจอมือถือได้ หากต้องการทดสอบโดยยังไม่พิมพ์ ให้ใช้กล้องมือถืออีกเครื่องเปิดแอปกล้อง/สแกนเนอร์ส่อง หรือพิมพ์ใส่กระดาษแล้วยิงจะติดทันทีครับ
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition"
+            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition shrink-0"
           >
             ปิด
           </button>

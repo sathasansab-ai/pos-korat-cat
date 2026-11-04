@@ -15,12 +15,14 @@ import {
   UserCheck, 
   Settings,
   Lock,
-  Cloud
+  Cloud,
+  Truck
 } from 'lucide-react';
 import type { UserAccount, Shift, StoreSettings } from '../types';
 import { AuthService } from '../services/auth';
 import { db } from '../db';
 import { CloudSyncModal } from './CloudSyncModal';
+import { StockTransferModal } from './StockTransferModal';
 
 interface NavbarProps {
   currentUser: UserAccount | null;
@@ -45,6 +47,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [logoError, setLogoError] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [pendingTransfersCount, setPendingTransfersCount] = useState(0);
+
+  const checkPendingTransfers = async () => {
+    try {
+      const count = await db.transfers.where({ status: 'PENDING_RECEIPT' }).count();
+      setPendingTransfersCount(count);
+    } catch {
+      setPendingTransfersCount(0);
+    }
+  };
+
+  useEffect(() => {
+    checkPendingTransfers();
+    const interval = setInterval(checkPendingTransfers, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     setLogoError(false);
@@ -239,6 +258,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">ซิงค์ Cloud</span>
             </button>
 
+            {/* Pending Transfers Notification Badge */}
+            {pendingTransfersCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsTransferModalOpen(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition shadow-lg animate-pulse border-2 border-amber-300"
+                title="มีสินค้าส่งมาจากโกดัง รอหน้าร้านกดตรวจรับเข้าสต็อก"
+              >
+                <Truck className="w-4 h-4 text-slate-950 shrink-0" />
+                <span>รอตรวจรับของ ({pendingTransfersCount})</span>
+              </button>
+            )}
+
             {/* Role & User Switcher */}
             <div className="flex items-center space-x-2 pl-2 border-l border-slate-800">
               <div className="text-right">
@@ -276,6 +308,19 @@ export const Navbar: React.FC<NavbarProps> = ({
       <CloudSyncModal
         isOpen={isCloudSyncOpen}
         onClose={() => setIsCloudSyncOpen(false)}
+        onSyncComplete={() => {
+          checkPendingTransfers();
+          setTimeout(() => {
+            window.location.reload();
+          }, 800);
+        }}
+      />
+
+      <StockTransferModal
+        isOpen={isTransferModalOpen}
+        initialTab="RECEIVE_IN"
+        onClose={() => setIsTransferModalOpen(false)}
+        onTransferComplete={checkPendingTransfers}
       />
     </>
   );

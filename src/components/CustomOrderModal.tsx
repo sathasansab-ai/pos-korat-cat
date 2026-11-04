@@ -4,7 +4,14 @@ import {
   Scissors, 
   Check, 
   X, 
-  Printer
+  Printer, 
+  FileText, 
+  CheckCircle2, 
+  Plus, 
+  RotateCcw,
+  Calendar,
+  Phone,
+  User
 } from 'lucide-react';
 import { db } from '../db';
 import type { CustomMadeOrder, StoreSettings } from '../types';
@@ -36,20 +43,33 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     return d.toISOString().slice(0, 10);
   });
   const [notes, setNotes] = useState('');
-  const [recentOrders, setRecentOrders] = useState<CustomMadeOrder[]>([]);
-  const [selectedForPrint, setSelectedForPrint] = useState<CustomMadeOrder | null>(null);
+  
+  // View state: 'FORM' | 'SUCCESS_VIEW'
+  const [viewState, setViewState] = useState<'FORM' | 'SUCCESS_VIEW'>('FORM');
+  const [savedOrder, setSavedOrder] = useState<CustomMadeOrder | null>(null);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
 
-  const loadData = async () => {
-    const s = await db.settings.get('current_store_settings');
-    if (s) setSettings(s);
-    const list = await db.customOrders.orderBy('createdAt').reverse().limit(10).toArray();
-    setRecentOrders(list);
+  const resetForm = () => {
+    setCustomerName('');
+    setCustomerPhone('');
+    setItemDescription('สั่งตัดเสื้อผ้าไหมลายอัตลักษณ์แมวโคราช x ปักลายฉลุเรือนทอง');
+    setQty(1);
+    setTotalPrice(3000);
+    setDepositAmount(1500);
+    setPaymentMethod('PROMPTPAY');
+    setDeliveryMethod('PICKUP_SHOP');
+    setShippingAddress('');
+    setNotes('');
+    setViewState('FORM');
+    setSavedOrder(null);
   };
 
   useEffect(() => {
     if (isOpen) {
-      loadData();
+      db.settings.get('current_store_settings').then(s => {
+        if (s) setSettings(s);
+      });
+      resetForm();
     }
   }, [isOpen]);
 
@@ -94,59 +114,165 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     await db.customOrders.add(newOrder);
     CloudSync.pushCustomOrder(newOrder);
 
-    setSelectedForPrint(newOrder);
-    await loadData();
+    setSavedOrder(newOrder);
+    setViewState('SUCCESS_VIEW'); // สลับไปหน้าสำเร็จทันที ไม่ค้างที่ฟอร์มเดิม
   };
 
-  const handlePrintSlip = (order: CustomMadeOrder) => {
+  // พิมพ์ใบสั่งผลิตและยืนยันการสั่งซื้อ ขนาด A4 มาตรฐาน พร้อมช่องลงชื่อ 2 ฝ่าย
+  const handlePrintA4 = (order: CustomMadeOrder) => {
     const printContent = `
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>ใบสั่งผลิตและรับเงินมัดจำ - ${order.orderNo}</title>
+          <meta charset="utf-8">
+          <title>ใบสั่งผลิตและยืนยันการสั่งซื้อ - ${order.orderNo}</title>
           <style>
-            body { font-family: monospace; padding: 20px; font-size: 13px; max-width: 320px; margin: 0 auto; }
-            .text-center { text-align: center; }
-            .bold { font-weight: bold; }
-            .border-b { border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
-            .flex-between { display: flex; justify-content: space-between; margin: 4px 0; }
+            @page { size: A4 portrait; margin: 15mm 20mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; line-height: 1.6; color: #1e293b; margin: 0; padding: 0; }
+            .header-table { width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 15px; margin-bottom: 20px; }
+            .brand-title { font-size: 20px; font-weight: 800; color: #78350f; text-transform: uppercase; }
+            .brand-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+            .doc-title { font-size: 16px; font-weight: 800; color: #0f172a; text-align: right; }
+            .doc-no { font-family: monospace; font-size: 13px; font-weight: bold; color: #b45309; text-align: right; }
+            
+            .info-grid { width: 100%; margin-bottom: 20px; }
+            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; }
+            .info-box h4 { margin: 0 0 8px 0; font-size: 12px; color: #475569; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+            
+            table.items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            table.items-table th, table.items-table td { border: 1px solid #cbd5e1; padding: 10px 12px; text-align: left; }
+            table.items-table th { background: #f1f5f9; font-weight: 700; color: #334155; font-size: 12px; }
+            
+            .summary-table { width: 45%; margin-left: auto; margin-bottom: 25px; border-collapse: collapse; }
+            .summary-table td { padding: 6px 10px; }
+            .summary-table .bold { font-weight: 700; }
+            .total-row { border-top: 1.5px solid #0f172a; border-bottom: 2px solid #0f172a; font-size: 14px; }
+
+            .terms { font-size: 11px; color: #64748b; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 10px 14px; margin-bottom: 30px; border-radius: 0 6px 6px 0; }
+            
+            .signature-table { width: 100%; margin-top: 40px; border-collapse: collapse; }
+            .signature-table td { width: 50%; text-align: center; vertical-align: bottom; padding: 0 20px; }
+            .sig-line { border-bottom: 1px solid #64748b; width: 80%; margin: 50px auto 8px auto; }
           </style>
         </head>
         <body>
-          <div class="text-center bold">${settings?.storeName || 'KORAT CAT x เรือนโคราช'}</div>
-          <div class="text-center border-b">ใบสั่งผลิตและรับเงินมัดจำ (50%)</div>
-          <div class="flex-between"><span>เลขที่ใบสั่ง:</span><span class="bold">${order.orderNo}</span></div>
-          <div class="flex-between"><span>วันที่สั่ง:</span><span>${new Date(order.createdAt).toLocaleDateString('th-TH')}</span></div>
-          <div class="flex-between"><span>ผู้ออกบิล:</span><span>${order.staffName}</span></div>
-          <div class="flex-between border-b"><span>ลูกค้า:</span><span class="bold">${order.customerName} (${order.customerPhone})</span></div>
-          
-          <div class="bold" style="margin-top:6px;">รายละเอียดงานสั่งทำ:</div>
-          <div style="margin-bottom:8px;">${order.itemDescription}</div>
-          <div class="flex-between"><span>จำนวน:</span><span>${order.qty} ชิ้น</span></div>
-          <div class="flex-between"><span>วันนัดรับสินค้า:</span><span class="bold">${order.dueDate}</span></div>
-          <div class="flex-between border-b"><span>การรับสินค้า:</span><span>${order.deliveryMethod === 'PICKUP_SHOP' ? 'มารับที่หน้าร้าน' : 'จัดส่งตามที่อยู่'}</span></div>
-          
-          <div class="flex-between bold"><span>ยอดรวมทั้งหมด:</span><span>฿${order.totalPrice.toLocaleString()}</span></div>
-          <div class="flex-between bold" style="color:green;"><span>เงินมัดจำที่ชำระแล้ว:</span><span>฿${order.depositAmount.toLocaleString()}</span></div>
-          <div class="flex-between bold border-b" style="color:red;"><span>ยอดค้างชำระคงเหลือ:</span><span>฿${order.balanceDue.toLocaleString()}</span></div>
-          
-          <div class="text-center" style="margin-top:20px; border-top:1px solid #000; padding-top:6px;">
-            ลงชื่อผู้สั่งทำ / ลูกค้า
+          <table class="header-table">
+            <tr>
+              <td style="vertical-align: top;">
+                <div class="brand-title">${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}</div>
+                <div class="brand-sub">${settings?.subTitle || 'Haute Couture & Heritage Craft Boutique'}</div>
+                <div style="font-size: 11px; color: #475569; margin-top: 4px;">
+                  ที่อยู่: ${settings?.address || 'เรือนโคราชเฉลิมวัฒนา จ.นครราชสีมา'} | โทร: ${settings?.phone || '044-XXXXXX'}
+                </div>
+              </td>
+              <td style="vertical-align: top; text-align: right;">
+                <div class="doc-title">ใบสั่งผลิตและยืนยันการสั่งซื้อ</div>
+                <div class="doc-title" style="font-size: 12px; font-weight: normal; color: #64748b;">(CUSTOM PRODUCTION ORDER CONFIRMATION)</div>
+                <div class="doc-no">เลขที่: ${order.orderNo}</div>
+                <div style="font-size: 12px; color: #64748b;">วันที่: ${new Date(order.createdAt).toLocaleDateString('th-TH')}</div>
+              </td>
+            </tr>
+          </table>
+
+          <table class="info-grid">
+            <tr>
+              <td style="width: 50%; padding-right: 10px; vertical-align: top;">
+                <div class="info-box">
+                  <h4>ข้อมูลลูกค้าผู้สั่งผลิต</h4>
+                  <div><b>ชื่อ-นามสกุล:</b> ${order.customerName}</div>
+                  <div><b>เบอร์โทรศัพท์:</b> ${order.customerPhone}</div>
+                  <div><b>การรับสินค้า:</b> ${order.deliveryMethod === 'PICKUP_SHOP' ? 'มารับเองที่หน้าร้าน (เรือนโคราชเฉลิมวัฒนา)' : 'จัดส่งพัสดุตามที่อยู่'}</div>
+                  ${order.shippingAddress ? `<div><b>ที่อยู่จัดส่ง:</b> ${order.shippingAddress}</div>` : ''}
+                </div>
+              </td>
+              <td style="width: 50%; padding-left: 10px; vertical-align: top;">
+                <div class="info-box">
+                  <h4>ข้อมูลการผลิตและการนัดหมาย</h4>
+                  <div><b>ผู้ออกใบสั่ง:</b> ${order.staffName} (สาขาหน้าร้าน)</div>
+                  <div><b>กำหนดส่งมอบ / วันนัดรับ:</b> <span style="font-size: 13px; font-weight: 800; color: #b45309;">${order.dueDate}</span></div>
+                  <div><b>สถานะคำสั่ง:</b> รอดำเนินการผลิตที่โรงงาน/โกดัง</div>
+                  <div><b>ช่องทางชำระมัดจำ:</b> ${order.depositPaymentMethod === 'PROMPTPAY' ? 'สแกนโอน PromptPay QR' : 'เงินสด'}</div>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;">ลำดับ</th>
+                <th>รายละเอียดงานสั่งผลิต / ข้อกำหนดสินค้า</th>
+                <th style="width: 70px; text-align: center;">จำนวน</th>
+                <th style="width: 100px; text-align: right;">ราคาต่อหน่วย</th>
+                <th style="width: 110px; text-align: right;">รวมเงิน (บาท)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="text-align: center;">1</td>
+                <td>
+                  <div style="font-weight: 700; color: #0f172a;">${order.itemDescription}</div>
+                  ${order.notes ? `<div style="font-size: 11px; color: #64748b; margin-top: 3px;">ข้อกำหนดเพิ่มเติม: ${order.notes}</div>` : ''}
+                </td>
+                <td style="text-align: center; font-weight: 700;">${order.qty} ชิ้น</td>
+                <td style="text-align: right;">฿${(order.totalPrice / order.qty).toLocaleString()}</td>
+                <td style="text-align: right; font-weight: 700;">฿${order.totalPrice.toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table class="summary-table">
+            <tr>
+              <td>ยอดรวมทั้งสิ้น (Total):</td>
+              <td style="text-align: right;" class="bold">฿${order.totalPrice.toLocaleString()}</td>
+            </tr>
+            <tr style="color: #15803d;">
+              <td><b>เงินมัดจำที่ชำระแล้ว (Deposit Paid):</b></td>
+              <td style="text-align: right;" class="bold">฿${order.depositAmount.toLocaleString()}</td>
+            </tr>
+            <tr class="total-row" style="color: #b91c1c;">
+              <td class="bold">ยอดค้างชำระคงเหลือ (Balance Due):</td>
+              <td style="text-align: right;" class="bold">฿${order.balanceDue.toLocaleString()}</td>
+            </tr>
+          </table>
+
+          <div class="terms">
+            <b>เงื่อนไขการสั่งผลิต:</b><br>
+            1. ทางร้านขอสงวนสิทธิ์การคืนเงินมัดจำกรณีลูกค้ายกเลิกคำสั่งผลิตหลังจากเริ่มกระบวนการตัดเย็บ/พิมพ์ผ้าแล้ว<br>
+            2. กรุณานำใบยืนยันการสั่งซื้อฉบับนี้ หรือภาพถ่าย มาแสดงพร้อมชำระยอดค้างชำระในวันมารับสินค้า<br>
+            3. หากมีข้อสงสัยหรือต้องการปรับแก้ขนาด กรุณาติดต่อทางร้านล่วงหน้าอย่างน้อย 3 วันทำการ
           </div>
+
+          <table class="signature-table">
+            <tr>
+              <td>
+                <div class="sig-line"></div>
+                <div style="font-weight: 700;">( ${order.staffName} )</div>
+                <div style="font-size: 11px; color: #64748b;">พนักงานผู้รับคำสั่งผลิต / แคชเชียร์</div>
+              </td>
+              <td>
+                <div class="sig-line"></div>
+                <div style="font-weight: 700;">( ${order.customerName} )</div>
+                <div style="font-size: 11px; color: #64748b;">ลูกค้าผู้สั่งผลิต / ผู้ยืนยันคำสั่งซื้อ</div>
+              </td>
+            </tr>
+          </table>
         </body>
       </html>
     `;
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(printContent);
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 300);
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(printContent);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 350);
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden text-white my-auto animate-in zoom-in-95 duration-200">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden text-white my-auto animate-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
@@ -156,7 +282,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-sm text-white">ระบบงานสั่งทำ / สั่งผลิต &amp; รับเงินมัดจำ 50%</h3>
-              <p className="text-[11px] text-slate-400">ออกใบสั่งตัดเย็บ งานโหล งานพิมพ์ผ้า ระบุวันนัดรับ และบันทึกมัดจำ</p>
+              <p className="text-[11px] text-slate-400">ออกใบสั่งตัดเย็บ งานโหล งานพิมพ์ผ้า พร้อมพิมพ์ใบยืนยัน A4 ให้ลูกค้า</p>
             </div>
           </div>
           <button 
@@ -169,158 +295,186 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6">
           
-          <form onSubmit={handleSaveOrder} className="space-y-4 bg-slate-950/60 p-5 rounded-2xl border border-slate-800">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              {/* Customer Info */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">ชื่อ-นามสกุล ลูกค้าผู้สั่ง:</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น คุณวิภาวี นครราช"
-                  value={customerName}
-                  onChange={e => setCustomerName(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                />
+          {viewState === 'SUCCESS_VIEW' && savedOrder ? (
+            /* SUCCESS VIEW: ไม่ค้างที่ฟอร์ม แสดงผลสำเร็จและปุ่มพิมพ์ */
+            <div className="space-y-6 text-center py-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto shadow-lg">
+                <CheckCircle2 className="w-8 h-8" />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">เบอร์โทรศัพท์ลูกค้า:</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="08X-XXX-XXXX"
-                  value={customerPhone}
-                  onChange={e => setCustomerPhone(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                />
+                <h4 className="text-base font-extrabold text-white">บันทึกใบสั่งผลิตสำเร็จเรียบร้อย!</h4>
+                <p className="text-xs text-slate-400 mt-1">
+                  เลขที่ใบสั่ง: <span className="font-mono font-bold text-amber-400">{savedOrder.orderNo}</span>
+                </p>
               </div>
 
-              {/* Item Description */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-300 mb-1">รายละเอียดงานสั่งผลิต / สั่งทำ:</label>
-                <textarea
-                  rows={2}
-                  required
-                  value={itemDescription}
-                  onChange={e => setItemDescription(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                />
+              {/* Order Summary Card */}
+              <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 text-left text-xs space-y-2 max-w-md mx-auto">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">ลูกค้า:</span>
+                  <span className="font-bold text-white">{savedOrder.customerName} ({savedOrder.customerPhone})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">รายละเอียด:</span>
+                  <span className="font-bold text-slate-200">{savedOrder.itemDescription}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">วันกำหนดนัดรับ:</span>
+                  <span className="font-bold text-amber-400">{savedOrder.dueDate}</span>
+                </div>
+                <div className="border-t border-slate-800 pt-2 flex justify-between">
+                  <span className="text-slate-400">ยอดรวมทั้งสิ้น:</span>
+                  <span className="font-bold text-white font-mono">฿{savedOrder.totalPrice.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-emerald-400">
+                  <span>มัดจำที่ชำระแล้ว (50%):</span>
+                  <span className="font-bold font-mono">฿{savedOrder.depositAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-rose-400 font-bold border-t border-slate-800 pt-1">
+                  <span>ยอดค้างชำระคงเหลือ:</span>
+                  <span className="font-mono">฿{savedOrder.balanceDue.toLocaleString()}</span>
+                </div>
               </div>
 
-              {/* Price & Deposit Math */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">ยอดราคาผลิตรวมทั้งหมด (บาท):</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={totalPrice}
-                  onChange={e => handlePriceChange(parseInt(e.target.value, 10) || 0)}
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold font-mono text-amber-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  เงินมัดจำ (มัดจำ 50% = ฿{Math.round(totalPrice / 2).toLocaleString()}):
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={totalPrice}
-                  value={depositAmount}
-                  onChange={e => setDepositAmount(parseInt(e.target.value, 10) || 0)}
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold font-mono text-emerald-400"
-                />
-                <span className="text-[10px] text-rose-300 mt-1 block">
-                  ยอดค้างชำระเมื่อรับของ: <b>฿{Math.max(0, totalPrice - depositAmount).toLocaleString()}</b>
-                </span>
-              </div>
-
-              {/* Due Date */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">วันกำหนดนัดรับสินค้า:</label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                />
-              </div>
-
-              {/* Delivery Option */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">ช่องทางรับสินค้า:</label>
-                <select
-                  value={deliveryMethod}
-                  onChange={e => setDeliveryMethod(e.target.value as any)}
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-medium"
+              {/* Print Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintA4(savedOrder)}
+                  className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
                 >
-                  <option value="PICKUP_SHOP">มารับเองที่หน้าร้าน (เรือนโคราชเฉลิมวัฒนา)</option>
-                  <option value="SHIPPING_ADDRESS">จัดส่งพัสดุตามที่อยู่ลูกค้า</option>
-                </select>
-              </div>
+                  <Printer className="w-4 h-4" />
+                  <span>🖨️ พิมพ์ใบยืนยันการสั่งผลิต A4 (พร้อมช่องเซ็น)</span>
+                </button>
 
-              {deliveryMethod === 'SHIPPING_ADDRESS' && (
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-slate-300 mb-1">ที่อยู่จัดส่งพัสดุ:</label>
-                  <textarea
-                    rows={2}
-                    value={shippingAddress}
-                    onChange={e => setShippingAddress(e.target.value)}
-                    placeholder="บ้านเลขที่ ตำบล อำเภอ จังหวัด รหัสไปรษณีย์..."
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ ออกใบสั่งผลิตใหม่</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* FORM VIEW */
+            <form onSubmit={handleSaveOrder} className="space-y-4 bg-slate-950/60 p-5 rounded-2xl border border-slate-800">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">ชื่อ-นามสกุล ลูกค้าผู้สั่ง:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น คุณวิภาวี นครราช"
+                    value={customerName}
+                    onChange={e => setCustomerName(e.target.value)}
                     className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
                   />
                 </div>
-              )}
 
-            </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">เบอร์โทรศัพท์ลูกค้า:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="08X-XXX-XXXX"
+                    value={customerPhone}
+                    onChange={e => setCustomerPhone(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
 
-            <div className="pt-2 flex justify-end">
-              <button
-                type="submit"
-                className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg transition"
-              >
-                <Check className="w-4 h-4" />
-                <span>บันทึกใบสั่งผลิตและรับมัดจำ (฿{depositAmount.toLocaleString()})</span>
-              </button>
-            </div>
-          </form>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-slate-300 mb-1">รายละเอียดงานสั่งผลิต / สั่งทำ:</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={itemDescription}
+                    onChange={e => setItemDescription(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
 
-          {/* Recent Production Orders */}
-          {recentOrders.length > 0 && (
-            <div>
-              <h4 className="text-xs font-bold text-slate-400 mb-2">รายการสั่งผลิตล่าสุด:</h4>
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                {recentOrders.map(co => (
-                  <div key={co.id} className="p-2.5 bg-slate-800/60 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="font-mono font-bold text-amber-400 mr-2">{co.orderNo}</span>
-                      <span className="text-slate-300 font-medium mr-2">{co.customerName}</span>
-                      <span className="text-slate-400 text-[11px] truncate max-w-[200px] inline-block align-middle">
-                        {co.itemDescription}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-emerald-400 font-mono font-bold">
-                        มัดจำ ฿{co.depositAmount.toLocaleString()}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handlePrintSlip(co)}
-                        className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200"
-                        title="พิมพ์ใบสั่งผลิต"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">ยอดราคาผลิตรวมทั้งหมด (บาท):</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={totalPrice}
+                    onChange={e => handlePriceChange(parseInt(e.target.value, 10) || 0)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold font-mono text-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    เงินมัดจำ (มัดจำ 50% = ฿{Math.round(totalPrice / 2).toLocaleString()}):
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={totalPrice}
+                    value={depositAmount}
+                    onChange={e => setDepositAmount(parseInt(e.target.value, 10) || 0)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold font-mono text-emerald-400"
+                  />
+                  <span className="text-[10px] text-rose-300 mt-1 block">
+                    ยอดค้างชำระเมื่อรับของ: <b>฿{Math.max(0, totalPrice - depositAmount).toLocaleString()}</b>
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">วันกำหนดนัดรับสินค้า:</label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={e => setDueDate(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">ช่องทางรับสินค้า:</label>
+                  <select
+                    value={deliveryMethod}
+                    onChange={e => setDeliveryMethod(e.target.value as any)}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-medium"
+                  >
+                    <option value="PICKUP_SHOP">มารับเองที่หน้าร้าน (เรือนโคราชเฉลิมวัฒนา)</option>
+                    <option value="SHIPPING_ADDRESS">จัดส่งพัสดุตามที่อยู่ลูกค้า</option>
+                  </select>
+                </div>
+
+                {deliveryMethod === 'SHIPPING_ADDRESS' && (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-300 mb-1">ที่อยู่จัดส่งพัสดุ:</label>
+                    <textarea
+                      rows={2}
+                      value={shippingAddress}
+                      onChange={e => setShippingAddress(e.target.value)}
+                      placeholder="บ้านเลขที่ ตำบล อำเภอ จังหวัด รหัสไปรษณีย์..."
+                      className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                    />
                   </div>
-                ))}
+                )}
+
               </div>
-            </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg transition"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>บันทึกใบสั่งผลิตและรับมัดจำ (฿{depositAmount.toLocaleString()})</span>
+                </button>
+              </div>
+            </form>
           )}
 
         </div>

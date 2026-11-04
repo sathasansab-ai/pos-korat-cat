@@ -14,6 +14,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { GoogleSheetPage } from './pages/GoogleSheetPage';
 import { CustomerFacingPage } from './pages/CustomerFacingPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { CloudSync } from './services/cloudSync';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
@@ -87,6 +88,10 @@ export function App() {
           setCurrentUser(user);
           AuthService.setCurrentUser(user);
           setIsAuthenticated(true);
+          // Sync latest data from cloud automatically when online
+          if (navigator.onLine) {
+            CloudSync.pullFromCloud().catch(err => console.warn('Background pull error:', err));
+          }
         }}
       />
     );

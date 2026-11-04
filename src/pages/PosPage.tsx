@@ -119,6 +119,13 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [isCustomOrderModalOpen, setIsCustomOrderModalOpen] = useState(false);
 
+  // Custom Price / Non-Catalog Item Modal (F7)
+  const [isCustomItemModalOpen, setIsCustomItemModalOpen] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState<string>('');
+  const [customItemQty, setCustomItemQty] = useState<number>(1);
+  const [customItemCategory, setCustomItemCategory] = useState<string>('บริการ/สั่งพิเศษ');
+
   // Security Override
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [pinAction, setPinAction] = useState<'VOID_BILL' | null>(null);
@@ -501,12 +508,15 @@ export const PosPage: React.FC<PosPageProps> = ({
     setHeldBills(prev => prev.filter(b => b.id !== billId));
   };
 
-  // Keyboard Shortcuts (F6: พักบิล, F8: เปิดบิลที่พักไว้, F9: ชำระเงิน)
+  // Keyboard Shortcuts (F6: พักบิล, F7: ขายใส่ราคาเอง, F8: เปิดบิลที่พักไว้, F9: ชำระเงิน)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F6') {
         e.preventDefault();
         handleHoldBill();
+      } else if (e.key === 'F7') {
+        e.preventDefault();
+        setIsCustomItemModalOpen(prev => !prev);
       } else if (e.key === 'F8') {
         e.preventDefault();
         setIsHeldBillsModalOpen(prev => !prev);
@@ -520,6 +530,39 @@ export const PosPage: React.FC<PosPageProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cart, isPaymentModalOpen, heldBills, finalNetTotal, selectedCustomer, activeShift]);
+
+  const handleAddCustomItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    const price = parseFloat(customItemPrice) || 0;
+    if (price <= 0) {
+      alert('กรุณากรอกราคาที่ถูกต้อง (มากกว่า 0 บาท)');
+      return;
+    }
+    const name = customItemName.trim() || 'สินค้ากำหนดราคาเอง / ค่าบริการ';
+    const qty = Math.max(1, customItemQty);
+    const customId = `custom-${Date.now()}`;
+    const customSku = `CUSTOM-${Date.now().toString().slice(-4)}`;
+
+    SoundEffects.playBeep();
+    setCart(prev => [
+      ...prev,
+      {
+        variantId: customId,
+        sku: customSku,
+        barcode: customSku,
+        productName: name,
+        category: customItemCategory,
+        costPrice: 0,
+        unitPrice: price,
+        qty: qty
+      }
+    ]);
+
+    setIsCustomItemModalOpen(false);
+    setCustomItemName('');
+    setCustomItemPrice('');
+    setCustomItemQty(1);
+  };
 
   const requestVoidBill = () => {
     if (cart.length === 0) return;
@@ -823,6 +866,17 @@ export const PosPage: React.FC<PosPageProps> = ({
           >
             <Receipt className="w-4 h-4 text-amber-600" />
             <span className="hidden sm:inline">🧾 สลิปใบเสร็จ / บิลล่าสุด</span>
+          </button>
+
+          {/* Custom Price / Non-Catalog Item Button */}
+          <button
+            type="button"
+            onClick={() => setIsCustomItemModalOpen(true)}
+            className="px-3.5 bg-gradient-to-r from-teal-600 to-emerald-700 hover:from-teal-700 hover:to-emerald-800 text-white rounded-2xl font-bold flex items-center gap-1.5 shadow-xs transition text-xs whitespace-nowrap"
+            title="ขายสินค้ากำหนดราคาเอง / ค่าจัดส่ง / บริการพิเศษ (กด F7)"
+          >
+            <Plus className="w-4 h-4 text-emerald-200" />
+            <span className="hidden md:inline">➕ ใส่ราคาเอง (F7)</span>
           </button>
 
           {/* Custom Order & Deposit Modal Button */}
@@ -2016,6 +2070,119 @@ export const PosPage: React.FC<PosPageProps> = ({
         onClose={() => setIsCustomOrderModalOpen(false)}
         staffName={currentUser.name}
       />
+
+      {/* Custom Price / Non-Catalog Item Modal */}
+      {isCustomItemModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-teal-100 text-teal-800 rounded-xl">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">ขายสินค้าใส่ราคาเอง (Manual Price)</h3>
+                  <p className="text-xs text-slate-500">สำหรับสินค้าไม่มีในระบบ, ค่าจัดส่ง หรือบริการสั่งพิเศษ</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomItemModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCustomItem} className="mt-4 space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  ชื่อสินค้า / รายการ *
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={customItemName}
+                  onChange={e => setCustomItemName(e.target.value)}
+                  placeholder="เช่น ค่าจัดส่งด่วน, งานซ่อม, เสื้อสั่งทำพิเศษ"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    ราคาต่อหน่วย (บาท) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    required
+                    value={customItemPrice}
+                    onChange={e => setCustomItemPrice(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold text-teal-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    จำนวน (ชิ้น/ครั้ง) *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={customItemQty}
+                    onChange={e => setCustomItemQty(parseInt(e.target.value, 10) || 1)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono text-center font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  หมวดหมู่
+                </label>
+                <select
+                  value={customItemCategory}
+                  onChange={e => setCustomItemCategory(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                >
+                  <option value="บริการ/สั่งพิเศษ">บริการ / สั่งพิเศษ</option>
+                  <option value="ค่าจัดส่งพัสดุ">ค่าจัดส่งพัสดุ</option>
+                  <option value="ของที่ระลึกพิเศษ">ของที่ระลึกพิเศษ</option>
+                  <option value="สินค้าทั่วไป">สินค้าทั่วไป</option>
+                </select>
+              </div>
+
+              <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-900 font-semibold flex justify-between">
+                <span>ยอดรวมรายการนี้:</span>
+                <span className="font-bold font-mono text-sm">
+                  ฿{(((parseFloat(customItemPrice) || 0) * customItemQty)).toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCustomItemModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs"
+                >
+                  ยกเลิก (Esc)
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs shadow-md transition"
+                >
+                  + เพิ่มลงบิล (Enter)
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -14,7 +14,8 @@ import {
   Image as ImageIcon,
   Check,
   X,
-  Truck
+  Truck,
+  Scissors
 } from 'lucide-react';
 import { db } from '../db';
 import type { ProductVariant, StoreSettings } from '../types';
@@ -22,6 +23,7 @@ import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
 import { MatrixBuilder, type AttributeGroup } from '../services/matrixBuilder';
 import { BarcodePrintModal } from '../components/BarcodePrintModal';
 import { StockTransferModal } from '../components/StockTransferModal';
+import { WarehouseProductionModal } from '../components/WarehouseProductionModal';
 import { ImageOptimizer } from '../services/imageOptimizer';
 
 interface SizeStockEntry {
@@ -39,6 +41,11 @@ export const InventoryPage: React.FC = () => {
   const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
   const [isSingleModalOpen, setIsSingleModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isProductionModalOpen, setIsProductionModalOpen] = useState(false);
+  const [pendingTransferCount, setPendingTransferCount] = useState(0);
+
+  // Stock Destination Choice (Where new stock goes: Warehouse 100%, Shop 100%, or 50/50)
+  const [stockDestination, setStockDestination] = useState<'WAREHOUSE' | 'SHOP' | 'HALF'>('WAREHOUSE');
   
   // Barcode Label Print Modal
   const [selectedVariantForPrint, setSelectedVariantForPrint] = useState<ProductVariant | null>(null);
@@ -108,6 +115,12 @@ export const InventoryPage: React.FC = () => {
     setVariants(list);
     const s = await db.settings.get('current_store_settings');
     if (s) setSettings(s);
+    try {
+      const p = await db.transfers.where({ status: 'PENDING_RECEIPT' }).count();
+      setPendingTransferCount(p);
+    } catch {
+      setPendingTransferCount(0);
+    }
   };
 
   useEffect(() => {
@@ -183,8 +196,25 @@ export const InventoryPage: React.FC = () => {
       return;
     }
 
+    const getCalculatedStocks = (qty: number) => {
+      let wh = 0;
+      let sh = 0;
+      if (stockDestination === 'WAREHOUSE') {
+        wh = qty;
+        sh = 0;
+      } else if (stockDestination === 'SHOP') {
+        wh = 0;
+        sh = qty;
+      } else {
+        wh = Math.floor(qty / 2);
+        sh = qty - wh;
+      }
+      return { stockQuantity: qty, warehouseStock: wh, shopStock: sh };
+    };
+
     const withImages = generated.map(v => ({ 
       ...v, 
+      ...getCalculatedStocks(v.stockQuantity || 10),
       imageUrl: matrixImagePreview || v.imageUrl 
     }));
 
@@ -218,6 +248,8 @@ export const InventoryPage: React.FC = () => {
       activeSizes.forEach((s, idx) => {
         const autoBarcode = `885${Date.now().toString().slice(-6)}${idx + 1}`;
         const autoSku = `KCAT-${cleanPrefix}-${s.size}`;
+        const wh = stockDestination === 'WAREHOUSE' ? s.qty : stockDestination === 'SHOP' ? 0 : Math.floor(s.qty / 2);
+        const sh = s.qty - wh;
 
         variantsToAdd.push({
           id: `var-${Date.now()}-${idx}`,
@@ -234,6 +266,8 @@ export const InventoryPage: React.FC = () => {
           costPrice: singleCost,
           salePrice: singlePrice,
           stockQuantity: s.qty,
+          warehouseStock: wh,
+          shopStock: sh,
           minStockAlert: 3,
           imageUrl: singleImagePreview || undefined,
           isActive: true
@@ -243,6 +277,8 @@ export const InventoryPage: React.FC = () => {
       // Single Fixed Item (e.g. Bag, Souvenir, Workshop Ticket)
       const autoBarcode = `885${Date.now().toString().slice(-7)}`;
       const autoSku = `KCAT-${cleanPrefix}`;
+      const wh = stockDestination === 'WAREHOUSE' ? singleFixedStock : stockDestination === 'SHOP' ? 0 : Math.floor(singleFixedStock / 2);
+      const sh = singleFixedStock - wh;
 
       variantsToAdd.push({
         id: `var-${Date.now()}`,
@@ -258,6 +294,8 @@ export const InventoryPage: React.FC = () => {
         costPrice: singleCost,
         salePrice: singlePrice,
         stockQuantity: singleFixedStock,
+        warehouseStock: wh,
+        shopStock: sh,
         minStockAlert: 3,
         imageUrl: singleImagePreview || undefined,
         isActive: true
@@ -317,12 +355,27 @@ export const InventoryPage: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setIsProductionModalOpen(true)}
+            className="px-4 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition"
+            title="ตรวจดูรายการสั่งผลิตพิเศษ เสื้อสกรีน/มัดจำ 50% สำหรับคลังและช่างผลิต"
+          >
+            <Scissors className="w-4 h-4 text-purple-200" />
+            <span>✂️ คิวงานสั่งผลิต (Production)</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsTransferModalOpen(true)}
             className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition"
             title="โอนย้ายสต็อกระหว่างโกดัง/โรงงานผลิต เข้าหน้าร้าน"
           >
             <Truck className="w-4 h-4 text-emerald-200" />
             <span>🚚 โอนย้ายสต็อกข้ามคลัง</span>
+            {pendingTransferCount > 0 && (
+              <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black text-[10px] ml-1 shadow animate-pulse">
+                รอรับ {pendingTransferCount}
+              </span>
+            )}
           </button>
 
           <button
@@ -721,6 +774,51 @@ export const InventoryPage: React.FC = () => {
                 )}
               </div>
 
+              {/* STOCK DESTINATION SELECTOR */}
+              <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-2xl space-y-2">
+                <label className="block text-xs font-bold text-indigo-950">
+                  📍 สต็อกที่เพิ่มนี้ ต้องการนำเข้าเก็บที่ไหน? *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStockDestination('WAREHOUSE')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      stockDestination === 'WAREHOUSE'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    <span>🏭 เข้าโกดัง 100%</span>
+                    <span className="text-[10px] font-normal opacity-85">(สต็อกหลังร้าน)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockDestination('SHOP')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      stockDestination === 'SHOP'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    <span>🏪 เข้าหน้าร้าน 100%</span>
+                    <span className="text-[10px] font-normal opacity-85">(พร้อมยิงขาย)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockDestination('HALF')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      stockDestination === 'HALF'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-400'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    <span>⚖️ แบ่งครึ่ง (50/50)</span>
+                    <span className="text-[10px] font-normal opacity-85">(โกดัง 50% หน้าร้าน 50%)</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="flex gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
@@ -857,6 +955,48 @@ export const InventoryPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* STOCK DESTINATION SELECTOR FOR MATRIX */}
+              <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-2xl space-y-2">
+                <label className="block text-xs font-bold text-indigo-950">
+                  📍 สต็อกที่ Matrix สร้างขึ้นทั้งหมด ต้องการนำเข้าเก็บที่ไหน? *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStockDestination('WAREHOUSE')}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      stockDestination === 'WAREHOUSE'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    <span>🏭 เข้าโกดัง 100%</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockDestination('SHOP')}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      stockDestination === 'SHOP'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    <span>🏪 เข้าหน้าร้าน 100%</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockDestination('HALF')}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      stockDestination === 'HALF'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    <span>⚖️ แบ่งครึ่ง (50/50)</span>
+                  </button>
+                </div>
+              </div>
+
               <button
                 onClick={handleGenerateMatrix}
                 className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl text-sm shadow-md transition flex items-center justify-center gap-2"
@@ -887,6 +1027,12 @@ export const InventoryPage: React.FC = () => {
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
         onTransferComplete={loadVariants}
+      />
+
+      {/* Warehouse / Custom Order Production Queue Modal */}
+      <WarehouseProductionModal
+        isOpen={isProductionModalOpen}
+        onClose={() => setIsProductionModalOpen(false)}
       />
     </div>
   );

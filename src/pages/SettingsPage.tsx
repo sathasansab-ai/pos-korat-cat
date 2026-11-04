@@ -27,6 +27,7 @@ import { db } from '../db';
 import type { StoreSettings, UserAccount, CustomerScreenTheme } from '../types';
 import { AuthService } from '../services/auth';
 import { ImageOptimizer } from '../services/imageOptimizer';
+import { CloudSync } from '../services/cloudSync';
 
 interface SettingsPageProps {
   currentUser: UserAccount;
@@ -57,6 +58,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [resetPin, setResetPin] = useState('');
   const [resetConfirmWord, setResetConfirmWord] = useState('');
   const [resetCustomers, setResetCustomers] = useState(false);
+  const [resetCloud, setResetCloud] = useState(true);
   const [resetError, setResetError] = useState('');
 
   const loadData = async () => {
@@ -276,12 +278,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     try {
       await db.orders.clear();
       await db.shifts.clear();
+      await db.transfers.clear();
+      await db.customOrders.clear();
       if (resetCustomers) {
         await db.customers.clear();
       }
 
+      if (resetCloud) {
+        try {
+          await CloudSync.resetCloudData();
+        } catch (cErr) {
+          console.warn('Could not reset cloud data:', cErr);
+        }
+      }
+
       AuthService.logout();
-      alert('ล้างข้อมูลการขายและกะทดสอบเรียบร้อยแล้ว!\nระบบจะออกจากระบบและกลับสู่หน้าใส่ PIN เพื่อเริ่มต้นกะแรกของการเปิดร้านจริง');
+      alert('ล้างข้อมูลการขาย, กะ, งานผลิต และประวัติการโอนเรียบร้อยแล้ว!\n(รวมถึงข้อมูลทดสอบบน Cloud)\n\nระบบจะออกจากระบบเพื่อเตรียมพร้อมสำหรับการเปิดร้านจริง');
       window.location.reload();
     } catch (err: any) {
       setResetError('เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);
@@ -1062,7 +1074,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <li>บิลการขายทั้งหมด ({dbStats.orders} บิล)</li>
                 <li>บันทึกเปิด-ปิดกะทั้งหมด ({dbStats.shifts} กะ)</li>
               </ul>
-              <div className="pt-2 border-t border-rose-200 mt-2">
+              <div className="pt-2 border-t border-rose-200 mt-2 space-y-1.5">
                 <label className="flex items-center gap-2 cursor-pointer font-bold text-rose-900">
                   <input
                     type="checkbox"
@@ -1071,6 +1083,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4"
                   />
                   <span>ล้างรายชื่อสมาชิกที่ทดลองสมัครด้วย ({dbStats.customers} คน)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-indigo-900">
+                  <input
+                    type="checkbox"
+                    checked={resetCloud}
+                    onChange={e => setResetCloud(e.target.checked)}
+                    className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                  />
+                  <span>☁️ ล้างประวัติการขาย, กะ, งานผลิต และใบโอนบน Cloud (Supabase) ด้วย</span>
                 </label>
               </div>
               <p className="pt-1.5 text-[11px] text-slate-600">

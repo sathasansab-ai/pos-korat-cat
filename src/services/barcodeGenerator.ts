@@ -1,81 +1,120 @@
 // src/services/barcodeGenerator.ts
 
 /**
- * Pure TypeScript Code 128-B Barcode SVG Generator
- * Zero external dependencies, ultra-fast, and sharp print resolution.
+ * Pure TypeScript Code 128 (ISO/IEC 15417) Barcode SVG Generator
+ * 100% compliant with standard 1D Laser/CCD Barcode Scanners and Mobile Imagers.
  */
 export class BarcodeGenerator {
-  // Code 128 Code B patterns (107 symbols, each 11 modules wide)
-  private static readonly PATTERNS: number[] = [
-    0x6cc, 0x66c, 0x666, 0x498, 0x48c, 0x44c, 0x4c8, 0x4c4, 0x464, 0x648,
-    0x644, 0x624, 0x59c, 0x4dc, 0x4ce, 0x5cc, 0x4ec, 0x4e6, 0x672, 0x65c,
-    0x64e, 0x6e4, 0x674, 0x76e, 0x74c, 0x72c, 0x726, 0x764, 0x734, 0x732,
-    0x6d8, 0x6c6, 0x636, 0x518, 0x458, 0x446, 0x588, 0x468, 0x462, 0x688,
-    0x628, 0x622, 0x5b8, 0x58e, 0x46e, 0x5d8, 0x5c6, 0x476, 0x776, 0x68e,
-    0x62e, 0x6e8, 0x6e2, 0x6ee, 0x758, 0x746, 0x716, 0x768, 0x762, 0x738,
-    0x7b6, 0x778, 0x7ce, 0x524, 0x522, 0x4b4, 0x496, 0x452, 0x44a, 0x544,
-    0x542, 0x4a4, 0x4a2, 0x442, 0x620, 0x520, 0x4a0, 0x744, 0x722, 0x6a0,
-    0x5a4, 0x5a2, 0x4e4, 0x4e2, 0x470, 0x760, 0x730, 0x670, 0x570, 0x4f0,
-    0x7b0, 0x7d8, 0x7d2, 0x7a8, 0x7a2, 0x774, 0x772, 0x7dc, 0x7ce, 0x7ec,
-    0x7e6, 0x708, 0x702, 0x720, 0x740, 0x780, 0x79e // 106 = STOP
+  // Official ISO/IEC 15417 Code 128 bar and space widths (0 to 106)
+  // Each string contains alternating widths: Bar, Space, Bar, Space, Bar, Space (Sum = 11 modules, Stop = 13 modules)
+  private static readonly WIDTHS: string[] = [
+    "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213", // 0-9
+    "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132", // 10-19
+    "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211", // 20-29
+    "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211133", // 30-39
+    "211331", "231131", "113123", "113321", "133121", "313121", "211313", "231113", "231311", "112133", // 40-49
+    "112331", "132131", "113132", "113312", "133112", "313112", "311231", "331211", "321113", "321311", // 50-59
+    "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214", // 60-69
+    "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111", // 70-79
+    "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141", // 80-89
+    "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141", // 90-99
+    "114131", "311141", "411131", "211412", "211214", "211232", "2331112" // 100-106 (103=StartA, 104=StartB, 105=StartC, 106=Stop)
   ];
 
   private static readonly START_B = 104;
   private static readonly STOP = 106;
 
   /**
-   * สร้าง SVG string ของบาร์โค้ด Code 128
+   * Convert width string (e.g. "212222") to binary string of modules ("11011001100")
    */
-  public static generateSvg(text: string, options: { width?: number; height?: number; showText?: boolean } = {}): string {
-    const height = options.height || 60;
+  private static patternToBinary(widths: string): string {
+    let binary = '';
+    for (let i = 0; i < widths.length; i++) {
+      const moduleCount = parseInt(widths[i], 10);
+      const isBar = i % 2 === 0;
+      binary += (isBar ? '1' : '0').repeat(moduleCount);
+    }
+    return binary;
+  }
+
+  /**
+   * สร้าง SVG string ของบาร์โค้ด Code 128 ตามมาตรฐานสากล ISO/IEC 15417
+   */
+  public static generateSvg(
+    text: string, 
+    options: { width?: number; height?: number; showText?: boolean; barcodeScale?: number } = {}
+  ): string {
+    const rawText = String(text || '').trim();
+    if (!rawText) return '<svg width="100" height="40"></svg>';
+
+    // Height of the black bars in SVG space
+    const height = options.height || 120;
     const showText = options.showText !== false;
     
-    // Code 128B encoding
+    // 1. Calculate Code 128B symbols & Modulo 103 checksum
     const symbols: number[] = [this.START_B];
     let checksum = this.START_B;
 
-    for (let i = 0; i < text.length; i++) {
-      const code = text.charCodeAt(i) - 32;
-      if (code >= 0 && code <= 95) {
-        symbols.push(code);
-        checksum += code * (i + 1);
-      }
+    for (let i = 0; i < rawText.length; i++) {
+      const asciiCode = rawText.charCodeAt(i);
+      // Code 128B maps ASCII 32 (' ') through 127
+      const symbolValue = asciiCode >= 32 && asciiCode <= 127 ? asciiCode - 32 : 0;
+      symbols.push(symbolValue);
+      checksum += symbolValue * (i + 1);
     }
 
+    // 2. Append Check Digit (modulo 103) and Stop Character
     symbols.push(checksum % 103);
     symbols.push(this.STOP);
 
-    // Convert symbols to binary string of modules
-    let binary = '';
-    symbols.forEach((sym, idx) => {
-      const pattern = this.PATTERNS[sym] || 0;
-      const bitLength = sym === this.STOP ? 13 : 11;
-      for (let b = bitLength - 1; b >= 0; b--) {
-        binary += (pattern & (1 << b)) ? '1' : '0';
+    // 3. Convert all symbols to full binary string
+    let fullBinary = '';
+    for (const sym of symbols) {
+      const widthStr = this.WIDTHS[sym];
+      if (widthStr) {
+        fullBinary += this.patternToBinary(widthStr);
       }
-    });
-
-    const moduleWidth = options.width ? Math.max(2, Math.floor(options.width / (binary.length + 20))) : 2.5; // px per narrow bar
-    const quietZone = Math.max(16, Math.floor(moduleWidth * 10)); // standard quiet margin (at least 10 modules)
-    const totalWidth = binary.length * moduleWidth + (quietZone * 2);
-
-    // Build SVG Rectangles
-    let rects = '';
-    let x = quietZone;
-    for (let i = 0; i < binary.length; i++) {
-      if (binary[i] === '1') {
-        rects += `<rect x="${x}" y="4" width="${moduleWidth}" height="${height}" fill="#000000" shape-rendering="crispEdges"/>`;
-      }
-      x += moduleWidth;
     }
 
-    const totalHeight = showText ? height + 24 : height + 8;
+    // 4. Barcode Geometry (module width & quiet zones)
+    const moduleWidth = 2.0; // standard crisp module width (px)
+    const quietZoneModules = 12; // 12 modules quiet margin each side (standard requires at least 10)
+    const quietZonePx = quietZoneModules * moduleWidth;
+    const totalWidth = fullBinary.length * moduleWidth + (quietZonePx * 2);
+
+    // 5. Build SVG Rectangles for black bars
+    let rects = '';
+    let currentX = quietZonePx;
+    let runLength = 0;
+
+    for (let i = 0; i < fullBinary.length; i++) {
+      if (fullBinary[i] === '1') {
+        runLength++;
+      } else {
+        if (runLength > 0) {
+          const barWidth = runLength * moduleWidth;
+          const barX = currentX - barWidth;
+          rects += `<rect x="${barX.toFixed(2)}" y="6" width="${barWidth.toFixed(2)}" height="${height}" fill="#000000" shape-rendering="crispEdges"/>`;
+          runLength = 0;
+        }
+      }
+      currentX += moduleWidth;
+    }
+    // Final bar if ended on '1'
+    if (runLength > 0) {
+      const barWidth = runLength * moduleWidth;
+      const barX = currentX - barWidth;
+      rects += `<rect x="${barX.toFixed(2)}" y="6" width="${barWidth.toFixed(2)}" height="${height}" fill="#000000" shape-rendering="crispEdges"/>`;
+    }
+
+    const totalHeight = showText ? height + 32 : height + 12;
     const textSvg = showText
-      ? `<text x="${totalWidth / 2}" y="${height + 20}" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-size="13" font-weight="900" letter-spacing="2" fill="#000000">${text}</text>`
+      ? `<text x="${(totalWidth / 2).toFixed(2)}" y="${height + 26}" text-anchor="middle" font-family="'Courier New', Courier, monospace, monospace" font-size="16" font-weight="900" letter-spacing="4" fill="#000000">${rawText}</text>`
       : '';
 
+    // Notice: preserveAspectRatio="xMidYMid meet" ensures bars keep exact integer ratios without stretching!
     return `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" width="100%" height="${totalHeight}" preserveAspectRatio="xMidYMid meet">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(2)} ${totalHeight}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style="display:block; margin:auto;">
         <rect width="100%" height="100%" fill="#ffffff"/>
         ${rects}
         ${textSvg}

@@ -173,62 +173,141 @@ class CloudSyncService {
 
   /**
    * ส่งข้อมูลทั้งหมดจากเครื่องนี้ขึ้นไปเก็บบน Supabase Cloud (Local -> Cloud)
+   * แก้ไขปัญหา PGRST102: ทุก Object ต้องมีคีย์ครบเหมือนกันทุกประการ (ห้ามมี undefined)
    */
   public async pushAllToCloud(): Promise<{ success: boolean; message: string }> {
     try {
-      // 1. Push Variants
+      // 1. Push Variants (สินค้าและสต็อก 2 คลัง)
       const localVariants = await db.variants.toArray();
       if (localVariants.length > 0) {
         const payload = localVariants.map(v => ({
-          id: v.id,
-          product_id: v.productId,
-          product_name: v.productName,
-          category: v.category,
-          sku: v.sku,
-          barcode: v.barcode,
-          attributes: v.attributes,
-          cost_price: v.costPrice,
-          sale_price: v.salePrice,
-          stock_quantity: v.stockQuantity,
-          warehouse_stock: v.warehouseStock ?? Math.floor(v.stockQuantity * 0.6),
-          shop_stock: v.shopStock ?? (v.stockQuantity - Math.floor(v.stockQuantity * 0.6)),
-          min_stock_alert: v.minStockAlert,
-          image_url: v.imageUrl,
-          supplier_name: v.supplierName,
+          id: String(v.id),
+          product_id: v.productId ? String(v.productId) : null,
+          product_name: String(v.productName || ''),
+          category: String(v.category || 'สินค้าทั่วไป'),
+          sku: String(v.sku || ''),
+          barcode: String(v.barcode || ''),
+          attributes: v.attributes || {},
+          cost_price: Number(v.costPrice || 0),
+          sale_price: Number(v.salePrice || 0),
+          stock_quantity: Number(v.stockQuantity || 0),
+          warehouse_stock: Number(v.warehouseStock ?? v.stockQuantity ?? 0),
+          shop_stock: Number(v.shopStock ?? 0),
+          min_stock_alert: Number(v.minStockAlert ?? 5),
+          image_url: v.imageUrl ? String(v.imageUrl) : null,
+          supplier_name: v.supplierName ? String(v.supplierName) : null,
           is_active: v.isActive !== false
         }));
 
-        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants`, {
+        const vRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?on_conflict=id`, {
           method: 'POST',
           headers: this.getHeaders(),
           body: JSON.stringify(payload)
         });
+        if (!vRes.ok) {
+          const errText = await vRes.text();
+          throw new Error(`Supabase variants error (${vRes.status}): ${errText}`);
+        }
       }
 
-      // 2. Push Customers
+      // 2. Push Customers (ข้อมูลลูกค้าและสมาชิก)
       const localCustomers = await db.customers.toArray();
       if (localCustomers.length > 0) {
         const custPayload = localCustomers.map(c => ({
-          id: c.id,
-          member_code: c.memberCode,
-          tier: c.tier || 'SILVER',
-          phone: c.phone,
-          name: c.name,
-          contact_channel: c.contactChannel,
-          address: c.address,
-          tax_id: c.taxId,
-          reward_points: c.rewardPoints || 0,
-          total_spent: c.totalSpent || 0
+          id: String(c.id),
+          member_code: c.memberCode ? String(c.memberCode) : null,
+          tier: String(c.tier || 'SILVER'),
+          phone: String(c.phone || ''),
+          name: String(c.name || ''),
+          contact_channel: c.contactChannel ? String(c.contactChannel) : null,
+          address: c.address ? String(c.address) : null,
+          tax_id: c.taxId ? String(c.taxId) : null,
+          reward_points: Number(c.rewardPoints || 0),
+          total_spent: Number(c.totalSpent || 0)
         }));
 
-        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/customers`, {
+        const cRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/customers?on_conflict=id`, {
           method: 'POST',
           headers: this.getHeaders(),
           body: JSON.stringify(custPayload)
         });
+        if (!cRes.ok) {
+          const errText = await cRes.text();
+          throw new Error(`Supabase customers error (${cRes.status}): ${errText}`);
+        }
       }
 
-      return { success: true, message: `ส่งข้อมูลสินค้าและลูกค้าขึ้น Cloud สำเร็จ (${localVariants.length} รายการ)` };
+      // 3. Push Stock Transfers (ประวัติการโอนย้ายสต็อกข้ามคลัง)
+      const localTransfers = await db.transfers.toArray();
+      if (localTransfers.length > 0) {
+        const transPayload = localTransfers.map(t => ({
+          id: String(t.id),
+          transfer_no: String(t.transferNo),
+          timestamp: String(t.timestamp),
+          from_branch: String(t.fromBranch),
+          to_branch: String(t.toBranch),
+          items: t.items || [],
+          total_qty: Number(t.totalQty || 0),
+          sender_name: String(t.senderName || ''),
+          receiver_name: t.receiverName ? String(t.receiverName) : null,
+          received_at: t.receivedAt ? String(t.receivedAt) : null,
+          status: String(t.status || 'PENDING_RECEIPT'),
+          notes: t.notes ? String(t.notes) : null
+        }));
+
+        const tRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?on_conflict=id`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(transPayload)
+        });
+        if (!tRes.ok) {
+          const errText = await tRes.text();
+          throw new Error(`Supabase stock_transfers error (${tRes.status}): ${errText}`);
+        }
+      }
+
+      // 4. Push Custom Orders (งานสั่งผลิต & เงินมัดจำ)
+      const localCustomOrders = await db.customOrders.toArray();
+      if (localCustomOrders.length > 0) {
+        const coPayload = localCustomOrders.map(co => ({
+          id: String(co.id),
+          order_no: String(co.orderNo),
+          created_at: String(co.createdAt),
+          staff_name: String(co.staffName || ''),
+          branch: String(co.branch || 'SHOP'),
+          customer_name: String(co.customerName || ''),
+          customer_phone: String(co.customerPhone || ''),
+          delivery_method: String(co.deliveryMethod || 'PICKUP_SHOP'),
+          shipping_address: co.shippingAddress ? String(co.shippingAddress) : null,
+          due_date: co.dueDate ? String(co.dueDate) : null,
+          item_description: String(co.itemDescription || ''),
+          qty: Number(co.qty || 1),
+          total_price: Number(co.totalPrice || 0),
+          deposit_amount: Number(co.depositAmount || 0),
+          balance_due: Number(co.balanceDue || 0),
+          deposit_payment_method: String(co.depositPaymentMethod || 'PROMPTPAY'),
+          status: String(co.status || 'PENDING_PRODUCTION'),
+          final_payment_method: co.finalPaymentMethod ? String(co.finalPaymentMethod) : null,
+          final_paid_amount: co.finalPaidAmount ? Number(co.finalPaidAmount) : null,
+          final_paid_at: co.finalPaidAt ? String(co.finalPaidAt) : null,
+          notes: co.notes ? String(co.notes) : null
+        }));
+
+        const coRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/custom_orders?on_conflict=id`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(coPayload)
+        });
+        if (!coRes.ok) {
+          const errText = await coRes.text();
+          throw new Error(`Supabase custom_orders error (${coRes.status}): ${errText}`);
+        }
+      }
+
+      return { 
+        success: true, 
+        message: `ส่งข้อมูลขึ้น Cloud สำเร็จสมบูรณ์! (สินค้า: ${localVariants.length}, ลูกค้า: ${localCustomers.length}, ใบโอน: ${localTransfers.length}, งานสั่งผลิต: ${localCustomOrders.length})` 
+      };
     } catch (err: any) {
       return { success: false, message: `เกิดข้อผิดพลาดในการส่งข้อมูลขึ้น Cloud: ${err.message}` };
     }
@@ -262,7 +341,7 @@ class CloudSyncService {
         is_synced: true
       };
 
-      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders`, {
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(payload)
@@ -292,13 +371,47 @@ class CloudSyncService {
         notes: transfer.notes
       };
 
-      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers`, {
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(payload)
       });
     } catch (e) {
       console.warn('Failed to push transfer to cloud', e);
+    }
+  }
+
+  /**
+   * ส่งข้อมูลสินค้าตัวเดียวขึ้น Cloud ทันที
+   */
+  public async pushVariant(v: ProductVariant): Promise<void> {
+    try {
+      const payload = {
+        id: String(v.id),
+        product_id: v.productId ? String(v.productId) : null,
+        product_name: String(v.productName || ''),
+        category: String(v.category || 'สินค้าทั่วไป'),
+        sku: String(v.sku || ''),
+        barcode: String(v.barcode || ''),
+        attributes: v.attributes || {},
+        cost_price: Number(v.costPrice || 0),
+        sale_price: Number(v.salePrice || 0),
+        stock_quantity: Number(v.stockQuantity || 0),
+        warehouse_stock: Number(v.warehouseStock ?? v.stockQuantity ?? 0),
+        shop_stock: Number(v.shopStock ?? 0),
+        min_stock_alert: Number(v.minStockAlert ?? 5),
+        image_url: v.imageUrl ? String(v.imageUrl) : null,
+        supplier_name: v.supplierName ? String(v.supplierName) : null,
+        is_active: v.isActive !== false
+      };
+
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?on_conflict=id`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify([payload])
+      });
+    } catch (e) {
+      console.warn('Failed to push single variant to cloud', e);
     }
   }
 
@@ -331,13 +444,29 @@ class CloudSyncService {
         notes: co.notes
       };
 
-      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/custom_orders`, {
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/custom_orders?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(payload)
       });
     } catch (e) {
       console.warn('Failed to push custom order to cloud', e);
+    }
+  }
+
+  /**
+   * ล้างข้อมูลบิลขาย กะ และประวัติการโอนบน Cloud (สำหรับรีเซ็ตเตรียมเปิดร้านจริง)
+   */
+  public async resetCloudData(): Promise<{ success: boolean; message: string }> {
+    try {
+      const h = this.getHeaders();
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders?id=neq.placeholder`, { method: 'DELETE', headers: h });
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/shifts?id=neq.placeholder`, { method: 'DELETE', headers: h });
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?id=neq.placeholder`, { method: 'DELETE', headers: h });
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/custom_orders?id=neq.placeholder`, { method: 'DELETE', headers: h });
+      return { success: true, message: 'ล้างข้อมูลทดสอบบน Cloud สำเร็จแล้ว' };
+    } catch (err: any) {
+      return { success: false, message: `ล้างข้อมูล Cloud ไม่สำเร็จ: ${err.message}` };
     }
   }
 }
