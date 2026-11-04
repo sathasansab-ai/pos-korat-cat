@@ -10,8 +10,10 @@ import type {
   CustomMadeOrder 
 } from '../types';
 
+const BASE_SUPABASE_URL = 'https://jfzfestdintwwsnoxiwv.supabase.co'.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
+
 export const SUPABASE_CONFIG = {
-  url: 'https://jfzfestdintwwsnoxiwv.supabase.co',
+  url: BASE_SUPABASE_URL,
   anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmemZlc3RkaW50d3dzbm94aXd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM3MTA5NjUsImV4cCI6MjEwOTI4Njk2NX0.ZrQXdlMuAc_QnGsJCQFPwKAsaXf0mnzOlnfeP3woBd4'
 };
 
