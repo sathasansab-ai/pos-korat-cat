@@ -21,6 +21,7 @@ import {
 import type { UserAccount, Shift, StoreSettings } from '../types';
 import { AuthService } from '../services/auth';
 import { db } from '../db';
+import { CloudSync } from '../services/cloudSync';
 import { CloudSyncModal } from './CloudSyncModal';
 import { StockTransferModal } from './StockTransferModal';
 
