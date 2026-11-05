@@ -48,6 +48,7 @@ export interface StoreSettings {
 
   // Customer Facing Screen Customization
   customerScreenTheme: CustomerScreenTheme;
+  screensaverMode?: 'FULL_POSTER' | 'SLIDESHOW'; // 'FULL_POSTER' = ภาพโปสเตอร์เต็มจอ 100%, 'SLIDESHOW' = สไลด์โชว์หมุนเวียน
   welcomeTitle: string;
   welcomeSubtitle: string;
   welcomeImageUrl?: string;

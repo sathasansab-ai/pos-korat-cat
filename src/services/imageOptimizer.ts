@@ -55,7 +55,6 @@ export class ImageOptimizer {
 
           let dataUrl: string;
           if (preserveTransparency) {
-            // สำคัญ: ห้ามแปลงเป็น JPEG เพราะ JPEG ไม่รองรับ Transparency และจะเปลี่ยนพื้นหลังใสเป็น "สีดำ"
             // ใช้ WebP (รักษาความโปร่งใสและบีบอัดได้ดี) หรือ PNG
             try {
               dataUrl = canvas.toDataURL('image/webp', quality);
@@ -64,6 +63,10 @@ export class ImageOptimizer {
               }
             } catch {
               dataUrl = canvas.toDataURL('image/png');
+            }
+            // ป้องกันไฟล์ PNG ใหญ่เกินขนาด Cloud limit: ถ้าเกิน 350KB ให้บีบอัดเป็น JPEG คุณภาพสูง
+            if (dataUrl.length > 350000) {
+              dataUrl = canvas.toDataURL('image/jpeg', 0.85);
             }
           } else {
             dataUrl = canvas.toDataURL('image/jpeg', quality);

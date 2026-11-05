@@ -668,20 +668,55 @@ class CloudSyncService {
   /**
    * ส่งการตั้งค่าร้านค้า รูปภาพโลโก้ ภาพต้อนรับ และสไลด์โฆษณาขึ้น Cloud
    */
-  public async pushStoreSettings(settings: StoreSettings): Promise<void> {
+  public async pushStoreSettings(settings: StoreSettings): Promise<{ success: boolean; message?: string }> {
     try {
+      const nowIso = new Date().toISOString();
+      const settingsWithTime = {
+        ...settings,
+        updatedAt: settings.updatedAt || nowIso
+      };
+
+      // 1. ส่งไปยังตาราง store_settings
       const payload = {
         id: 'current_store_settings',
-        data: settings,
-        updated_at: new Date().toISOString()
+        data: settingsWithTime,
+        updated_at: nowIso
       };
-      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/store_settings?on_conflict=id`, {
+      
+      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/store_settings?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify([payload])
       });
-    } catch (e) {
+
+      // 2. ส่ง Backup ไปยังตาราง products (รับประกันว่ามีตารางนี้และ RLS อนุญาต 100%)
+      const backupProduct = {
+        id: 'current_store_settings',
+        sku_prefix: 'SYS',
+        name: 'STORE_SETTINGS_SYNC',
+        category: 'SYSTEM_SETTINGS',
+        description: JSON.stringify(settingsWithTime),
+        image_url: settingsWithTime.welcomeImageUrl || settingsWithTime.logoUrl || (settingsWithTime.customSlides?.[0]?.imageUrl) || '',
+        is_active: true,
+        updated_at: nowIso
+      };
+
+      const backupRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/products?on_conflict=id`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify([backupProduct])
+      });
+
+      if (!res.ok && !backupRes.ok) {
+        const err = await backupRes.text();
+        console.warn('Failed to push store settings backup to products table', backupRes.status, err);
+        return { success: false, message: `Cloud Sync Error (${backupRes.status})` };
+      }
+
+      return { success: true };
+    } catch (e: any) {
       console.warn('Failed to push store settings to cloud', e);
+      return { success: false, message: e.message };
     }
   }
 
@@ -690,26 +725,49 @@ class CloudSyncService {
    */
   public async pullStoreSettings(): Promise<StoreSettings | null> {
     try {
+      let cloudSettings: StoreSettings | null = null;
+
+      // 1. ดึงจากตาราง store_settings ก่อน
       const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/store_settings?id=eq.current_store_settings&select=*`, {
         headers: this.getHeaders()
       });
       if (res.ok) {
         const rows = await res.json();
         if (rows.length > 0 && rows[0].data) {
-          const cloudSettings = rows[0].data as StoreSettings;
-          const local = await db.settings.get('current_store_settings');
+          cloudSettings = rows[0].data as StoreSettings;
+        }
+      }
 
-          // If local has newer modifications, push local to cloud instead of being overwritten
-          if (local && local.updatedAt && cloudSettings.updatedAt) {
-            if (new Date(local.updatedAt) > new Date(cloudSettings.updatedAt)) {
-              this.pushStoreSettings(local).catch(() => {});
-              return local;
+      // 2. หาก store_settings ว่างเปล่า หรือยังไม่ได้รัน SQL ให้ดึงจาก Backup ในตาราง products
+      if (!cloudSettings) {
+        const backupRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/products?id=eq.current_store_settings&select=*`, {
+          headers: this.getHeaders()
+        });
+        if (backupRes.ok) {
+          const rows = await backupRes.json();
+          if (rows.length > 0 && rows[0].description) {
+            try {
+              cloudSettings = JSON.parse(rows[0].description) as StoreSettings;
+            } catch (err) {
+              console.warn('Failed to parse backup settings from products table', err);
             }
           }
-
-          await db.settings.put(cloudSettings);
-          return cloudSettings;
         }
+      }
+
+      if (cloudSettings) {
+        const local = await db.settings.get('current_store_settings');
+
+        // หากเครื่องนี้มีการแก้ไขที่ใหม่กว่า ให้ส่งค่าของเครื่องนี้ขึ้น Cloud แทนที่จะถูกเขียนทับ
+        if (local && local.updatedAt && cloudSettings.updatedAt) {
+          if (new Date(local.updatedAt) > new Date(cloudSettings.updatedAt)) {
+            this.pushStoreSettings(local).catch(() => {});
+            return local;
+          }
+        }
+
+        await db.settings.put(cloudSettings);
+        return cloudSettings;
       }
     } catch (e) {
       console.warn('Failed to pull store settings from cloud', e);

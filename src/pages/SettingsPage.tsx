@@ -212,7 +212,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     const file = e.target.files?.[0];
     if (!file || !settings) return;
     try {
-      const base64 = await ImageOptimizer.resizeAndCompress(file, 900, 900, 0.9);
+      const base64 = await ImageOptimizer.resizeAndCompress(file, 800, 600, 0.82);
       const updated: StoreSettings = { ...settings, welcomeImageUrl: base64, updatedAt: new Date().toISOString() };
       await persistAndBroadcastSettings(updated);
     } catch {
@@ -225,18 +225,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     const file = e.target.files?.[0];
     if (!file || !settings) return;
     try {
-      const base64 = await ImageOptimizer.resizeAndCompress(file, 900, 900, 0.9);
+      const base64 = await ImageOptimizer.resizeAndCompress(file, 800, 600, 0.82);
       const currentSlides = settings.customSlides && settings.customSlides.length > 0 
         ? [...settings.customSlides] 
         : [...DEFAULT_PROMO_SLIDES];
-      if (currentSlides[index]) {
-        currentSlides[index] = { ...currentSlides[index], imageUrl: base64 };
-        const updated: StoreSettings = { ...settings, customSlides: currentSlides, updatedAt: new Date().toISOString() };
-        await persistAndBroadcastSettings(updated);
+      while (currentSlides.length <= index) {
+        currentSlides.push({ ...DEFAULT_PROMO_SLIDES[currentSlides.length] || DEFAULT_PROMO_SLIDES[0], id: `slide-${Date.now()}-${currentSlides.length}` });
       }
+      currentSlides[index] = { ...currentSlides[index], imageUrl: base64 };
+      const updated: StoreSettings = { ...settings, customSlides: currentSlides, updatedAt: new Date().toISOString() };
+      await persistAndBroadcastSettings(updated);
     } catch {
       alert('ไม่สามารถประมวลผลไฟล์รูปภาพได้');
     }
+  };
+
+  const handleSetAllSlidesFullImage = async () => {
+    if (!settings) return;
+    const currentSlides = settings.customSlides && settings.customSlides.length > 0 
+      ? [...settings.customSlides] 
+      : [...DEFAULT_PROMO_SLIDES];
+    const updated = currentSlides.map(s => ({ ...s, layoutMode: 'FULL_IMAGE' as const }));
+    const newSettings: StoreSettings = { ...settings, customSlides: updated, screensaverMode: 'FULL_POSTER', updatedAt: new Date().toISOString() };
+    await persistAndBroadcastSettings(newSettings);
+  };
+
+  const handleSetAllSlidesSplit = async () => {
+    if (!settings) return;
+    const currentSlides = settings.customSlides && settings.customSlides.length > 0 
+      ? [...settings.customSlides] 
+      : [...DEFAULT_PROMO_SLIDES];
+    const updated = currentSlides.map(s => ({ ...s, layoutMode: 'SPLIT' as const }));
+    const newSettings: StoreSettings = { ...settings, customSlides: updated, screensaverMode: 'SLIDESHOW', updatedAt: new Date().toISOString() };
+    await persistAndBroadcastSettings(newSettings);
   };
 
   const handleUpdateSlideField = async (index: number, field: keyof CustomerSlideItem, value: any) => {
@@ -727,10 +748,54 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               </div>
             </div>
 
+            {/* Global Screensaver Mode Selection (เลือกรูปแบบหน้าจอพักสายตา) */}
+            <div className="md:col-span-2 p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent rounded-2xl border-2 border-amber-500/40 shadow-sm">
+              <label className="block font-black text-slate-800 text-sm mb-2 flex items-center gap-2">
+                <span>🖥️ รูปแบบการแสดงผลบนจอฝั่งลูกค้าขณะพักจอ (Screensaver Display Mode)</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => persistAndBroadcastSettings({ ...settings, screensaverMode: 'FULL_POSTER', updatedAt: new Date().toISOString() })}
+                  className={`p-3.5 rounded-2xl border-2 text-left transition flex items-center gap-3 ${
+                    settings.screensaverMode === 'FULL_POSTER'
+                      ? 'bg-white border-amber-500 text-slate-900 shadow-md font-bold ring-2 ring-amber-400'
+                      : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  <span className="text-3xl">🖼️</span>
+                  <div>
+                    <div className="font-extrabold text-sm text-slate-900">โหมดที่ 1: ภาพโปสเตอร์เต็มจอ 100% (แนะนำ)</div>
+                    <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                      แสดงรูปภาพแบนเนอร์/โปสเตอร์เต็มจอ ไร้กล่องข้อความบดบัง สวยงามระดับลักชัวรี ดึงดูดสายตาลูกค้าทันที
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => persistAndBroadcastSettings({ ...settings, screensaverMode: 'SLIDESHOW', updatedAt: new Date().toISOString() })}
+                  className={`p-3.5 rounded-2xl border-2 text-left transition flex items-center gap-3 ${
+                    (settings.screensaverMode || 'SLIDESHOW') === 'SLIDESHOW'
+                      ? 'bg-white border-amber-500 text-slate-900 shadow-md font-bold ring-2 ring-amber-400'
+                      : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  <span className="text-3xl">📑</span>
+                  <div>
+                    <div className="font-extrabold text-sm text-slate-900">โหมดที่ 2: สไลด์โชว์หมุนเวียน 4 รายการ</div>
+                    <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                      หมุนเวียนข้อความโปรโมชั่นและงานสั่งตัด พร้อม 3 ไฮไลต์จุดเด่นของแต่ละสไลด์
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* Welcome Poster / Crest Uploader */}
             <div className="md:col-span-2">
               <label className="block font-bold text-slate-700 mb-2">
-                ภาพต้อนรับกลางจอฝั่งลูกค้า (เปลี่ยนแทนกราฟิกเริ่มต้น)
+                ภาพต้อนรับ / โปสเตอร์แบรนด์กลางจอฝั่งลูกค้า (แสดงเต็มจอในโหมดโปสเตอร์)
               </label>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
                 {settings.welcomeImageUrl ? (
@@ -893,23 +958,44 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                 return (
                   <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-4">
-                    {/* Tabs */}
-                    <div className="flex flex-wrap gap-1.5 pb-2 border-b border-slate-200">
-                      {slides.map((s, idx) => (
+                    {/* Tabs & Quick Action Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                      <div className="flex flex-wrap gap-1.5">
+                        {slides.map((s, idx) => (
+                          <button
+                            key={s.id || idx}
+                            type="button"
+                            onClick={() => setActiveSlideIndex(idx)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                              activeSlideIndex === idx
+                                ? 'bg-amber-600 text-white shadow-sm'
+                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span>สไลด์ที่ {idx + 1}:</span>
+                            <span className="truncate max-w-[120px] font-normal">{s.title || `สไลด์ ${idx + 1}`}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-[11px]">
                         <button
-                          key={s.id || idx}
                           type="button"
-                          onClick={() => setActiveSlideIndex(idx)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                            activeSlideIndex === idx
-                              ? 'bg-amber-600 text-white shadow-sm'
-                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                          }`}
+                          onClick={handleSetAllSlidesFullImage}
+                          className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 rounded-lg font-bold flex items-center gap-1 transition shadow-sm"
+                          title="ปรับทุกสไลด์ให้แสดงเฉพาะรูปภาพเต็มกรอบ 100%"
                         >
-                          <span>สไลด์ที่ {idx + 1}:</span>
-                          <span className="truncate max-w-[120px] font-normal">{s.title || `สไลด์ ${idx + 1}`}</span>
+                          <span>🖼️ ตั้งทุกสไลด์เป็นภาพเต็มจอ 100%</span>
                         </button>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={handleSetAllSlidesSplit}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-medium flex items-center gap-1 transition"
+                          title="ปรับทุกสไลด์เป็นแบบข้อความ + ภาพ"
+                        >
+                          <span>📝 เป็นข้อความ+ภาพ</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Active Slide Form Fields */}

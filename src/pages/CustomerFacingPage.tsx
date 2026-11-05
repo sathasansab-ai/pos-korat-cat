@@ -172,6 +172,8 @@ export const CustomerFacingPage: React.FC = () => {
         setSettings(state.fullSettings);
         setWelcomeImgError(false);
         setLogoError(false);
+        // Persist to local IndexedDB on customer screen as well
+        db.settings.put(state.fullSettings).catch(() => {});
       }
 
       // 1. Check if sale was just completed
@@ -466,9 +468,11 @@ export const CustomerFacingPage: React.FC = () => {
                   const curSlide = promoSlides[activeSlide] || promoSlides[0];
                   if (!curSlide) return null;
 
-                  if (curSlide.layoutMode === 'FULL_IMAGE') {
+                  const isFullPoster = settings?.screensaverMode === 'FULL_POSTER' || curSlide.layoutMode === 'FULL_IMAGE';
+
+                  if (isFullPoster) {
                     /* MODE 2: แบบที่ 2 - ภาพสไลด์โปสเตอร์อย่างเดียว เต็มกรอบ 100% */
-                    const posterImg = curSlide.imageUrl || settings?.welcomeImageUrl || settings?.logoUrl;
+                    const posterImg = curSlide.imageUrl || settings?.welcomeImageUrl || (settings?.customSlides && settings.customSlides.find(s => s.imageUrl)?.imageUrl) || settings?.logoUrl;
                     return (
                       <div className="w-full flex flex-col items-center justify-center min-h-[380px] sm:min-h-[440px]">
                         {posterImg ? (
@@ -500,30 +504,18 @@ export const CustomerFacingPage: React.FC = () => {
                   }
 
                   /* MODE 1: แบบที่ 1 - แบบปัจจุบัน (ข้อความ + กรอบภาพด้านซ้าย) */
+                  const slideImg = curSlide.imageUrl || settings?.welcomeImageUrl || (settings?.customSlides && settings.customSlides.find(s => s.imageUrl)?.imageUrl) || settings?.logoUrl;
                   return (
                     <div className="flex flex-col md:flex-row items-center gap-8 min-h-[380px]">
                       {/* Visual Art / Logo Container */}
                       <div className="flex-shrink-0 flex flex-col items-center justify-center">
                         <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-gradient-to-br from-amber-500/20 via-amber-600/10 to-transparent border-2 border-amber-400/40 p-4 flex items-center justify-center shadow-2xl relative group">
-                          {curSlide.imageUrl ? (
+                          {slideImg && !welcomeImgError && !logoError ? (
                             <img
-                              src={curSlide.imageUrl}
-                              alt="Slide Poster"
+                              src={slideImg}
+                              alt="Slide Art"
                               className="max-h-full max-w-full object-contain drop-shadow-xl rounded-2xl"
-                            />
-                          ) : settings?.welcomeImageUrl && !welcomeImgError ? (
-                            <img
-                              src={settings.welcomeImageUrl}
-                              alt="Welcome"
                               onError={() => setWelcomeImgError(true)}
-                              className="max-h-full max-w-full object-contain drop-shadow-xl"
-                            />
-                          ) : settings?.logoUrl && !logoError ? (
-                            <img
-                              src={settings.logoUrl}
-                              alt="Logo"
-                              onError={() => setLogoError(true)}
-                              className="max-h-full max-w-full object-contain drop-shadow-xl"
                             />
                           ) : (
                             <div className="text-amber-400">
