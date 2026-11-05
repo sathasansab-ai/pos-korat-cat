@@ -28,12 +28,13 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
   onTransferComplete
 }) => {
   const [activeTab, setActiveTab] = useState<'TRANSFER_OUT' | 'RECEIVE_IN'>(initialTab);
+  const [transferDirection, setTransferDirection] = useState<'WAREHOUSE_TO_SHOP' | 'SHOP_TO_WAREHOUSE'>('WAREHOUSE_TO_SHOP');
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [transferQty, setTransferQty] = useState(10);
-  const [senderName, setSenderName] = useState('ฝ่ายคลังสินค้า (นาง ก.)');
-  const [receiverName, setReceiverName] = useState('แคชเชียร์หน้าร้าน (นาง ข.)');
-  const [notes, setNotes] = useState('ส่งจากโรงงานเฉลิมวัฒนา ไปจำหน่ายหน้าร้าน');
+  const [senderName, setSenderName] = useState('ผู้ส่งมอบสินค้า');
+  const [receiverName, setReceiverName] = useState('ผู้รับมอบสินค้า');
+  const [notes, setNotes] = useState('');
   const [pendingTransfers, setPendingTransfers] = useState<StockTransfer[]>([]);
   const [recentTransfers, setRecentTransfers] = useState<StockTransfer[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,13 +65,19 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
   const currentWarehouseStock = currentVariant?.warehouseStock ?? (currentVariant?.stockQuantity || 0);
   const currentShopStock = currentVariant?.shopStock ?? 0;
 
-  // Step 1: โกดังสร้างใบส่งของ (ตัดสต็อกโกดังทันที สถานะ PENDING_RECEIPT)
+  // ตรวจสอบสต็อกต้นทางตามทิศทางที่เลือก
+  const isWarehouseSource = transferDirection === 'WAREHOUSE_TO_SHOP';
+  const availableSourceStock = isWarehouseSource ? currentWarehouseStock : currentShopStock;
+  const sourceBranchName = isWarehouseSource ? 'โกดัง/โรงงานผลิต' : 'หน้าร้านเรือนโคราชเฉลิมวัฒนา';
+  const targetBranchName = isWarehouseSource ? 'หน้าร้านเรือนโคราชเฉลิมวัฒนา' : 'โกดัง/โรงงานผลิต';
+
+  // Step 1: สร้างใบส่งของและตัดสต็อกต้นทางทันที (สถานะ PENDING_RECEIPT)
   const handleCreateTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentVariant || transferQty <= 0) return;
 
-    if (transferQty > currentWarehouseStock) {
-      alert(`สต็อกที่โกดัง/โรงงานมีเพียง ${currentWarehouseStock} ชิ้น ไม่สามารถส่งเกินจำนวนนี้ได้`);
+    if (transferQty > availableSourceStock) {
+      alert(`สต็อกที่${sourceBranchName} มีเพียง ${availableSourceStock} ชิ้น ไม่สามารถโอนเกินจำนวนนี้ได้`);
       return;
     }
 
@@ -82,8 +89,8 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         id: `tr-${Date.now()}`,
         transferNo,
         timestamp: new Date().toISOString(),
-        fromBranch: 'WAREHOUSE',
-        toBranch: 'SHOP',
+        fromBranch: isWarehouseSource ? 'WAREHOUSE' : 'SHOP',
+        toBranch: isWarehouseSource ? 'SHOP' : 'WAREHOUSE',
         items: [
           {
             variantId: currentVariant.id,
@@ -94,21 +101,29 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
           }
         ],
         totalQty: transferQty,
-        senderName: senderName.trim(),
-        receiverName: receiverName.trim(),
-        status: 'PENDING_RECEIPT', // รอหน้าร้านตรวจรับ
+        senderName: senderName.trim() || (isWarehouseSource ? 'ฝ่ายคลัง/โรงงาน' : 'แคชเชียร์หน้าร้าน'),
+        receiverName: receiverName.trim() || (isWarehouseSource ? 'แคชเชียร์หน้าร้าน' : 'ฝ่ายคลัง/โรงงาน'),
+        status: 'PENDING_RECEIPT', // รอปลายทางตรวจรับ
         notes: notes.trim()
       };
 
       // 1. บันทึกประวัติใบส่ง
       await db.transfers.add(newTransfer);
 
-      // 2. ตัดสต็อกโกดังออกทันที (สต็อกหน้าร้านยังไม่เพิ่มจนกว่าจะตรวจรับ)
-      const newWarehouse = Math.max(0, currentWarehouseStock - transferQty);
+      // 2. ตัดสต็อกต้นทางออกทันที (สต็อกปลายทางยังไม่เพิ่มจนกว่าจะกดตรวจรับ)
+      let newWarehouse = currentWarehouseStock;
+      let newShop = currentShopStock;
+      if (isWarehouseSource) {
+        newWarehouse = Math.max(0, currentWarehouseStock - transferQty);
+      } else {
+        newShop = Math.max(0, currentShopStock - transferQty);
+      }
+
       const updatedVariant = {
         ...currentVariant,
         warehouseStock: newWarehouse,
-        stockQuantity: newWarehouse + currentShopStock
+        shopStock: newShop,
+        stockQuantity: newWarehouse + newShop
       };
       await db.variants.put(updatedVariant);
 
@@ -116,7 +131,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
       CloudSync.pushTransfer(newTransfer);
       CloudSync.pushVariant(updatedVariant);
 
-      setSuccessNotice(`สร้างใบส่งของ ${transferNo} สำเร็จ! ตัดสต็อกโกดังออก ${transferQty} ชิ้นแล้ว (สถานะ: รอหน้าร้านตรวจรับ)`);
+      setSuccessNotice(`สร้างใบส่งของ ${transferNo} สำเร็จ! ตัดสต็อก${sourceBranchName}ออก ${transferQty} ชิ้นแล้ว (สถานะ: รอ${targetBranchName}ตรวจรับ)`);
       await loadData();
       if (onTransferComplete) onTransferComplete();
     } catch (err: any) {
@@ -126,23 +141,30 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
     }
   };
 
-  // Step 2: หน้าร้านตรวจรับสินค้า (เพิ่มสต็อกเข้าหน้าร้านจริง และเปลี่ยนสถานะเป็น COMPLETED)
+  // Step 2: ปลายทางตรวจรับสินค้า (เพิ่มสต็อกเข้าปลายทางจริง และเปลี่ยนสถานะเป็น COMPLETED)
   const handleConfirmReceive = async (transfer: StockTransfer) => {
-    const person = prompt('กรุณากรอกชื่อผู้ตรวจรับสินค้า (แคชเชียร์หน้าร้าน):', receiverName);
+    const defaultPerson = transfer.toBranch === 'SHOP' ? 'แคชเชียร์หน้าร้าน' : 'ฝ่ายคลังสินค้า';
+    const person = prompt(`กรุณากรอกชื่อผู้ตรวจรับสินค้า (${transfer.toBranch === 'SHOP' ? 'หน้าร้านเรือนโคราช' : 'โกดัง/โรงงาน'}):`, defaultPerson);
     if (!person) return;
 
     try {
-      // 1. เพิ่มสต็อกสินค้าแต่ละรายการเข้าหน้าร้าน
+      // 1. เพิ่มสต็อกสินค้าแต่ละรายการเข้าคลังปลายทาง
       for (const item of transfer.items) {
         const v = await db.variants.get(item.variantId);
         if (v) {
-          const currentShop = v.shopStock ?? 0;
-          const currentWh = v.warehouseStock ?? 0;
-          const newShop = currentShop + item.qty;
+          let currentShop = v.shopStock ?? 0;
+          let currentWh = v.warehouseStock ?? 0;
+          if (transfer.toBranch === 'SHOP') {
+            currentShop += item.qty;
+          } else {
+            currentWh += item.qty;
+          }
+
           const updatedV = {
             ...v,
-            shopStock: newShop,
-            stockQuantity: currentWh + newShop
+            shopStock: currentShop,
+            warehouseStock: currentWh,
+            stockQuantity: currentWh + currentShop
           };
           await db.variants.put(updatedV);
           CloudSync.pushVariant(updatedV);
@@ -161,7 +183,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
       // 3. ซิงค์ Cloud
       CloudSync.pushTransfer(updatedTransfer);
 
-      setSuccessNotice(`ตรวจรับสินค้าใบโอน ${transfer.transferNo} เรียบร้อยแล้ว! สต็อกเข้าหน้าร้านสำเร็จ (+${transfer.totalQty} ชิ้น)`);
+      setSuccessNotice(`ตรวจรับสินค้าใบโอน ${transfer.transferNo} เรียบร้อยแล้ว! สต็อกเข้า${transfer.toBranch === 'SHOP' ? 'หน้าร้าน' : 'โกดัง'}สำเร็จ (+${transfer.totalQty} ชิ้น)`);
       await loadData();
       if (onTransferComplete) onTransferComplete();
     } catch (err: any) {
@@ -401,17 +423,50 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
           )}
 
           {activeTab === 'TRANSFER_OUT' ? (
-            /* TAB 1: โกดังสร้างใบส่ง */
+            /* TAB 1: สร้างใบส่งของและโอนย้ายสต็อก */
             <>
+              {/* Direction Toggle */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 bg-slate-900 rounded-2xl border border-slate-800 gap-2">
+                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5 ml-2">
+                  <Truck className="w-4 h-4 text-amber-400" /> ทิศทางการโอนย้ายสต็อก:
+                </span>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setTransferDirection('WAREHOUSE_TO_SHOP')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      transferDirection === 'WAREHOUSE_TO_SHOP'
+                        ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>🏭 โกดัง ➔ 🏪 หน้าร้านเรือนโคราช</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransferDirection('SHOP_TO_WAREHOUSE')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      transferDirection === 'SHOP_TO_WAREHOUSE'
+                        ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>🏪 หน้าร้าน ➔ 🏭 ส่งคืนโกดัง</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Visual Stock Status */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
                 <div className="p-4 bg-slate-800/80 rounded-2xl border border-slate-700 text-center">
                   <span className="text-[10px] font-black text-amber-400 uppercase bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
-                    ต้นทาง: โกดัง/โรงงาน
+                    ต้นทาง: {isWarehouseSource ? 'โกดัง/โรงงานผลิต' : 'หน้าร้านเรือนโคราช'}
                   </span>
-                  <div className="text-sm font-bold text-white mt-2">คลังผลิตร้านเก่า</div>
+                  <div className="text-sm font-bold text-white mt-2">
+                    {isWarehouseSource ? 'คลังผลิตร้านเดิม' : 'เรือนโคราชเฉลิมวัฒนา'}
+                  </div>
                   <div className="text-xs text-slate-400 mt-1 font-mono">
-                    สต็อกคงเหลือ: <span className="font-bold text-amber-300">{currentWarehouseStock}</span> ชิ้น
+                    สต็อกพร้อมโอน: <span className="font-bold text-amber-300">{availableSourceStock}</span> ชิ้น
                   </div>
                 </div>
 
@@ -419,16 +474,22 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
                   <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/40">
                     <ArrowRight className="w-4 h-4" />
                   </div>
-                  <span className="text-[11px] font-bold text-slate-400 mt-1">ส่งไปหน้าร้าน {transferQty} ชิ้น</span>
+                  <span className="text-[11px] font-bold text-slate-400 mt-1">
+                    โอนย้าย {transferQty} ชิ้น
+                  </span>
                 </div>
 
                 <div className="p-4 bg-slate-800/80 rounded-2xl border border-slate-700 text-center">
                   <span className="text-[10px] font-black text-emerald-400 uppercase bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                    ปลายทาง: หน้าร้าน
+                    ปลายทาง: {isWarehouseSource ? 'หน้าร้านเรือนโคราช' : 'โกดัง/โรงงานผลิต'}
                   </span>
-                  <div className="text-sm font-bold text-white mt-2">เรือนโคราชเฉลิมวัฒนา</div>
+                  <div className="text-sm font-bold text-white mt-2">
+                    {isWarehouseSource ? 'เรือนโคราชเฉลิมวัฒนา' : 'คลังผลิตร้านเดิม'}
+                  </div>
                   <div className="text-xs text-slate-400 mt-1 font-mono">
-                    สต็อกหน้าร้านเดิม: <span className="font-bold text-emerald-300">{currentShopStock}</span> ชิ้น
+                    สต็อกเดิมปลายทาง: <span className="font-bold text-emerald-300">
+                      {isWarehouseSource ? currentShopStock : currentWarehouseStock}
+                    </span> ชิ้น
                   </div>
                 </div>
               </div>

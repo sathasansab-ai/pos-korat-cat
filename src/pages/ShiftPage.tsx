@@ -27,10 +27,17 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   const [liveCashSales, setLiveCashSales] = useState(0);
   const [livePromptPaySales, setLivePromptPaySales] = useState(0);
   const [liveTxCount, setLiveTxCount] = useState(0);
+  const [pastShifts, setPastShifts] = useState<Shift[]>([]);
+
+  const loadPastShifts = async () => {
+    const list = await db.shifts.orderBy('startTime').reverse().limit(10).toArray();
+    setPastShifts(list);
+  };
 
   const refreshLiveShift = async () => {
     const shift = (await db.shifts.where({ status: 'OPEN' }).last()) || activeShift;
     setLiveShift(shift || null);
+    await loadPastShifts();
 
     if (shift) {
       // Query completed orders for this shift to get 100% exact sales
@@ -567,6 +574,92 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
           </div>
         </div>
       )}
+      {/* RECENT SHIFTS HISTORY TABLE */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 no-print space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <History className="w-5 h-5 text-amber-600" />
+            <h3 className="font-bold text-base text-slate-900">
+              ประวัติการเปิด-ปิดกะล่าสุด ({pastShifts.length} รายการล่าสุด)
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={loadPastShifts}
+            className="text-xs text-amber-700 hover:text-amber-800 font-semibold flex items-center gap-1"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> รีเฟรชประวัติ
+          </button>
+        </div>
+
+        {pastShifts.length === 0 ? (
+          <div className="text-center py-8 text-slate-400 text-xs">
+            ยังไม่มีประวัติการเปิดกะในระบบ
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 font-bold uppercase border-b border-slate-200">
+                <tr>
+                  <th className="p-3">สถานะ</th>
+                  <th className="p-3">แคชเชียร์</th>
+                  <th className="p-3">เวลาเปิดกะ</th>
+                  <th className="p-3">เวลาปิดกะ</th>
+                  <th className="p-3 text-right">เงินทอนตั้งต้น</th>
+                  <th className="p-3 text-right">ยอดขายสด</th>
+                  <th className="p-3 text-right">ยอดขายโอน</th>
+                  <th className="p-3 text-right">เงินนับได้จริง</th>
+                  <th className="p-3 text-right">ผลต่าง</th>
+                  <th className="p-3 text-center">ใบส่งมอบ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pastShifts.map(s => {
+                  const diff = s.cashDifference || 0;
+                  return (
+                    <tr key={s.id} className="hover:bg-slate-50 transition">
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          s.status === 'OPEN'
+                            ? 'bg-emerald-100 text-emerald-800 animate-pulse'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {s.status === 'OPEN' ? '🟢 กำลังเปิดกะ' : '🔒 ปิดกะแล้ว'}
+                        </span>
+                      </td>
+                      <td className="p-3 font-bold text-slate-800">{s.cashierName}</td>
+                      <td className="p-3 text-slate-500">{new Date(s.startTime).toLocaleString('th-TH')}</td>
+                      <td className="p-3 text-slate-500">{s.endTime ? new Date(s.endTime).toLocaleString('th-TH') : '-'}</td>
+                      <td className="p-3 text-right font-mono">฿{s.startingCash.toLocaleString()}</td>
+                      <td className="p-3 text-right font-mono text-emerald-700 font-bold">฿{(s.totalCashSales || 0).toLocaleString()}</td>
+                      <td className="p-3 text-right font-mono text-sky-700">฿{(s.totalPromptPaySales || 0).toLocaleString()}</td>
+                      <td className="p-3 text-right font-mono font-bold">
+                        {s.closingCashActual !== undefined ? `฿${s.closingCashActual.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="p-3 text-right font-mono font-bold">
+                        {s.closingCashActual !== undefined ? (
+                          <span className={diff < 0 ? 'text-rose-600' : diff > 0 ? 'text-amber-600' : 'text-emerald-600'}>
+                            {diff > 0 ? `+฿${diff.toLocaleString()}` : diff < 0 ? `-฿${Math.abs(diff).toLocaleString()}` : '✓ พอดี (0)'}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td className="p-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setPrintedShift(s)}
+                          className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 border border-amber-200"
+                        >
+                          <Printer className="w-3 h-3" /> พิมพ์ A4
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
