@@ -287,9 +287,9 @@ export const ReportsPage: React.FC = () => {
       runningNet += o.netTotal;
 
       const invoiceNo = o.taxInvoiceNo || o.localOrderId;
-      const customerName = o.taxCustomerInfo?.name || o.customerName || 'ลูกค้าทั่วไป (สด)';
-      const taxId = o.taxCustomerInfo?.taxId || '-';
-      const branch = o.taxCustomerInfo?.branch || 'สำนักงานใหญ่';
+      const customerName = o.customerTaxInfo?.name || o.customerName || 'ลูกค้าทั่วไป (สด)';
+      const taxId = o.customerTaxInfo?.taxId || '-';
+      const branch = o.customerTaxInfo?.branch || 'สำนักงานใหญ่';
 
       return [
         idx + 1,
