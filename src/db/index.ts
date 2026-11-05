@@ -86,7 +86,7 @@ export async function seedInitialData() {
     await db.settings.put(defaultSettings);
   } else {
     // Backfill any missing fields on existing database
-    const updated = {
+    const updated: StoreSettings = {
       ...existingSettings,
       vatType: existingSettings.vatType || 'NONE',
       vatRate: existingSettings.vatRate ?? 7,
@@ -104,7 +104,59 @@ export async function seedInitialData() {
       blackWisdomPointsThreshold: existingSettings.blackWisdomPointsThreshold ?? 150,
       blackWisdomSpentThreshold: existingSettings.blackWisdomSpentThreshold ?? 15000,
       blackWisdomDiscountPercent: existingSettings.blackWisdomDiscountPercent ?? 10,
-      blackWisdomPrivilegeText: existingSettings.blackWisdomPrivilegeText || 'สิทธิพิเศษ: ส่วนลด 10% ทุกยอดซื้อ + เชิญร่วมกิจกรรม Workshop ฟรี'
+      blackWisdomPrivilegeText: existingSettings.blackWisdomPrivilegeText || 'สิทธิพิเศษ: ส่วนลด 10% ทุกยอดซื้อ + เชิญร่วมกิจกรรม Workshop ฟรี',
+      customSlides: (existingSettings.customSlides && existingSettings.customSlides.length > 0)
+        ? existingSettings.customSlides
+        : [
+            {
+              id: 'heritage',
+              tag: 'HERITAGE BOUTIQUE • ผสานอัตลักษณ์เมืองโคราช',
+              badgeColor: 'AMBER',
+              layoutMode: 'SPLIT',
+              title: existingSettings.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
+              subtitle: existingSettings.subTitle || 'ผสานศิลปวัฒนธรรมเรือนโคราชเฉลิมวัฒนา และแฟชั่นอัตลักษณ์แมวสีสวาด',
+              description: 'งานหัตถศิลป์ทรงคุณค่า เอกลักษณ์เมืองนครราชสีมา เสื้อยืดพรีเมียมลิมิเต็ด ลายฉลุทองคำประณีต สกรีน DTF & Flex นูนเมทัลลิกชั้นสูง',
+              highlight1: '✨ สกรีน DTF สีสวาดทองคำ ลิขสิทธิ์แท้',
+              highlight2: '🏛️ มนต์เสน่ห์ศิลปวัฒนธรรมเรือนโคราชเฉลิมวัฒนา',
+              highlight3: '🧵 เส้นใย Premium Comb Cotton 100% สวมใส่สบาย'
+            },
+            {
+              id: 'mix_match',
+              tag: 'SPECIAL PRIVILEGE • เซ็ตสุดคุ้ม',
+              badgeColor: 'EMERALD',
+              layoutMode: 'SPLIT',
+              title: 'โปรโมชั่นพิเศษ "Mix & Match 3 ชิ้น ฿1,000"',
+              subtitle: 'จับคู่ความคุ้มค่า ซื้อเสื้อยืดหรือของที่ระลึก 3 ชิ้น ประหยัดทันที 170 บาท',
+              description: 'สามารถเลือกคละสี คละไซส์ (S, M, L, XL, 2XL) และคละลายพิมพ์ฉลุได้ตามใจชอบ ระบบจะคำนวณราคาโปรโมชั่นให้อัตโนมัติที่หน้าเคาน์เตอร์',
+              highlight1: '🏷️ คละสี คละไซส์ คละลายพิมพ์ได้อิสระ',
+              highlight2: '⚡ ระบบคำนวณส่วนลดให้อัตโนมัติบนหน้าจอ',
+              highlight3: '🎁 เหมาะสำหรับเป็นของขวัญและของฝากพรีเมียม'
+            },
+            {
+              id: 'digital_pass',
+              tag: 'VIP MEMBERSHIP • บัตรสมาชิกดิจิทัล',
+              badgeColor: 'SKY',
+              layoutMode: 'SPLIT',
+              title: 'Digital Wisdom Pass สมาชิกทรงเกียรติ',
+              subtitle: 'สมัครสมาชิกฟรีเพียงแจ้งเบอร์โทรศัพท์ รับส่วนลด 5% - 10% ทุกยอดซื้อ',
+              description: 'ยกระดับประสบการณ์ช้อปปิ้งสู่ระดับ Luxury บัตรสมาชิกดิจิทัล SILVER, GOLD และ BLACK WISDOM สแกน QR บัตรเก็บไว้ในสมาร์ทโฟนได้ทันที',
+              highlight1: '💎 บัตรสมาชิกดิจิทัลหรูหรา สแกน QR เก็บเข้ามือถือได้',
+              highlight2: '🎁 รับส่วนลด 5% สำหรับ GOLD และ 10% สำหรับ BLACK WISDOM',
+              highlight3: '🎨 สิทธิ์เข้าร่วมกิจกรรม Workshop หัตถศิลป์เรือนโคราชฟรี'
+            },
+            {
+              id: 'custom_made',
+              tag: 'HAUTE COUTURE SERVICES • งานสั่งตัด',
+              badgeColor: 'PURPLE',
+              layoutMode: 'SPLIT',
+              title: 'บริการสั่งตัดเย็บ & สกรีนสั่งผลิตพิเศษ',
+              subtitle: 'รับทำเสื้อทีม ลายปักประณีต และของที่ระลึกองค์กร วางมัดจำเพียง 50%',
+              description: 'สร้างสรรค์ชิ้นงานเฉพาะบุคคลโดยกลุ่มวิสาหกิจชุมชนหัตถศิลป์โคราช พร้อมออกใบสั่งผลิตดิจิทัลและนัดรับสินค้าได้ที่หน้าร้าน',
+              highlight1: '✂️ งานปักตราสัญลักษณ์ และงานสกรีนตามแบบเฉพาะคุณ',
+              highlight2: '📜 ใบสั่งผลิตและใบรับมัดจำดิจิทัลพร้อมกำหนดวันนัดรับ',
+              highlight3: '🏪 นัดรับสินค้าได้ที่หน้าร้านเรือนโคราช หรือจัดส่งถึงบ้าน'
+            }
+          ]
     };
     await db.settings.put(updated);
   }

@@ -21,19 +21,22 @@ import {
   AlertTriangle,
   RotateCcw,
   Eye,
-  EyeOff
+  EyeOff,
+  ExternalLink
 } from 'lucide-react';
 import { db } from '../db';
 import type { StoreSettings, UserAccount, CustomerScreenTheme, CustomerSlideItem } from '../types';
 import { AuthService } from '../services/auth';
 import { ImageOptimizer } from '../services/imageOptimizer';
 import { CloudSync } from '../services/cloudSync';
+import { DualMonitorSync } from '../services/dualMonitorSync';
 
 const DEFAULT_PROMO_SLIDES: CustomerSlideItem[] = [
   {
     id: 'heritage',
     tag: 'HERITAGE BOUTIQUE • ผสานอัตลักษณ์เมืองโคราช',
     badgeColor: 'AMBER',
+    layoutMode: 'SPLIT',
     title: 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
     subtitle: 'ผสานศิลปวัฒนธรรมเรือนโคราชเฉลิมวัฒนา และแฟชั่นอัตลักษณ์แมวสีสวาด',
     description: 'งานหัตถศิลป์ทรงคุณค่า เอกลักษณ์เมืองนครราชสีมา เสื้อยืดพรีเมียมลิมิเต็ด ลายฉลุทองคำประณีต สกรีน DTF & Flex นูนเมทัลลิกชั้นสูง',
@@ -45,6 +48,7 @@ const DEFAULT_PROMO_SLIDES: CustomerSlideItem[] = [
     id: 'mix_match',
     tag: 'SPECIAL PRIVILEGE • เซ็ตสุดคุ้ม',
     badgeColor: 'EMERALD',
+    layoutMode: 'SPLIT',
     title: 'โปรโมชั่นพิเศษ "Mix & Match 3 ชิ้น ฿1,000"',
     subtitle: 'จับคู่ความคุ้มค่า ซื้อเสื้อยืดหรือของที่ระลึก 3 ชิ้น ประหยัดทันที 170 บาท',
     description: 'สามารถเลือกคละสี คละไซส์ (S, M, L, XL, 2XL) และคละลายพิมพ์ฉลุได้ตามใจชอบ ระบบจะคำนวณราคาโปรโมชั่นให้อัตโนมัติที่หน้าเคาน์เตอร์',
@@ -53,9 +57,22 @@ const DEFAULT_PROMO_SLIDES: CustomerSlideItem[] = [
     highlight3: '🎁 เหมาะสำหรับเป็นของขวัญและของฝากพรีเมียม'
   },
   {
+    id: 'digital_pass',
+    tag: 'VIP MEMBERSHIP • บัตรสมาชิกดิจิทัล',
+    badgeColor: 'SKY',
+    layoutMode: 'SPLIT',
+    title: 'Digital Wisdom Pass สมาชิกทรงเกียรติ',
+    subtitle: 'สมัครสมาชิกฟรีเพียงแจ้งเบอร์โทรศัพท์ รับส่วนลด 5% - 10% ทุกยอดซื้อ',
+    description: 'ยกระดับประสบการณ์ช้อปปิ้งสู่ระดับ Luxury บัตรสมาชิกดิจิทัล SILVER, GOLD และ BLACK WISDOM สแกน QR บัตรเก็บไว้ในสมาร์ทโฟนได้ทันที',
+    highlight1: '💎 บัตรสมาชิกดิจิทัลหรูหรา สแกน QR เก็บเข้ามือถือได้',
+    highlight2: '🎁 รับส่วนลด 5% สำหรับ GOLD และ 10% สำหรับ BLACK WISDOM',
+    highlight3: '🎨 สิทธิ์เข้าร่วมกิจกรรม Workshop หัตถศิลป์เรือนโคราชฟรี'
+  },
+  {
     id: 'custom_made',
     tag: 'HAUTE COUTURE SERVICES • งานสั่งตัด',
     badgeColor: 'PURPLE',
+    layoutMode: 'SPLIT',
     title: 'บริการสั่งตัดเย็บ & สกรีนสั่งผลิตพิเศษ',
     subtitle: 'รับทำเสื้อทีม ลายปักประณีต และของที่ระลึกองค์กร วางมัดจำเพียง 50%',
     description: 'สร้างสรรค์ชิ้นงานเฉพาะบุคคลโดยกลุ่มวิสาหกิจชุมชนหัตถศิลป์โคราช พร้อมออกใบสั่งผลิตดิจิทัลและนัดรับสินค้าได้ที่หน้าร้าน',
@@ -102,12 +119,30 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [resetCloud, setResetCloud] = useState(true);
   const [resetError, setResetError] = useState('');
 
+  const [syncStatusText, setSyncStatusText] = useState<string>('');
+
+  const persistAndBroadcastSettings = async (newSettings: StoreSettings) => {
+    setSettings(newSettings);
+    await db.settings.put(newSettings);
+    DualMonitorSync.broadcastSettings(newSettings);
+    setSyncStatusText('⚡ ซิงค์ภาพและข้อมูลไปยังจอฝั่งลูกค้าเรียบร้อยแล้ว (อัปเดตทันที)');
+    setTimeout(() => setSyncStatusText(''), 4000);
+
+    // Sync to Supabase Cloud in background for cross-device/tablets
+    CloudSync.pushStoreSettings(newSettings).catch(err => console.warn('Cloud sync background error', err));
+  };
+
   const loadData = async () => {
     const s = await db.settings.get('current_store_settings');
     if (s) {
+      const slides = (s.customSlides && s.customSlides.length > 0)
+        ? s.customSlides
+        : DEFAULT_PROMO_SLIDES;
+
       // Ensure defaults for all optional or newly added fields
-      setSettings({
+      const loaded: StoreSettings = {
         ...s,
+        customSlides: slides,
         vatType: s.vatType || 'NONE',
         vatRate: s.vatRate ?? 7,
         taxInvoiceTitle: s.taxInvoiceTitle || 'ใบกำกับภาษี / ใบเสร็จรับเงิน (ต้นฉบับ)',
@@ -125,7 +160,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         blackWisdomSpentThreshold: s.blackWisdomSpentThreshold ?? 15000,
         blackWisdomDiscountPercent: s.blackWisdomDiscountPercent ?? 10,
         blackWisdomPrivilegeText: s.blackWisdomPrivilegeText || 'สิทธิพิเศษ: ส่วนลด 10% ทุกยอดซื้อ + เชิญร่วมกิจกรรม Workshop ฟรี'
-      });
+      };
+      setSettings(loaded);
+
+      // If customSlides were missing in storage, backfill them immediately
+      if (!s.customSlides || s.customSlides.length === 0) {
+        await db.settings.put(loaded);
+        DualMonitorSync.broadcastSettings(loaded);
+      }
     }
 
     const u = await db.users.toArray();
@@ -155,10 +197,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   // Upload Logo from local file
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !settings) return;
     try {
-      const base64 = await ImageOptimizer.resizeAndCompress(file, 300, 300, 0.9);
-      setSettings(prev => prev ? { ...prev, logoUrl: base64 } : prev);
+      const base64 = await ImageOptimizer.resizeAndCompress(file, 400, 400, 0.9);
+      const updated: StoreSettings = { ...settings, logoUrl: base64, updatedAt: new Date().toISOString() };
+      await persistAndBroadcastSettings(updated);
     } catch {
       alert('ไม่สามารถประมวลผลไฟล์รูปภาพได้');
     }
@@ -167,10 +210,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   // Upload Welcome Graphic / Poster from local file
   const handleWelcomeImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !settings) return;
     try {
-      const base64 = await ImageOptimizer.resizeAndCompress(file, 600, 600, 0.88);
-      setSettings(prev => prev ? { ...prev, welcomeImageUrl: base64 } : prev);
+      const base64 = await ImageOptimizer.resizeAndCompress(file, 900, 900, 0.9);
+      const updated: StoreSettings = { ...settings, welcomeImageUrl: base64, updatedAt: new Date().toISOString() };
+      await persistAndBroadcastSettings(updated);
     } catch {
       alert('ไม่สามารถประมวลผลไฟล์รูปภาพได้');
     }
@@ -181,31 +225,33 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     const file = e.target.files?.[0];
     if (!file || !settings) return;
     try {
-      const base64 = await ImageOptimizer.resizeAndCompress(file, 600, 600, 0.88);
+      const base64 = await ImageOptimizer.resizeAndCompress(file, 900, 900, 0.9);
       const currentSlides = settings.customSlides && settings.customSlides.length > 0 
         ? [...settings.customSlides] 
         : [...DEFAULT_PROMO_SLIDES];
       if (currentSlides[index]) {
         currentSlides[index] = { ...currentSlides[index], imageUrl: base64 };
-        setSettings({ ...settings, customSlides: currentSlides });
+        const updated: StoreSettings = { ...settings, customSlides: currentSlides, updatedAt: new Date().toISOString() };
+        await persistAndBroadcastSettings(updated);
       }
     } catch {
       alert('ไม่สามารถประมวลผลไฟล์รูปภาพได้');
     }
   };
 
-  const handleUpdateSlideField = (index: number, field: keyof CustomerSlideItem, value: any) => {
+  const handleUpdateSlideField = async (index: number, field: keyof CustomerSlideItem, value: any) => {
     if (!settings) return;
     const currentSlides = settings.customSlides && settings.customSlides.length > 0 
       ? [...settings.customSlides] 
       : [...DEFAULT_PROMO_SLIDES];
     if (currentSlides[index]) {
       currentSlides[index] = { ...currentSlides[index], [field]: value };
-      setSettings({ ...settings, customSlides: currentSlides });
+      const updated: StoreSettings = { ...settings, customSlides: currentSlides, updatedAt: new Date().toISOString() };
+      await persistAndBroadcastSettings(updated);
     }
   };
 
-  const handleAddSlide = () => {
+  const handleAddSlide = async () => {
     if (!settings) return;
     const currentSlides = settings.customSlides && settings.customSlides.length > 0 
       ? [...settings.customSlides] 
@@ -214,6 +260,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       id: `slide-${Date.now()}`,
       tag: 'NEW PROMOTION • โปรโมชั่นใหม่',
       badgeColor: 'AMBER',
+      layoutMode: 'SPLIT',
       title: 'โปรโมชั่นพิเศษต้อนรับลูกค้า',
       subtitle: 'สิทธิพิเศษและข้อเสนอประจำสัปดาห์',
       description: 'กรอกรายละเอียดข้อเสนอ หรือโปรโมชั่นของร้านเพื่อดึงดูดความสนใจของลูกค้าที่เคาน์เตอร์',
@@ -222,11 +269,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       highlight3: '🎁 ไฮไลต์จุดเด่นข้อที่ 3'
     };
     const updated = [...currentSlides, newSlide];
-    setSettings({ ...settings, customSlides: updated });
+    const newSettings: StoreSettings = { ...settings, customSlides: updated, updatedAt: new Date().toISOString() };
+    await persistAndBroadcastSettings(newSettings);
     setActiveSlideIndex(updated.length - 1);
   };
 
-  const handleDeleteSlide = (index: number) => {
+  const handleDeleteSlide = async (index: number) => {
     if (!settings) return;
     const currentSlides = settings.customSlides && settings.customSlides.length > 0 
       ? [...settings.customSlides] 
@@ -236,14 +284,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       return;
     }
     const updated = currentSlides.filter((_, i) => i !== index);
-    setSettings({ ...settings, customSlides: updated });
+    const newSettings: StoreSettings = { ...settings, customSlides: updated, updatedAt: new Date().toISOString() };
+    await persistAndBroadcastSettings(newSettings);
     setActiveSlideIndex(Math.max(0, index - 1));
   };
 
-  const handleResetSlidesToDefault = () => {
+  const handleResetSlidesToDefault = async () => {
     if (!settings) return;
-    if (confirm('ต้องการรีเซ็ตสไลด์โฆษณาทั้งหมดกลับเป็นค่าเริ่มต้นอัตลักษณ์โคราช 3 สไลด์หรือไม่?')) {
-      setSettings({ ...settings, customSlides: [...DEFAULT_PROMO_SLIDES] });
+    if (confirm('ต้องการรีเซ็ตสไลด์โฆษณาทั้งหมดกลับเป็นค่าเริ่มต้นอัตลักษณ์โคราช 4 สไลด์หรือไม่?')) {
+      const newSettings: StoreSettings = { ...settings, customSlides: [...DEFAULT_PROMO_SLIDES], updatedAt: new Date().toISOString() };
+      await persistAndBroadcastSettings(newSettings);
       setActiveSlideIndex(0);
     }
   };
@@ -252,7 +302,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     e.preventDefault();
     if (!settings) return;
 
-    await db.settings.put(settings);
+    const newSettings: StoreSettings = { ...settings, updatedAt: new Date().toISOString() };
+    await persistAndBroadcastSettings(newSettings);
 
     // Update Owner Name and PIN
     const owner = users.find(x => x.role === 'OWNER');
@@ -795,12 +846,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     แก้ไขข้อความหัวข้อ คำบรรยาย รูปภาพ และไฮไลต์ของแต่ละสไลด์ (ที่วนแสดงบนจอฝั่งลูกค้าขณะพักจอ)
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.open('/display', '_blank', 'width=1200,height=800')}
+                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition"
+                    title="เปิดหน้าจอฝั่งลูกค้าในหน้าต่างใหม่เพื่อดูผลลัพธ์ทันที"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>🖥️ เปิดดูหน้าจอที่ 2 (จอฝั่งลูกค้า)</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handleResetSlidesToDefault}
                     className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold flex items-center gap-1"
-                    title="คืนค่ากลับเป็นสไลด์อัตลักษณ์โคราช 3 สไลด์เริ่มต้น"
+                    title="คืนค่ากลับเป็นสไลด์อัตลักษณ์โคราช 4 สไลด์เริ่มต้น"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>คืนค่าเริ่มต้น</span>
@@ -815,6 +875,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Sync Status Banner */}
+              {syncStatusText && (
+                <div className="p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-xl text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{syncStatusText}</span>
+                </div>
+              )}
 
               {/* Slide Tabs Navigation */}
               {(() => {

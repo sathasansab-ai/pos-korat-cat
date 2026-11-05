@@ -1,5 +1,5 @@
 // src/services/dualMonitorSync.ts
-import type { CartItem, CustomerScreenTheme } from '../types';
+import type { CartItem, CustomerScreenTheme, StoreSettings } from '../types';
 
 export interface CustomerDisplayState {
   cart: CartItem[];
@@ -24,6 +24,7 @@ export interface CustomerDisplayState {
   welcomeSubtitle?: string;
   welcomeImageUrl?: string;
   thankYouMessage?: string;
+  fullSettings?: StoreSettings;
 
   // Digital Pass Showcase (โชว์บัตรสมาชิกหรูหราที่หน้าจอลูกค้าเพื่อสแกน)
   showDigitalPass?: boolean;
@@ -55,6 +56,26 @@ export class DualMonitorSync {
       this.getChannel().postMessage(state);
     } catch (e) {
       console.error('Failed to broadcast to customer monitor', e);
+    }
+  }
+
+  public static broadcastSettings(settings: StoreSettings) {
+    try {
+      this.getChannel().postMessage({
+        cart: [],
+        subtotal: 0,
+        promoDiscount: 0,
+        netTotal: 0,
+        upsellPrompts: [],
+        fullSettings: settings,
+        theme: settings.customerScreenTheme,
+        welcomeTitle: settings.welcomeTitle,
+        welcomeSubtitle: settings.welcomeSubtitle,
+        welcomeImageUrl: settings.welcomeImageUrl,
+        thankYouMessage: settings.thankYouMessage
+      });
+    } catch (e) {
+      console.error('Failed to broadcast settings to customer monitor', e);
     }
   }
 

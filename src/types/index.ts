@@ -67,6 +67,7 @@ export interface StoreSettings {
   blackWisdomSpentThreshold?: number; // e.g. 15000
   blackWisdomDiscountPercent?: number; // e.g. 10
   blackWisdomPrivilegeText?: string;
+  updatedAt?: string;
 }
 
 export interface Product {

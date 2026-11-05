@@ -7,7 +7,8 @@ import type {
   Order, 
   Shift, 
   StockTransfer, 
-  CustomMadeOrder 
+  CustomMadeOrder,
+  StoreSettings 
 } from '../types';
 
 const BASE_SUPABASE_URL = 'https://jfzfestdintwwsnoxiwv.supabase.co'.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
@@ -229,7 +230,10 @@ class CloudSyncService {
         }
       }
 
-      return { success: true, summary: 'ดึงข้อมูลล่าสุดจาก Cloud อัปเดตลงเครื่องสำเร็จ (สต็อก, กะ, บิล, ใบโอน, สั่งผลิต)' };
+      // 7. Pull Store Settings & Promotional Slides (เพื่อให้จอที่ 2 ฝั่งลูกค้าซิงค์รูปภาพตรงกัน)
+      await this.pullStoreSettings();
+
+      return { success: true, summary: 'ดึงข้อมูลล่าสุดจาก Cloud อัปเดตลงเครื่องสำเร็จ (สต็อก, กะ, บิล, ใบโอน, สั่งผลิต, สไลด์ภาพจอ 2)' };
     } catch (err: any) {
       return { success: false, summary: `เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message}` };
     }
@@ -438,9 +442,15 @@ class CloudSyncService {
         }
       }
 
+      // 7. Push Store Settings & Slide Images
+      const localSettings = await db.settings.get('current_store_settings');
+      if (localSettings) {
+        await this.pushStoreSettings(localSettings);
+      }
+
       return { 
         success: true, 
-        message: `ส่งข้อมูลขึ้น Cloud สำเร็จสมบูรณ์! (สินค้า: ${localVariants.length}, บิล: ${localOrders.length}, กะ: ${localShifts.length}, ลูกค้า: ${localCustomers.length}, ใบโอน: ${localTransfers.length}, สั่งผลิต: ${localCustomOrders.length})` 
+        message: `ส่งข้อมูลขึ้น Cloud สำเร็จสมบูรณ์! (สินค้า: ${localVariants.length}, บิล: ${localOrders.length}, กะ: ${localShifts.length}, ลูกค้า: ${localCustomers.length}, ใบโอน: ${localTransfers.length}, สั่งผลิต: ${localCustomOrders.length}, สไลด์ภาพจอ 2)` 
       };
     } catch (err: any) {
       return { success: false, message: `เกิดข้อผิดพลาดในการส่งข้อมูลขึ้น Cloud: ${err.message}` };
@@ -653,6 +663,58 @@ class CloudSyncService {
     } catch (e) {
       console.warn('Failed to push custom order to cloud', e);
     }
+  }
+
+  /**
+   * ส่งการตั้งค่าร้านค้า รูปภาพโลโก้ ภาพต้อนรับ และสไลด์โฆษณาขึ้น Cloud
+   */
+  public async pushStoreSettings(settings: StoreSettings): Promise<void> {
+    try {
+      const payload = {
+        id: 'current_store_settings',
+        data: settings,
+        updated_at: new Date().toISOString()
+      };
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/store_settings?on_conflict=id`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify([payload])
+      });
+    } catch (e) {
+      console.warn('Failed to push store settings to cloud', e);
+    }
+  }
+
+  /**
+   * ดึงการตั้งค่าร้านค้า รูปภาพ และสไลด์โฆษณาจาก Cloud ลงเครื่อง (สำหรับให้จอฝั่งลูกค้าซิงค์ตรงกัน)
+   */
+  public async pullStoreSettings(): Promise<StoreSettings | null> {
+    try {
+      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/store_settings?id=eq.current_store_settings&select=*`, {
+        headers: this.getHeaders()
+      });
+      if (res.ok) {
+        const rows = await res.json();
+        if (rows.length > 0 && rows[0].data) {
+          const cloudSettings = rows[0].data as StoreSettings;
+          const local = await db.settings.get('current_store_settings');
+
+          // If local has newer modifications, push local to cloud instead of being overwritten
+          if (local && local.updatedAt && cloudSettings.updatedAt) {
+            if (new Date(local.updatedAt) > new Date(cloudSettings.updatedAt)) {
+              this.pushStoreSettings(local).catch(() => {});
+              return local;
+            }
+          }
+
+          await db.settings.put(cloudSettings);
+          return cloudSettings;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to pull store settings from cloud', e);
+    }
+    return null;
   }
 
   /**

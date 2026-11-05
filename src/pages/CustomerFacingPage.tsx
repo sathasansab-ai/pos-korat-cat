@@ -22,6 +22,7 @@ import { DualMonitorSync, type CustomerDisplayState } from '../services/dualMoni
 import { db } from '../db';
 import type { StoreSettings, CustomerScreenTheme } from '../types';
 import { PromptPayService } from '../services/promptPay';
+import { CloudSync } from '../services/cloudSync';
 
 export const CustomerFacingPage: React.FC = () => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
@@ -44,10 +45,23 @@ export const CustomerFacingPage: React.FC = () => {
     upsellPrompts: []
   });
 
-  const loadSettings = () => {
-    db.settings.get('current_store_settings').then(s => {
-      if (s) setSettings(s);
-    });
+  const loadSettings = async () => {
+    // 1. ดึงข้อมูลจาก Local IndexedDB
+    const local = await db.settings.get('current_store_settings');
+    if (local) {
+      setSettings(local);
+      setWelcomeImgError(false);
+      setLogoError(false);
+    }
+    // 2. ถ้าต่อเน็ตอยู่ ดึงข้อมูลล่าสุดจาก Supabase Cloud (สำหรับกรณีจอที่ 2 เปิดบนเครื่องอื่น เช่น แท็บเล็ต)
+    if (navigator.onLine) {
+      const cloud = await CloudSync.pullStoreSettings();
+      if (cloud) {
+        setSettings(cloud);
+        setWelcomeImgError(false);
+        setLogoError(false);
+      }
+    }
   };
 
   // Badge color mapping
@@ -153,6 +167,13 @@ export const CustomerFacingPage: React.FC = () => {
     loadSettings();
 
     DualMonitorSync.onUpdate((state) => {
+      // 0. If new store settings or slide images arrive, update instantly!
+      if (state.fullSettings) {
+        setSettings(state.fullSettings);
+        setWelcomeImgError(false);
+        setLogoError(false);
+      }
+
       // 1. Check if sale was just completed
       if (state.isPaid) {
         setIsThankYouActive(true);
@@ -175,8 +196,14 @@ export const CustomerFacingPage: React.FC = () => {
       }
     });
 
-    const timer = setInterval(loadSettings, 5000);
+    const handleStorageChange = () => {
+      loadSettings();
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    const timer = setInterval(loadSettings, 4000);
     return () => {
+      window.removeEventListener('storage', handleStorageChange);
       clearInterval(timer);
       if (thankYouTimerRef.current) clearTimeout(thankYouTimerRef.current);
     };
@@ -441,12 +468,13 @@ export const CustomerFacingPage: React.FC = () => {
 
                   if (curSlide.layoutMode === 'FULL_IMAGE') {
                     /* MODE 2: แบบที่ 2 - ภาพสไลด์โปสเตอร์อย่างเดียว เต็มกรอบ 100% */
+                    const posterImg = curSlide.imageUrl || settings?.welcomeImageUrl || settings?.logoUrl;
                     return (
                       <div className="w-full flex flex-col items-center justify-center min-h-[380px] sm:min-h-[440px]">
-                        {curSlide.imageUrl ? (
+                        {posterImg ? (
                           <div className="w-full h-[380px] sm:h-[460px] rounded-2xl overflow-hidden flex items-center justify-center bg-black/40 border border-amber-500/30 shadow-2xl relative group">
                             <img
-                              src={curSlide.imageUrl}
+                              src={posterImg}
                               alt={curSlide.title || 'Poster'}
                               className="w-full h-full object-contain drop-shadow-2xl"
                             />
