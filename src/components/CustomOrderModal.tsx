@@ -14,7 +14,7 @@ import {
   User
 } from 'lucide-react';
 import { db } from '../db';
-import type { CustomMadeOrder, StoreSettings } from '../types';
+import type { CustomMadeOrder, StoreSettings, Order } from '../types';
 import { CloudSync } from '../services/cloudSync';
 
 interface CustomOrderModalProps {
@@ -111,8 +111,67 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
       notes: notes.trim()
     };
 
+    // 1. บันทึกลงตารางงานสั่งผลิต
     await db.customOrders.add(newOrder);
     CloudSync.pushCustomOrder(newOrder);
+
+    // 2. นำยอดเงินมัดจำเข้ากะพนักงาน และบันทึกเป็นบิลขายเพื่อรวมเข้ายอดขายหน้าร้านทันที
+    if (depositAmount > 0) {
+      const activeShift = await db.shifts.where({ status: 'OPEN' }).last();
+      const shiftId = activeShift ? activeShift.id : 'NO_SHIFT';
+
+      if (activeShift) {
+        const isCash = paymentMethod === 'CASH';
+        const updatedShift = {
+          ...activeShift,
+          totalCashSales: (activeShift.totalCashSales || 0) + (isCash ? depositAmount : 0),
+          totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + (!isCash ? depositAmount : 0),
+          totalTransactions: (activeShift.totalTransactions || 0) + 1
+        };
+        await db.shifts.update(activeShift.id, updatedShift);
+        CloudSync.pushShift(updatedShift);
+      }
+
+      // 3. สร้างบิลขายมัดจำลงใน db.orders เพื่อให้ปรากฏในรายงานยอดขายและสมุดรายวัน
+      const depositBill: Order = {
+        id: `ord-dep-${Date.now()}`,
+        localOrderId: `DEP-${newOrder.orderNo}`,
+        timestamp: new Date().toISOString(),
+        cashierId: staffName,
+        cashierName: staffName,
+        shiftId: shiftId,
+        customerName: newOrder.customerName,
+        items: [{
+          variantId: `custom-order-${newOrder.id}`,
+          productName: `เงินมัดจำสั่งผลิต (50%): ${newOrder.itemDescription}`,
+          sku: newOrder.orderNo,
+          attributes: {
+            'ลูกค้า': newOrder.customerName,
+            'โทร': newOrder.customerPhone,
+            'ยอดสั่งผลิตเต็ม': `฿${newOrder.totalPrice.toLocaleString()}`,
+            'ยอดคงค้าง': `฿${newOrder.balanceDue.toLocaleString()}`
+          },
+          qty: newOrder.qty,
+          unitPrice: newOrder.depositAmount,
+          costPrice: 0,
+          lineTotal: newOrder.depositAmount
+        }],
+        subtotal: newOrder.depositAmount,
+        promoDiscount: 0,
+        netTotal: newOrder.depositAmount,
+        payments: [{
+          method: paymentMethod === 'CASH' ? 'CASH' : 'PROMPTPAY',
+          amount: newOrder.depositAmount
+        }],
+        cashReceived: paymentMethod === 'CASH' ? newOrder.depositAmount : undefined,
+        changeGiven: 0,
+        status: 'COMPLETED',
+        isSynced: false
+      };
+
+      await db.orders.add(depositBill);
+      CloudSync.pushOrder(depositBill);
+    }
 
     setSavedOrder(newOrder);
     setViewState('SUCCESS_VIEW'); // สลับไปหน้าสำเร็จทันที ไม่ค้างที่ฟอร์มเดิม

@@ -52,10 +52,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const checkPendingTransfers = async () => {
     try {
+      if (navigator.onLine) {
+        await CloudSync.syncTransfersOnly();
+      }
       const count = await db.transfers.where({ status: 'PENDING_RECEIPT' }).count();
       setPendingTransfersCount(count);
     } catch {
-      setPendingTransfersCount(0);
+      const count = await db.transfers.where({ status: 'PENDING_RECEIPT' }).count().catch(() => 0);
+      setPendingTransfersCount(count);
     }
   };
 
@@ -258,18 +262,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">ซิงค์ Cloud</span>
             </button>
 
-            {/* Pending Transfers Notification Badge */}
-            {pendingTransfersCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setIsTransferModalOpen(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition shadow-lg animate-pulse border-2 border-amber-300"
-                title="มีสินค้าส่งมาจากโกดัง รอหน้าร้านกดตรวจรับเข้าสต็อก"
-              >
-                <Truck className="w-4 h-4 text-slate-950 shrink-0" />
-                <span>รอตรวจรับของ ({pendingTransfersCount})</span>
-              </button>
-            )}
+            {/* Stock Transfer Button (Available to both Owner & Cashier) */}
+            <button
+              type="button"
+              onClick={() => setIsTransferModalOpen(true)}
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition border shadow-xs ${
+                pendingTransfersCount > 0
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black animate-pulse border-2 border-amber-300 shadow-lg'
+                  : 'bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border-emerald-800/80'
+              }`}
+              title={pendingTransfersCount > 0 ? 'มีสินค้าส่งมาจากโกดัง รอหน้าร้านกดตรวจรับเข้าสต็อก' : 'โอนย้ายสต็อกระหว่างโกดัง/โรงงาน และ หน้าร้าน'}
+            >
+              <Truck className={`w-3.5 h-3.5 ${pendingTransfersCount > 0 ? 'text-slate-950' : 'text-emerald-400'}`} />
+              <span className="hidden sm:inline">
+                {pendingTransfersCount > 0 ? `รอตรวจรับของ (${pendingTransfersCount})` : 'โอนสต็อก 2 คลัง'}
+              </span>
+            </button>
 
             {/* Role & User Switcher */}
             <div className="flex items-center space-x-2 pl-2 border-l border-slate-800">

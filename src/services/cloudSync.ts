@@ -167,7 +167,69 @@ class CloudSyncService {
         }
       }
 
-      return { success: true, summary: 'ดึงข้อมูลล่าสุดจาก Cloud อัปเดตลงเครื่องสำเร็จ' };
+      // 5. Pull Shifts (กะพนักงานทุกสาขา เพื่อให้ทุกเครื่องเห็นตรงกัน)
+      const sRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/shifts?select=*`, {
+        headers: this.getHeaders()
+      });
+      if (sRes.ok) {
+        const cloudShifts: any[] = await sRes.json();
+        for (const cs of cloudShifts) {
+          const localShift: Shift = {
+            id: cs.id,
+            branch: cs.branch || 'SHOP',
+            cashierId: cs.cashier_id,
+            cashierName: cs.cashier_name,
+            startTime: cs.start_time,
+            endTime: cs.end_time || undefined,
+            startingCash: Number(cs.starting_cash || 0),
+            closingCashExpected: cs.closing_cash_expected !== null ? Number(cs.closing_cash_expected) : undefined,
+            closingCashActual: cs.closing_cash_actual !== null ? Number(cs.closing_cash_actual) : undefined,
+            cashDifference: cs.cash_difference !== null ? Number(cs.cash_difference) : undefined,
+            totalCashSales: Number(cs.total_cash_sales || 0),
+            totalPromptPaySales: Number(cs.total_promptpay_sales || 0),
+            totalCreditSales: Number(cs.total_credit_sales || 0),
+            totalTransactions: Number(cs.total_transactions || 0),
+            status: cs.status || 'OPEN',
+            notes: cs.notes || undefined
+          };
+          await db.shifts.put(localShift);
+        }
+      }
+
+      // 6. Pull Orders (บิลขายย้อนหลัง)
+      const oRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders?select=*&order=timestamp.desc&limit=200`, {
+        headers: this.getHeaders()
+      });
+      if (oRes.ok) {
+        const cloudOrders: any[] = await oRes.json();
+        for (const co of cloudOrders) {
+          const localOrder: Order = {
+            id: co.id,
+            localOrderId: co.local_order_id,
+            timestamp: co.timestamp,
+            cashierId: co.cashier_id,
+            cashierName: co.cashier_name,
+            shiftId: co.shift_id,
+            branch: co.branch || 'SHOP',
+            customerId: co.customer_id || undefined,
+            customerName: co.customer_name || undefined,
+            items: co.items || [],
+            subtotal: Number(co.subtotal || 0),
+            promoDiscount: Number(co.promo_discount || 0),
+            memberDiscountAmount: Number(co.member_discount_amount || 0),
+            memberTier: co.member_tier || undefined,
+            netTotal: Number(co.net_total || 0),
+            payments: co.payments || [],
+            cashReceived: co.cash_received !== null ? Number(co.cash_received) : undefined,
+            changeGiven: co.change_given !== null ? Number(co.change_given) : undefined,
+            status: co.status || 'COMPLETED',
+            isSynced: true
+          };
+          await db.orders.put(localOrder);
+        }
+      }
+
+      return { success: true, summary: 'ดึงข้อมูลล่าสุดจาก Cloud อัปเดตลงเครื่องสำเร็จ (สต็อก, กะ, บิล, ใบโอน, สั่งผลิต)' };
     } catch (err: any) {
       return { success: false, summary: `เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message}` };
     }
@@ -306,12 +368,115 @@ class CloudSyncService {
         }
       }
 
+      // 5. Push Shifts (กะพนักงานทั้งหมด)
+      const localShifts = await db.shifts.toArray();
+      if (localShifts.length > 0) {
+        const shiftPayload = localShifts.map(s => ({
+          id: String(s.id),
+          branch: String(s.branch || 'SHOP'),
+          cashier_id: String(s.cashierId || ''),
+          cashier_name: String(s.cashierName || ''),
+          start_time: String(s.startTime),
+          end_time: s.endTime ? String(s.endTime) : null,
+          starting_cash: Number(s.startingCash || 0),
+          closing_cash_expected: s.closingCashExpected !== undefined ? Number(s.closingCashExpected) : null,
+          closing_cash_actual: s.closingCashActual !== undefined ? Number(s.closingCashActual) : null,
+          cash_difference: s.cashDifference !== undefined ? Number(s.cashDifference) : null,
+          total_cash_sales: Number(s.totalCashSales || 0),
+          total_promptpay_sales: Number(s.totalPromptPaySales || 0),
+          total_credit_sales: Number(s.totalCreditSales || 0),
+          total_transactions: Number(s.totalTransactions || 0),
+          status: String(s.status || 'OPEN'),
+          notes: s.notes ? String(s.notes) : null
+        }));
+
+        const sRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/shifts?on_conflict=id`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(shiftPayload)
+        });
+        if (!sRes.ok) {
+          const errText = await sRes.text();
+          throw new Error(`Supabase shifts error (${sRes.status}): ${errText}`);
+        }
+      }
+
+      // 6. Push Orders (บิลขายทั้งหมด)
+      const localOrders = await db.orders.toArray();
+      if (localOrders.length > 0) {
+        const orderPayload = localOrders.map(o => ({
+          id: String(o.id),
+          local_order_id: String(o.localOrderId),
+          timestamp: String(o.timestamp),
+          cashier_id: String(o.cashierId || ''),
+          cashier_name: String(o.cashierName || ''),
+          shift_id: String(o.shiftId || ''),
+          branch: String(o.branch || 'SHOP'),
+          customer_id: o.customerId ? String(o.customerId) : null,
+          customer_name: o.customerName ? String(o.customerName) : null,
+          items: o.items || [],
+          subtotal: Number(o.subtotal || 0),
+          promo_discount: Number(o.promoDiscount || 0),
+          member_discount_amount: Number(o.memberDiscountAmount || 0),
+          member_tier: o.memberTier ? String(o.memberTier) : null,
+          net_total: Number(o.netTotal || 0),
+          payments: o.payments || [],
+          cash_received: o.cashReceived !== undefined ? Number(o.cashReceived) : null,
+          change_given: o.changeGiven !== undefined ? Number(o.changeGiven) : null,
+          status: String(o.status || 'COMPLETED'),
+          is_synced: true
+        }));
+
+        const oRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders?on_conflict=id`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(orderPayload)
+        });
+        if (!oRes.ok) {
+          const errText = await oRes.text();
+          throw new Error(`Supabase orders error (${oRes.status}): ${errText}`);
+        }
+      }
+
       return { 
         success: true, 
-        message: `ส่งข้อมูลขึ้น Cloud สำเร็จสมบูรณ์! (สินค้า: ${localVariants.length}, ลูกค้า: ${localCustomers.length}, ใบโอน: ${localTransfers.length}, งานสั่งผลิต: ${localCustomOrders.length})` 
+        message: `ส่งข้อมูลขึ้น Cloud สำเร็จสมบูรณ์! (สินค้า: ${localVariants.length}, บิล: ${localOrders.length}, กะ: ${localShifts.length}, ลูกค้า: ${localCustomers.length}, ใบโอน: ${localTransfers.length}, สั่งผลิต: ${localCustomOrders.length})` 
       };
     } catch (err: any) {
       return { success: false, message: `เกิดข้อผิดพลาดในการส่งข้อมูลขึ้น Cloud: ${err.message}` };
+    }
+  }
+
+  /**
+   * ซิงค์เฉพาะใบโอนย้ายสต็อก เพื่อให้แถบแจ้งเตือนอัปเดตตรงกันทันที
+   */
+  public async syncTransfersOnly(): Promise<void> {
+    try {
+      const tRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?select=*`, {
+        headers: this.getHeaders()
+      });
+      if (tRes.ok) {
+        const cloudTransfers: any[] = await tRes.json();
+        for (const ct of cloudTransfers) {
+          const localTransfer: StockTransfer = {
+            id: ct.id,
+            transferNo: ct.transfer_no,
+            timestamp: ct.timestamp,
+            fromBranch: ct.from_branch,
+            toBranch: ct.to_branch,
+            items: ct.items || [],
+            totalQty: Number(ct.total_qty || 0),
+            senderName: ct.sender_name,
+            receiverName: ct.receiver_name,
+            receivedAt: ct.received_at,
+            status: ct.status,
+            notes: ct.notes
+          };
+          await db.transfers.put(localTransfer);
+        }
+      }
+    } catch (e) {
+      // background polling quiet ignore
     }
   }
 

@@ -171,62 +171,154 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
 
   const handlePrintSlip = (t: StockTransfer) => {
     const html = `
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>ใบส่งมอบและตรวจรับสินค้า - ${t.transferNo}</title>
+          <meta charset="utf-8">
+          <title>ใบโอนย้ายและส่งมอบสินค้าข้ามคลัง - ${t.transferNo}</title>
           <style>
-            body { font-family: sans-serif; font-size: 13px; padding: 25px; max-width: 480px; margin: 0 auto; line-height: 1.5; }
-            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px; }
-            .bold { font-weight: bold; }
-            .flex { display: flex; justify-content: space-between; margin: 4px 0; }
-            table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-            th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
-            th { background: #f5f5f5; }
-            .sig-box { margin-top: 30px; display: flex; justify-content: space-between; text-align: center; }
+            @page { size: A4 portrait; margin: 15mm 20mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; line-height: 1.6; color: #1e293b; margin: 0; padding: 0; }
+            .header-table { width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 12px; margin-bottom: 18px; }
+            .brand-title { font-size: 20px; font-weight: 800; color: #78350f; text-transform: uppercase; }
+            .brand-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+            .doc-title { font-size: 16px; font-weight: 800; color: #0f172a; text-align: right; }
+            .doc-no { font-family: monospace; font-size: 13px; font-weight: bold; color: #b45309; text-align: right; }
+            
+            .info-grid { width: 100%; margin-bottom: 18px; }
+            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
+            .info-label { color: #64748b; font-weight: 600; }
+            .info-val { font-weight: 700; color: #0f172a; }
+
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+            .items-table th { background: #f1f5f9; color: #334155; font-weight: 700; border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 12px; text-align: left; }
+            .items-table td { border: 1px solid #e2e8f0; padding: 8px 10px; font-size: 12px; }
+            .items-table tr:nth-child(even) { background: #fafafa; }
+
+            .summary-box { background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+            .summary-title { font-weight: 700; color: #92400e; font-size: 13px; }
+            .summary-total { font-size: 18px; font-weight: 800; color: #78350f; font-family: monospace; }
+
+            .signature-section { width: 100%; margin-top: 40px; display: flex; justify-content: space-between; page-break-inside: avoid; }
+            .sig-card { width: 45%; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 16px; text-align: center; }
+            .sig-line { margin: 40px auto 8px auto; width: 80%; border-bottom: 1px solid #94a3b8; }
+            .sig-name { font-weight: bold; font-size: 12px; color: #1e293b; }
+            .sig-role { font-size: 11px; color: #64748b; margin-top: 2px; }
+            
+            .footer-note { margin-top: 25px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
           </style>
         </head>
         <body>
-          <div class="header">
-            <div class="bold" style="font-size: 16px;">KORAT CAT x เรือนโคราชเฉลิมวัฒนา</div>
-            <div style="font-size: 12px;">ใบส่งมอบและตรวจรับสินค้าข้ามคลัง (Stock Transfer)</div>
-          </div>
-          <div class="flex"><span>เลขที่ใบส่ง:</span><span class="bold">${t.transferNo}</span></div>
-          <div class="flex"><span>วันที่ส่งมอบ:</span><span>${new Date(t.timestamp).toLocaleDateString('th-TH')} ${new Date(t.timestamp).toLocaleTimeString('th-TH')}</span></div>
-          <div class="flex"><span>ต้นทาง (ผู้ส่ง):</span><span>โกดัง/โรงงานผลิต (${t.senderName})</span></div>
-          <div class="flex"><span>ปลายทาง (ผู้รับ):</span><span>หน้าร้านเรือนโคราช (${t.receiverName || 'รอตรวจรับ'})</span></div>
-          <div class="flex"><span>สถานะ:</span><span class="bold">${t.status === 'COMPLETED' ? 'ตรวจรับสำเร็จแล้ว' : 'กำลังจัดส่ง (รอตรวจรับ)'}</span></div>
+          <table class="header-table">
+            <tr>
+              <td style="vertical-align: top;">
+                <div class="brand-title">KORAT CAT x เรือนโคราชเฉลิมวัฒนา</div>
+                <div class="brand-sub">Haute Couture & Heritage Craft Boutique • ถนนจอมพล อ.เมือง จ.นครราชสีมา</div>
+              </td>
+              <td style="vertical-align: top; text-align: right;">
+                <div class="doc-title">ใบโอนย้ายและส่งมอบสินค้าข้ามคลัง</div>
+                <div class="brand-sub">STOCK TRANSFER NOTE (A4)</div>
+                <div class="doc-no">เลขที่: ${t.transferNo}</div>
+              </td>
+            </tr>
+          </table>
 
-          <table>
+          <table class="info-grid">
+            <tr>
+              <td style="width: 48%; vertical-align: top;">
+                <div class="info-box">
+                  <div class="info-row">
+                    <span class="info-label">วันที่ทำรายการ:</span>
+                    <span class="info-val">${new Date(t.timestamp).toLocaleDateString('th-TH')} ${new Date(t.timestamp).toLocaleTimeString('th-TH')} น.</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">คลังต้นทาง (ผู้ตัดส่ง):</span>
+                    <span class="info-val">${t.fromBranch === 'WAREHOUSE' ? '🏭 โกดัง/โรงงานผลิต' : '🏪 หน้าร้านเรือนโคราช'}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">เจ้าหน้าที่ผู้ส่งมอบ:</span>
+                    <span class="info-val">${t.senderName}</span>
+                  </div>
+                </div>
+              </td>
+              <td style="width: 4%;"></td>
+              <td style="width: 48%; vertical-align: top;">
+                <div class="info-box">
+                  <div class="info-row">
+                    <span class="info-label">สถานะเอกสาร:</span>
+                    <span class="info-val" style="color: ${t.status === 'COMPLETED' ? '#059669' : '#d97706'};">
+                      ${t.status === 'COMPLETED' ? '✅ ตรวจรับเข้าสต็อกสำเร็จแล้ว' : '⏳ กำลังจัดส่ง (รอหน้าร้านตรวจรับ)'}
+                    </span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">คลังปลายทาง (ผู้รับของ):</span>
+                    <span class="info-val">${t.toBranch === 'SHOP' ? '🏪 หน้าร้านเรือนโคราชเฉลิมวัฒนา' : '🏭 โกดัง/โรงงานผลิต'}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">เจ้าหน้าที่ผู้ตรวจรับ:</span>
+                    <span class="info-val">${t.receiverName ? `${t.receiverName} (${t.receivedAt ? new Date(t.receivedAt).toLocaleTimeString('th-TH') + ' น.' : ''})` : 'รอดำเนินการตรวจรับ'}</span>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <table class="items-table">
             <thead>
               <tr>
-                <th>สินค้า / SKU</th>
-                <th style="text-align:center;">จำนวนที่ส่ง</th>
+                <th style="width: 40px; text-align: center;">ลำดับ</th>
+                <th style="width: 140px;">รหัสสินค้า (SKU)</th>
+                <th>รายการสินค้าและรายละเอียด</th>
+                <th style="width: 90px; text-align: center;">จำนวนที่โอน</th>
+                <th style="width: 90px; text-align: center;">สถานะตรวจนับ</th>
               </tr>
             </thead>
             <tbody>
-              ${t.items.map(it => `
+              ${t.items.map((it, idx) => `
                 <tr>
-                  <td>${it.productName} (${it.sku})</td>
-                  <td style="text-align:center; font-weight:bold;">${it.qty} ชิ้น</td>
+                  <td style="text-align: center; color: #64748b;">${idx + 1}</td>
+                  <td style="font-family: monospace; font-weight: bold; color: #b45309;">${it.sku}</td>
+                  <td><b>${it.productName}</b></td>
+                  <td style="text-align: center; font-weight: 800; font-size: 13px;">${it.qty} ชิ้น</td>
+                  <td style="text-align: center; color: ${t.status === 'COMPLETED' ? '#059669' : '#d97706'}; font-weight: bold;">
+                    ${t.status === 'COMPLETED' ? 'ครบถ้วน' : 'รอตรวจ'}
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
 
-          <div class="flex bold"><span>รวมจำนวนชิ้นทั้งหมด:</span><span>${t.totalQty} ชิ้น</span></div>
-          ${t.notes ? `<div style="font-size:11px; color:#555; margin-top:6px;">หมายเหตุ: ${t.notes}</div>` : ''}
+          <div class="summary-box">
+            <span class="summary-title">รวมจำนวนสินค้าที่โอนย้ายทั้งหมด:</span>
+            <span class="summary-total">${t.totalQty} ชิ้น</span>
+          </div>
 
-          <div class="sig-box">
-            <div>
-              <div>______________________</div>
-              <div style="margin-top:4px;">( ${t.senderName} )</div>
-              <div style="font-size:11px; color:#666;">ผู้ตัดส่งสินค้า (คลัง/โรงงาน)</div>
+          ${t.notes ? `
+            <div style="font-size: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-bottom: 20px;">
+              <b>หมายเหตุการจัดส่ง:</b> ${t.notes}
             </div>
-            <div>
-              <div>______________________</div>
-              <div style="margin-top:4px;">( ${t.receiverName || 'ผู้ตรวจรับ'} )</div>
-              <div style="font-size:11px; color:#666;">ผู้ตรวจรับสินค้า (หน้าร้าน)</div>
+          ` : ''}
+
+          <div class="signature-section">
+            <div class="sig-card">
+              <div class="sig-line"></div>
+              <div class="sig-name">( ${t.senderName} )</div>
+              <div class="sig-role">ผู้ส่งมอบสินค้า (คลัง/โรงงานผลิต)</div>
+              <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">วันที่: _____/_____/_________</div>
             </div>
+
+            <div class="sig-card">
+              <div class="sig-line"></div>
+              <div class="sig-name">( ${t.receiverName || '________________________'} )</div>
+              <div class="sig-role">ผู้ตรวจรับสินค้า (แคชเชียร์หน้าร้าน)</div>
+              <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">วันที่: _____/_____/_________</div>
+            </div>
+          </div>
+
+          <div class="footer-note">
+            เอกสารฉบับนี้ใช้สำหรับควบคุมการโอนย้ายสต็อกภายใน KORAT CAT x เรือนโคราชเฉลิมวัฒนา ข้อมูลจะถูกบันทึกและซิงค์กับ Cloud อัตโนมัติ
           </div>
         </body>
       </html>

@@ -14,7 +14,10 @@ import {
   PieChart,
   FileSpreadsheet,
   FileText,
-  Printer
+  Printer,
+  Boxes,
+  Scissors,
+  Truck
 } from 'lucide-react';
 import { db } from '../db';
 import type { Order, Shift, StoreSettings } from '../types';
@@ -329,6 +332,218 @@ export const ReportsPage: React.FC = () => {
     GoogleSheetsBridge.downloadCsv(csv, `รายงานภาษีขาย_ภพ30_${dateFilterMode}_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
+  // 5. Export Stock Inventory & Valuation Report (รายงานสต็อกสินค้าและมูลค่าคลัง)
+  const handleExportStockCsv = async () => {
+    const variants = await db.variants.toArray();
+    const headers = [
+      'ลำดับ',
+      'รหัส SKU',
+      'บาร์โค้ด',
+      'ชื่อสินค้า',
+      'หมวดหมู่',
+      'คุณลักษณะ (ไซส์/สี)',
+      'สต็อกโกดัง/โรงงาน (ชิ้น)',
+      'สต็อกหน้าร้าน (ชิ้น)',
+      'สต็อกรวมทั้งหมด (ชิ้น)',
+      'ราคาทุนต่อชิ้น (บาท)',
+      'ราคาขายต่อชิ้น (บาท)',
+      'มูลค่าสต็อกรวมตามทุน (บาท)',
+      'สถานะการขาย'
+    ];
+
+    let totalWh = 0;
+    let totalShop = 0;
+    let totalStock = 0;
+    let totalCostVal = 0;
+
+    const rows = variants.map((v, idx) => {
+      const wh = v.warehouseStock ?? 0;
+      const sh = v.shopStock ?? (v.stockQuantity - wh);
+      const tot = v.stockQuantity;
+      const cost = v.costPrice || 0;
+      const costVal = tot * cost;
+
+      totalWh += wh;
+      totalShop += sh;
+      totalStock += tot;
+      totalCostVal += costVal;
+
+      const attrs = v.attributes ? Object.entries(v.attributes).map(([k, val]) => `${k}:${val}`).join(';') : '';
+
+      return [
+        idx + 1,
+        `"${v.sku}"`,
+        `"${v.barcode}"`,
+        `"${v.productName.replace(/"/g, '""')}"`,
+        `"${v.category}"`,
+        `"${attrs}"`,
+        wh,
+        sh,
+        tot,
+        cost.toFixed(2),
+        v.salePrice.toFixed(2),
+        costVal.toFixed(2),
+        `"${v.isActive !== false ? 'เปิดขาย' : 'ปิดการขาย'}"`
+      ].join(',');
+    });
+
+    const summaryRow = [
+      'รวมทั้งหมด',
+      '',
+      '',
+      '',
+      '',
+      '',
+      totalWh,
+      totalShop,
+      totalStock,
+      '',
+      '',
+      totalCostVal.toFixed(2),
+      ''
+    ].join(',');
+
+    const csv = [
+      `"รายงานสต็อกสินค้าและมูลค่าคลัง - ${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}"`,
+      `"วันที่ออกรายงาน: ${new Date().toLocaleDateString('th-TH')} ${new Date().toLocaleTimeString('th-TH')}"`,
+      '',
+      headers.join(','),
+      ...rows,
+      summaryRow
+    ].join('\r\n');
+
+    GoogleSheetsBridge.downloadCsv(csv, `รายงานสต็อกสินค้าและมูลค่าคลัง_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  // 6. Export Custom Made Orders & Deposits Report (รายงานสั่งผลิตและเงินมัดจำ)
+  const handleExportCustomOrdersCsv = async () => {
+    const list = await db.customOrders.orderBy('createdAt').reverse().toArray();
+    const headers = [
+      'ลำดับ',
+      'เลขที่สั่งผลิต',
+      'วันที่สั่งทำ',
+      'พนักงานรับออเดอร์',
+      'ชื่อลูกค้า',
+      'เบอร์โทรศัพท์',
+      'รายละเอียดงานสั่งทำ',
+      'จำนวน (ชิ้น)',
+      'ยอดสั่งทำรวม (บาท)',
+      'เงินมัดจำที่รับแล้ว (บาท)',
+      'ยอดคงค้าง (บาท)',
+      'วิธีชำระมัดจำ',
+      'วันนัดรับสินค้า',
+      'วิธีส่งมอบ',
+      'สถานะงานผลิต',
+      'หมายเหตุ'
+    ];
+
+    let totalOrderAmt = 0;
+    let totalDepositAmt = 0;
+    let totalBalanceAmt = 0;
+
+    const rows = list.map((co, idx) => {
+      totalOrderAmt += co.totalPrice || 0;
+      totalDepositAmt += co.depositAmount || 0;
+      totalBalanceAmt += co.balanceDue || 0;
+
+      return [
+        idx + 1,
+        `"${co.orderNo}"`,
+        `"${new Date(co.createdAt).toLocaleDateString('th-TH')}"`,
+        `"${co.staffName}"`,
+        `"${co.customerName.replace(/"/g, '""')}"`,
+        `"${co.customerPhone}"`,
+        `"${co.itemDescription.replace(/"/g, '""')}"`,
+        co.qty,
+        co.totalPrice.toFixed(2),
+        co.depositAmount.toFixed(2),
+        co.balanceDue.toFixed(2),
+        `"${co.depositPaymentMethod === 'CASH' ? 'เงินสด' : 'PromptPay'}"`,
+        `"${co.dueDate}"`,
+        `"${co.deliveryMethod === 'PICKUP_SHOP' ? 'รับเองที่ร้าน' : 'จัดส่งพัสดุ'}"`,
+        `"${co.status}"`,
+        `"${(co.notes || '').replace(/"/g, '""')}"`
+      ].join(',');
+    });
+
+    const summaryRow = [
+      'รวมทั้งหมด',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      totalOrderAmt.toFixed(2),
+      totalDepositAmt.toFixed(2),
+      totalBalanceAmt.toFixed(2),
+      '',
+      '',
+      '',
+      '',
+      ''
+    ].join(',');
+
+    const csv = [
+      `"รายงานงานสั่งผลิตและเงินมัดจำ - ${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}"`,
+      `"วันที่ออกรายงาน: ${new Date().toLocaleDateString('th-TH')} ${new Date().toLocaleTimeString('th-TH')}"`,
+      '',
+      headers.join(','),
+      ...rows,
+      summaryRow
+    ].join('\r\n');
+
+    GoogleSheetsBridge.downloadCsv(csv, `รายงานสั่งผลิตและเงินมัดจำ_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  // 7. Export Stock Transfers Audit Report (รายงานประวัติการโอนย้ายสต็อกข้ามคลัง)
+  const handleExportTransfersCsv = async () => {
+    const list = await db.transfers.orderBy('timestamp').reverse().toArray();
+    const headers = [
+      'ลำดับ',
+      'เลขที่ใบส่งของ',
+      'วันที่ส่งมอบ',
+      'คลังต้นทาง',
+      'คลังปลายทาง',
+      'จำนวนสินค้ารวม (ชิ้น)',
+      'รายการสินค้าที่โอน',
+      'ผู้ตัดส่งสินค้า',
+      'ผู้ตรวจรับสินค้า',
+      'เวลาที่ตรวจรับ',
+      'สถานะการโอน',
+      'หมายเหตุ'
+    ];
+
+    const rows = list.map((t, idx) => {
+      const itemsText = t.items.map(it => `${it.productName} (${it.sku}) x${it.qty}`).join('; ');
+      return [
+        idx + 1,
+        `"${t.transferNo}"`,
+        `"${new Date(t.timestamp).toLocaleDateString('th-TH')} ${new Date(t.timestamp).toLocaleTimeString('th-TH')}"`,
+        `"${t.fromBranch === 'WAREHOUSE' ? 'โกดัง/โรงงานผลิต' : 'หน้าร้านเรือนโคราช'}"`,
+        `"${t.toBranch === 'SHOP' ? 'หน้าร้านเรือนโคราช' : 'โกดัง/โรงงานผลิต'}"`,
+        t.totalQty,
+        `"${itemsText.replace(/"/g, '""')}"`,
+        `"${t.senderName}"`,
+        `"${t.receiverName || '-'}"`,
+        `"${t.receivedAt ? new Date(t.receivedAt).toLocaleTimeString('th-TH') : '-'}"`,
+        `"${t.status === 'COMPLETED' ? 'ตรวจรับสำเร็จแล้ว' : 'รอตรวจรับ'}"`,
+        `"${(t.notes || '').replace(/"/g, '""')}"`
+      ].join(',');
+    });
+
+    const csv = [
+      `"รายงานประวัติการโอนย้ายสต็อกข้ามคลัง - ${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}"`,
+      `"วันที่ออกรายงาน: ${new Date().toLocaleDateString('th-TH')}"`,
+      '',
+      headers.join(','),
+      ...rows
+    ].join('\r\n');
+
+    GoogleSheetsBridge.downloadCsv(csv, `รายงานประวัติการโอนย้ายสต็อก_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   const handleOpenTaxInvoice = (order: Order) => {
     setSelectedOrderForInvoice(order);
     setIsInvoiceModalOpen(true);
@@ -393,6 +608,36 @@ export const ReportsPage: React.FC = () => {
           >
             <FileText className="w-4 h-4 text-amber-200" />
             <span>📑 ภ.พ.30 (ภาษีขาย)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportStockCsv}
+            className="px-3.5 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            title="ดาวน์โหลดรายงานสรุปสต็อกสินค้าและมูลค่าคลัง 2 สาขา"
+          >
+            <Boxes className="w-4 h-4 text-teal-200" />
+            <span>📦 สต็อก & มูลค่าคลัง</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCustomOrdersCsv}
+            className="px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            title="ดาวน์โหลดรายงานสรุปงานสั่งผลิตและเงินมัดจำทั้งหมด"
+          >
+            <Scissors className="w-4 h-4 text-purple-200" />
+            <span>✂️ สั่งผลิต & มัดจำ</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportTransfersCsv}
+            className="px-3.5 py-2 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            title="ดาวน์โหลดประวัติการโอนย้ายสต็อกข้ามคลัง (โกดัง ➔ หน้าร้าน)"
+          >
+            <Truck className="w-4 h-4 text-sky-200" />
+            <span>🚚 ประวัติการโอนย้าย</span>
           </button>
         </div>
       </div>

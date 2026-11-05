@@ -186,8 +186,34 @@ CREATE POLICY "Allow anon all on custom_orders" ON public.custom_orders FOR ALL 
 DROP POLICY IF EXISTS "Allow anon all on store_settings" ON public.store_settings;
 CREATE POLICY "Allow anon all on store_settings" ON public.store_settings FOR ALL USING (true) WITH CHECK (true);
 
--- เปิดระบบ Realtime ให้กับตารางสต็อกและออเดอร์
-ALTER PUBLICATION supabase_realtime ADD TABLE public.variants;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.stock_transfers;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.custom_orders;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.shifts;
+-- เปิดระบบ Realtime ให้กับตารางสต็อกและออเดอร์ (ปลอดภัย ไม่เกิด Error ซ้ำซ้อน)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'variants'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.variants;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'stock_transfers'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.stock_transfers;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'custom_orders'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.custom_orders;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'shifts'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.shifts;
+  END IF;
+END $$;

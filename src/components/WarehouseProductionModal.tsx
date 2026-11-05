@@ -12,7 +12,7 @@ import {
   Truck
 } from 'lucide-react';
 import { db } from '../db';
-import type { CustomMadeOrder } from '../types';
+import type { CustomMadeOrder, Order } from '../types';
 import { CloudSync } from '../services/cloudSync';
 
 interface WarehouseProductionModalProps {
@@ -44,9 +44,74 @@ export const WarehouseProductionModal: React.FC<WarehouseProductionModalProps> =
     const target = orders.find(o => o.id === orderId);
     if (!target) return;
 
+    let finalPaid = target.finalPaidAmount;
+    let finalMethod = target.finalPaymentMethod;
+    let finalAt = target.finalPaidAt;
+
+    if (newStatus === 'COMPLETED' && target.balanceDue > 0) {
+      const isPrompt = confirm(`ส่งมอบงานสำเร็จ! ยอดคงค้างที่ต้องชำระ ฿${target.balanceDue.toLocaleString()}\nกด [ตกลง] = ลูกค้าโอน PromptPay\nกด [ยกเลิก] = ลูกค้าจ่ายเป็น เงินสด`);
+      finalMethod = isPrompt ? 'PROMPTPAY' : 'CASH';
+      finalPaid = target.balanceDue;
+      finalAt = new Date().toISOString();
+
+      // บันทึกยอดเงินคงเหลือเข้ากะพนักงานที่เปิดอยู่
+      const activeShift = await db.shifts.where({ status: 'OPEN' }).last();
+      const shiftId = activeShift ? activeShift.id : 'NO_SHIFT';
+
+      if (activeShift) {
+        const isCash = finalMethod === 'CASH';
+        const updatedShift = {
+          ...activeShift,
+          totalCashSales: (activeShift.totalCashSales || 0) + (isCash ? target.balanceDue : 0),
+          totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + (!isCash ? target.balanceDue : 0),
+          totalTransactions: (activeShift.totalTransactions || 0) + 1
+        };
+        await db.shifts.update(activeShift.id, updatedShift);
+        CloudSync.pushShift(updatedShift);
+      }
+
+      // บันทึกบิลขายส่วนที่เหลือลงใน db.orders เพื่อให้ยอดขายรวมตรง 100%
+      const finalBill: Order = {
+        id: `ord-fin-${Date.now()}`,
+        localOrderId: `FIN-${target.orderNo}`,
+        timestamp: new Date().toISOString(),
+        cashierId: 'STAFF',
+        cashierName: 'เจ้าหน้าที่ส่งมอบงาน',
+        shiftId: shiftId,
+        customerName: target.customerName,
+        items: [{
+          variantId: `custom-order-fin-${target.id}`,
+          productName: `ชำระส่วนที่เหลือส่งมอบงาน: ${target.itemDescription}`,
+          sku: target.orderNo,
+          attributes: { 'ลูกค้า': target.customerName, 'ยอดสั่งผลิตเต็ม': `฿${target.totalPrice.toLocaleString()}` },
+          qty: target.qty,
+          unitPrice: target.balanceDue,
+          costPrice: 0,
+          lineTotal: target.balanceDue
+        }],
+        subtotal: target.balanceDue,
+        promoDiscount: 0,
+        netTotal: target.balanceDue,
+        payments: [{
+          method: finalMethod,
+          amount: target.balanceDue
+        }],
+        cashReceived: finalMethod === 'CASH' ? target.balanceDue : undefined,
+        changeGiven: 0,
+        status: 'COMPLETED',
+        isSynced: false
+      };
+      await db.orders.add(finalBill);
+      CloudSync.pushOrder(finalBill);
+    }
+
     const updated: CustomMadeOrder = {
       ...target,
-      status: newStatus
+      status: newStatus,
+      balanceDue: newStatus === 'COMPLETED' ? 0 : target.balanceDue,
+      finalPaymentMethod: finalMethod,
+      finalPaidAmount: finalPaid,
+      finalPaidAt: finalAt
     };
     await db.customOrders.put(updated);
     CloudSync.pushCustomOrder(updated);

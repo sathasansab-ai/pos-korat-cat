@@ -50,13 +50,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [newStaffPin, setNewStaffPin] = useState('');
 
   // Storage Stats
-  const [dbStats, setDbStats] = useState({ orders: 0, customers: 0, variants: 0, shifts: 0 });
+  const [dbStats, setDbStats] = useState({ orders: 0, customers: 0, variants: 0, shifts: 0, customOrders: 0, transfers: 0 });
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Factory Reset Modal
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [resetPin, setResetPin] = useState('');
   const [resetConfirmWord, setResetConfirmWord] = useState('');
+  const [resetOrders, setResetOrders] = useState(true);
+  const [resetShifts, setResetShifts] = useState(true);
+  const [resetCustomOrders, setResetCustomOrders] = useState(true);
+  const [resetTransfers, setResetTransfers] = useState(true);
   const [resetCustomers, setResetCustomers] = useState(false);
   const [resetCloud, setResetCloud] = useState(true);
   const [resetError, setResetError] = useState('');
@@ -96,13 +100,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       setOwnerPin(owner.pin);
     }
 
-    const [ordersCount, custCount, varCount, shiftCount] = await Promise.all([
+    const [ordersCount, custCount, varCount, shiftCount, coCount, transCount] = await Promise.all([
       db.orders.count(),
       db.customers.count(),
       db.variants.count(),
-      db.shifts.count()
+      db.shifts.count(),
+      db.customOrders.count(),
+      db.transfers.count()
     ]);
-    setDbStats({ orders: ordersCount, customers: custCount, variants: varCount, shifts: shiftCount });
+    setDbStats({ orders: ordersCount, customers: custCount, variants: varCount, shifts: shiftCount, customOrders: coCount, transfers: transCount });
   };
 
   useEffect(() => {
@@ -276,13 +282,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
 
     try {
-      await db.orders.clear();
-      await db.shifts.clear();
-      await db.transfers.clear();
-      await db.customOrders.clear();
-      if (resetCustomers) {
-        await db.customers.clear();
-      }
+      if (resetOrders) await db.orders.clear();
+      if (resetShifts) await db.shifts.clear();
+      if (resetTransfers) await db.transfers.clear();
+      if (resetCustomOrders) await db.customOrders.clear();
+      if (resetCustomers) await db.customers.clear();
 
       if (resetCloud) {
         try {
@@ -293,7 +297,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       }
 
       AuthService.logout();
-      alert('ล้างข้อมูลการขาย, กะ, งานผลิต และประวัติการโอนเรียบร้อยแล้ว!\n(รวมถึงข้อมูลทดสอบบน Cloud)\n\nระบบจะออกจากระบบเพื่อเตรียมพร้อมสำหรับการเปิดร้านจริง');
+      alert('ล้างข้อมูลส่วนที่เลือกเรียบร้อยแล้ว!\n(รวมถึงข้อมูลทดสอบบน Cloud)\n\nระบบจะออกจากระบบเพื่อเตรียมพร้อมสำหรับการเปิดร้านจริง');
       window.location.reload();
     } catch (err: any) {
       setResetError('เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);
@@ -1068,34 +1072,73 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               </div>
             </div>
 
-            <div className="bg-rose-50 p-3.5 rounded-xl text-xs text-rose-800 space-y-1">
-              <p className="font-bold">รายการที่จะถูกล้าง:</p>
-              <ul className="list-disc list-inside space-y-0.5 pl-1 text-[11px]">
-                <li>บิลการขายทั้งหมด ({dbStats.orders} บิล)</li>
-                <li>บันทึกเปิด-ปิดกะทั้งหมด ({dbStats.shifts} กะ)</li>
-              </ul>
-              <div className="pt-2 border-t border-rose-200 mt-2 space-y-1.5">
+            <div className="bg-rose-50 p-3.5 rounded-xl text-xs text-rose-800 space-y-2">
+              <p className="font-bold text-rose-950">เลือกส่วนของข้อมูลที่ต้องการล้าง:</p>
+              
+              <div className="space-y-1.5 pl-1">
                 <label className="flex items-center gap-2 cursor-pointer font-bold text-rose-900">
+                  <input
+                    type="checkbox"
+                    checked={resetOrders}
+                    onChange={e => setResetOrders(e.target.checked)}
+                    className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4"
+                  />
+                  <span>บิลการขายทดสอบทั้งหมด ({dbStats.orders} บิล)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-rose-900">
+                  <input
+                    type="checkbox"
+                    checked={resetShifts}
+                    onChange={e => setResetShifts(e.target.checked)}
+                    className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4"
+                  />
+                  <span>บันทึกเปิด-ปิดกะพนักงานทั้งหมด ({dbStats.shifts} กะ)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-purple-900">
+                  <input
+                    type="checkbox"
+                    checked={resetCustomOrders}
+                    onChange={e => setResetCustomOrders(e.target.checked)}
+                    className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                  />
+                  <span>✂️ ใบสั่งผลิต & เงินมัดจำทดสอบ ({dbStats.customOrders} รายการ)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-teal-900">
+                  <input
+                    type="checkbox"
+                    checked={resetTransfers}
+                    onChange={e => setResetTransfers(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4"
+                  />
+                  <span>🚚 ประวัติการโอนย้ายสต็อกทดสอบ ({dbStats.transfers} ใบ)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-amber-900">
                   <input
                     type="checkbox"
                     checked={resetCustomers}
                     onChange={e => setResetCustomers(e.target.checked)}
-                    className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4"
+                    className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
                   />
-                  <span>ล้างรายชื่อสมาชิกที่ทดลองสมัครด้วย ({dbStats.customers} คน)</span>
+                  <span>👥 รายชื่อสมาชิกที่ทดลองสมัคร ({dbStats.customers} คน)</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer font-bold text-indigo-900">
+
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-indigo-900 pt-1 border-t border-rose-200">
                   <input
                     type="checkbox"
                     checked={resetCloud}
                     onChange={e => setResetCloud(e.target.checked)}
                     className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                   />
-                  <span>☁️ ล้างประวัติการขาย, กะ, งานผลิต และใบโอนบน Cloud (Supabase) ด้วย</span>
+                  <span>☁️ ล้างข้อมูลทดสอบส่วนที่เลือกบน Cloud (Supabase) ด้วย</span>
                 </label>
               </div>
-              <p className="pt-1.5 text-[11px] text-slate-600">
-                ข้อมูลสินค้าในคลัง ({dbStats.variants} รายการ) และบัญชีพนักงานจะ <b>ยังคงอยู่ครบถ้วน ไม่ถูกลบ</b>
+
+              <p className="pt-1.5 text-[11px] text-slate-600 border-t border-rose-200">
+                ✨ ข้อมูลสินค้าในคลัง ({dbStats.variants} รายการ) และบัญชีพนักงานจะ <b>ยังคงอยู่ครบถ้วน ไม่ถูกลบ</b>
               </p>
             </div>
 
