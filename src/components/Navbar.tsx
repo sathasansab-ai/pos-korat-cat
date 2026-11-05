@@ -55,13 +55,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   const checkPendingTransfers = async () => {
     try {
       if (navigator.onLine) {
-        await CloudSync.syncTransfersOnly();
+        await CloudSync.syncTransfersOnly().catch(() => {});
       }
-      const count = await db.transfers.where({ status: 'PENDING_RECEIPT' }).count();
+      const allTransfers = await db.transfers.toArray();
+      const count = allTransfers.filter(t => t.status === 'PENDING_RECEIPT').length;
       setPendingTransfersCount(count);
     } catch {
-      const count = await db.transfers.where({ status: 'PENDING_RECEIPT' }).count().catch(() => 0);
-      setPendingTransfersCount(count);
+      setPendingTransfersCount(0);
     }
   };
 
@@ -356,7 +356,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       <StockTransferModal
         isOpen={isTransferModalOpen}
         initialTab="RECEIVE_IN"
-        onClose={() => setIsTransferModalOpen(false)}
+        onClose={() => {
+          setIsTransferModalOpen(false);
+          checkPendingTransfers();
+        }}
         onTransferComplete={checkPendingTransfers}
       />
     </>

@@ -46,6 +46,9 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
     if (list.length > 0 && !selectedVariantId) {
       setSelectedVariantId(list[0].id);
     }
+    if (navigator.onLine) {
+      await CloudSync.syncTransfersOnly().catch(() => {});
+    }
     const all = await db.transfers.orderBy('timestamp').reverse().toArray();
     setPendingTransfers(all.filter(t => t.status === 'PENDING_RECEIPT'));
     setRecentTransfers(all.slice(0, 15));
@@ -178,10 +181,20 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         receivedAt: new Date().toISOString(),
         status: 'COMPLETED'
       };
+      
+      // อัปเดตทุกรายการที่มี transferNo ตรงกันเพื่อล้างรายการค้างซ้ำซ้อน
+      const allMatches = await db.transfers.where('transferNo').equals(transfer.transferNo).toArray();
+      for (const m of allMatches) {
+        await db.transfers.update(m.id, {
+          receiverName: person.trim(),
+          receivedAt: updatedTransfer.receivedAt,
+          status: 'COMPLETED'
+        });
+      }
       await db.transfers.put(updatedTransfer);
 
-      // 3. ซิงค์ Cloud
-      CloudSync.pushTransfer(updatedTransfer);
+      // 3. ซิงค์ Cloud ทันที
+      await CloudSync.pushTransfer(updatedTransfer);
 
       alert(`✅ ตรวจรับสินค้าเข้าสต็อกสำเร็จแล้ว!\nเลขที่เอกสาร: ${transfer.transferNo}\nเพิ่มสต็อกเข้า "${transfer.toBranch === 'SHOP' ? 'หน้าร้านเรือนโคราช' : 'โกดัง/โรงงาน'}" เรียบร้อยแล้ว (+${transfer.totalQty} ชิ้น)`);
       await loadData();

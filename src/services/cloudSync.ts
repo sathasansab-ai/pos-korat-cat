@@ -572,6 +572,11 @@ class CloudSyncService {
       });
       if (tRes.ok) {
         const cloudTransfers: any[] = await tRes.json();
+        if (cloudTransfers.length === 0) {
+          await db.transfers.clear();
+          return;
+        }
+
         for (const ct of cloudTransfers) {
           const localTransfer: StockTransfer = {
             id: ct.id,
@@ -587,6 +592,14 @@ class CloudSyncService {
             status: ct.status,
             notes: ct.notes
           };
+
+          // ลบรายการซ้ำซ้อนที่มี transferNo เดียวกันแต่คนละ id เพื่อไม่ให้เกิดประวัติค้าง
+          const duplicates = await db.transfers.where('transferNo').equals(ct.transfer_no).toArray();
+          for (const d of duplicates) {
+            if (d.id !== ct.id) {
+              await db.transfers.delete(d.id);
+            }
+          }
           await db.transfers.put(localTransfer);
         }
       }
@@ -653,11 +666,20 @@ class CloudSyncService {
         notes: transfer.notes ?? null
       };
 
-      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?on_conflict=id`, {
+      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?on_conflict=transfer_no`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify([payload])
       });
+
+      // Fallback: หากติดปัญหา Conflict หรือ status update ให้ Patch ตาม transfer_no โดยตรง
+      if (!res.ok && payload.transfer_no) {
+        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?transfer_no=eq.${encodeURIComponent(payload.transfer_no)}`, {
+          method: 'PATCH',
+          headers: this.getHeaders(),
+          body: JSON.stringify(payload)
+        });
+      }
     } catch (e) {
       console.warn('Failed to push transfer to cloud', e);
     }

@@ -111,21 +111,31 @@ export const InventoryPage: React.FC = () => {
     setNewSizeName('');
   };
 
-  const loadVariants = async () => {
-    const list = await db.variants.toArray();
-    setVariants(list);
-    const s = await db.settings.get('current_store_settings');
-    if (s) setSettings(s);
+  const updatePendingCount = async () => {
     try {
-      const p = await db.transfers.where({ status: 'PENDING_RECEIPT' }).count();
+      if (navigator.onLine) {
+        await CloudSync.syncTransfersOnly().catch(() => {});
+      }
+      const allTransfers = await db.transfers.toArray();
+      const p = allTransfers.filter(t => t.status === 'PENDING_RECEIPT').length;
       setPendingTransferCount(p);
     } catch {
       setPendingTransferCount(0);
     }
   };
 
+  const loadVariants = async () => {
+    const list = await db.variants.toArray();
+    setVariants(list);
+    const s = await db.settings.get('current_store_settings');
+    if (s) setSettings(s);
+    await updatePendingCount();
+  };
+
   useEffect(() => {
     loadVariants();
+    const interval = setInterval(updatePendingCount, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // Image Upload Handlers with Automatic Compression
@@ -1036,7 +1046,10 @@ export const InventoryPage: React.FC = () => {
       {/* Multi-Location Stock Transfer Modal */}
       <StockTransferModal
         isOpen={isTransferModalOpen}
-        onClose={() => setIsTransferModalOpen(false)}
+        onClose={() => {
+          setIsTransferModalOpen(false);
+          loadVariants();
+        }}
         onTransferComplete={loadVariants}
       />
 

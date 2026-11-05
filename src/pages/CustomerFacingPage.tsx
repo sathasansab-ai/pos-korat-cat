@@ -480,7 +480,7 @@ export const CustomerFacingPage: React.FC = () => {
                             <img
                               src={posterImg}
                               alt={curSlide.title || 'Poster'}
-                              className="w-full h-full object-contain drop-shadow-2xl"
+                              className="w-full h-full object-cover drop-shadow-2xl"
                             />
                             {/* Subtle Tag Overlay in top-left */}
                             {curSlide.tag && (
