@@ -15,7 +15,8 @@ import {
   Award,
   Scissors,
   Layers,
-  Star
+  Star,
+  Image as ImageIcon
 } from 'lucide-react';
 import { DualMonitorSync, type CustomerDisplayState } from '../services/dualMonitorSync';
 import { db } from '../db';
