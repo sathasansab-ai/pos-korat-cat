@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Banknote, ShieldAlert, CheckCircle2, History, AlertTriangle, QrCode, Printer, Calculator, RefreshCw } from 'lucide-react';
 import { db } from '../db';
 import type { Shift, UserAccount } from '../types';
+import { CloudSync } from '../services/cloudSync';
 
 interface ShiftPageProps {
   currentUser: UserAccount;
@@ -75,6 +76,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
     };
 
     await db.shifts.add(newShift);
+    CloudSync.pushShift(newShift);
     onShiftUpdated();
     refreshLiveShift();
   };
@@ -106,6 +108,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
     };
 
     await db.shifts.update(currentShift.id, updated);
+    CloudSync.pushShift(updated);
 
     setPrintedShift(updated);
     setIsClosingShift(false);

@@ -418,6 +418,40 @@ class CloudSyncService {
   }
 
   /**
+   * ส่งข้อมูลกะพนักงานขึ้น Cloud เมื่อเปิดหรือปิดกะ
+   */
+  public async pushShift(s: Shift): Promise<void> {
+    try {
+      const payload = {
+        id: String(s.id),
+        branch: String(s.branch || 'SHOP'),
+        cashier_id: String(s.cashierId || ''),
+        cashier_name: String(s.cashierName || ''),
+        start_time: String(s.startTime),
+        end_time: s.endTime ? String(s.endTime) : null,
+        starting_cash: Number(s.startingCash || 0),
+        closing_cash_expected: s.closingCashExpected !== undefined ? Number(s.closingCashExpected) : null,
+        closing_cash_actual: s.closingCashActual !== undefined ? Number(s.closingCashActual) : null,
+        cash_difference: s.cashDifference !== undefined ? Number(s.cashDifference) : null,
+        total_cash_sales: Number(s.totalCashSales || 0),
+        total_promptpay_sales: Number(s.totalPromptPaySales || 0),
+        total_credit_sales: Number(s.totalCreditSales || 0),
+        total_transactions: Number(s.totalTransactions || 0),
+        status: String(s.status || 'OPEN'),
+        notes: s.notes ? String(s.notes) : null
+      };
+
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/shifts?on_conflict=id`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify([payload])
+      });
+    } catch (e) {
+      console.warn('Failed to push shift to cloud', e);
+    }
+  }
+
+  /**
    * ส่งใบสั่งผลิตมัดจำ 50% ขึ้น Cloud
    */
   public async pushCustomOrder(co: CustomMadeOrder): Promise<void> {

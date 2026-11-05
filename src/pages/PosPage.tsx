@@ -525,11 +525,45 @@ export const PosPage: React.FC<PosPageProps> = ({
         if (cart.length > 0 && !isPaymentModalOpen) {
           openCheckout();
         }
+      } else if (
+        !isPaymentModalOpen &&
+        !isCustomItemModalOpen &&
+        !isDiscountModalOpen &&
+        !isRegisterMemberOpen &&
+        !isReceiptModalOpen &&
+        !isTaxInvoiceModalOpen &&
+        !isRecentOrdersModalOpen &&
+        !isCustomOrderModalOpen &&
+        !isPinModalOpen &&
+        barcodeInputRef.current &&
+        document.activeElement !== barcodeInputRef.current &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        // Smart Barcode Scanner Catch: If gun scans while cursor is elsewhere, snap focus to input immediately
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+          barcodeInputRef.current.focus();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, isPaymentModalOpen, heldBills, finalNetTotal, selectedCustomer, activeShift]);
+  }, [
+    cart, 
+    isPaymentModalOpen, 
+    isCustomItemModalOpen, 
+    isDiscountModalOpen, 
+    isRegisterMemberOpen, 
+    isReceiptModalOpen, 
+    isTaxInvoiceModalOpen, 
+    isRecentOrdersModalOpen, 
+    isCustomOrderModalOpen, 
+    isPinModalOpen, 
+    heldBills, 
+    finalNetTotal, 
+    selectedCustomer, 
+    activeShift
+  ]);
 
   const handleAddCustomItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -737,13 +771,23 @@ export const PosPage: React.FC<PosPageProps> = ({
       // Async Sync to Supabase Cloud
       CloudSync.pushOrder(order);
 
-      // 2. Cut Inventory Stock
+      // 2. Cut Inventory Stock (Deduct from Shop Stock directly & push to Cloud)
       for (const item of cart) {
         const v = await db.variants.get(item.variantId);
         if (v) {
-          await db.variants.update(item.variantId, {
-            stockQuantity: Math.max(0, v.stockQuantity - item.qty)
-          });
+          const currentShop = v.shopStock !== undefined ? v.shopStock : v.stockQuantity;
+          const currentWh = v.warehouseStock ?? 0;
+          const newShop = Math.max(0, currentShop - item.qty);
+          const newTotal = currentWh + newShop;
+
+          const updatedVariant: ProductVariant = {
+            ...v,
+            shopStock: newShop,
+            stockQuantity: newTotal
+          };
+
+          await db.variants.put(updatedVariant);
+          CloudSync.pushVariant(updatedVariant);
         }
       }
       // Refresh Quick Items in real-time immediately after cutting stock (Safe in-memory filter)

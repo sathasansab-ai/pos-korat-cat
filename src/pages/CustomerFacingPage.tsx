@@ -1,6 +1,22 @@
 // src/pages/CustomerFacingPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingBag, Sparkles, CheckCircle2, QrCode, Banknote, ShieldCheck, HeartHandshake, Eye, Tag } from 'lucide-react';
+import { 
+  ShoppingBag, 
+  Sparkles, 
+  CheckCircle2, 
+  QrCode, 
+  Banknote, 
+  ShieldCheck, 
+  HeartHandshake, 
+  Eye, 
+  Tag,
+  ChevronLeft,
+  ChevronRight,
+  Award,
+  Scissors,
+  Layers,
+  Star
+} from 'lucide-react';
 import { DualMonitorSync, type CustomerDisplayState } from '../services/dualMonitorSync';
 import { db } from '../db';
 import type { StoreSettings, CustomerScreenTheme } from '../types';
@@ -10,6 +26,9 @@ export const CustomerFacingPage: React.FC = () => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [logoError, setLogoError] = useState(false);
   const [welcomeImgError, setWelcomeImgError] = useState(false);
+
+  // Screensaver / Promotional Slideshow state
+  const [activeSlide, setActiveSlide] = useState(0);
 
   // Thank You State latch (persists 10s after payment even if cart clears)
   const [isThankYouActive, setIsThankYouActive] = useState(false);
@@ -29,6 +48,77 @@ export const CustomerFacingPage: React.FC = () => {
       if (s) setSettings(s);
     });
   };
+
+  // Promotional Slides Content
+  const promoSlides = [
+    {
+      id: 'heritage',
+      tag: 'HERITAGE BOUTIQUE • ผสานอัตลักษณ์เมืองโคราช',
+      badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      title: settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
+      subtitle: settings?.subTitle || 'ผสานศิลปวัฒนธรรมเรือนโคราชเฉลิมวัฒนา และแฟชั่นอัตลักษณ์แมวสีสวาด',
+      description: 'งานหัตถศิลป์ทรงคุณค่า เอกลักษณ์เมืองนครราชสีมา เสื้อยืดพรีเมียมลิมิเต็ด ลายฉลุทองคำประณีต สกรีน DTF & Flex นูนเมทัลลิกชั้นสูง',
+      highlights: [
+        '✨ สกรีน DTF สีสวาดทองคำ ลิขสิทธิ์แท้',
+        '🏛️ มนต์เสน่ห์ศิลปวัฒนธรรมเรือนโคราชเฉลิมวัฒนา',
+        '🧵 เส้นใย Premium Comb Cotton 100% สวมใส่สบาย'
+      ],
+      icon: <Sparkles className="w-8 h-8 text-amber-400" />
+    },
+    {
+      id: 'mix_match',
+      tag: 'SPECIAL PRIVILEGE • เซ็ตสุดคุ้ม',
+      badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      title: 'โปรโมชั่นพิเศษ "Mix & Match 3 ชิ้น ฿1,000"',
+      subtitle: 'จับคู่ความคุ้มค่า ซื้อเสื้อยืดหรือของที่ระลึก 3 ชิ้น ประหยัดทันที 170 บาท',
+      description: 'สามารถเลือกคละสี คละไซส์ (S, M, L, XL, 2XL) และคละลายพิมพ์ฉลุได้ตามใจชอบ ระบบจะคำนวณราคาโปรโมชั่นให้อัตโนมัติที่หน้าเคาน์เตอร์',
+      highlights: [
+        '🏷️ คละสี คละไซส์ คละลายพิมพ์ได้อิสระ',
+        '⚡ ระบบคำนวณส่วนลดให้อัตโนมัติบนหน้าจอ',
+        '🎁 เหมาะสำหรับเป็นของขวัญและของฝากพรีเมียม'
+      ],
+      icon: <Award className="w-8 h-8 text-emerald-400" />
+    },
+    {
+      id: 'digital_pass',
+      tag: 'VIP MEMBERSHIP • สมัครฟรีที่เคาน์เตอร์',
+      badgeClass: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+      title: 'Digital Wisdom Pass สมาชิกทรงเกียรติ',
+      subtitle: 'สมัครสมาชิกฟรีเพียงแจ้งเบอร์โทรศัพท์ รับส่วนลด 5% - 10% ทุกยอดซื้อ',
+      description: 'ยกระดับประสบการณ์ช้อปปิ้งสู่ระดับ Luxury บัตรสมาชิกดิจิทัล SILVER, GOLD และ BLACK WISDOM สแกน QR บัตรเก็บไว้ในสมาร์ทโฟนได้ทันที',
+      highlights: [
+        '💎 บัตรสมาชิกดิจิทัลหรูหรา สแกน QR เก็บเข้ามือถือได้',
+        '🎁 รับส่วนลด 5% สำหรับ GOLD และ 10% สำหรับ BLACK WISDOM',
+        '🎨 สิทธิ์เข้าร่วมกิจกรรม Workshop หัตถศิลป์เรือนโคราชฟรี'
+      ],
+      icon: <Star className="w-8 h-8 text-sky-400" />
+    },
+    {
+      id: 'custom_made',
+      tag: 'HAUTE COUTURE SERVICES • งานสั่งตัด',
+      badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+      title: 'บริการสั่งตัดเย็บ & สกรีนสั่งผลิตพิเศษ',
+      subtitle: 'รับทำเสื้อทีม ลายปักประณีต และของที่ระลึกองค์กร วางมัดจำเพียง 50%',
+      description: 'สร้างสรรค์ชิ้นงานเฉพาะบุคคลโดยกลุ่มวิสาหกิจชุมชนหัตถศิลป์โคราช พร้อมออกใบสั่งผลิตดิจิทัลและนัดรับสินค้าได้ที่หน้าร้าน',
+      highlights: [
+        '✂️ งานปักตราสัญลักษณ์ และงานสกรีนตามแบบเฉพาะคุณ',
+        '📜 ใบสั่งผลิตและใบรับมัดจำดิจิทัลพร้อมกำหนดวันนัดรับ',
+        '🏪 นัดรับสินค้าได้ที่หน้าร้านเรือนโคราช หรือจัดส่งถึงบ้าน'
+      ],
+      icon: <Scissors className="w-8 h-8 text-purple-400" />
+    }
+  ];
+
+  // Auto-advance screensaver slides every 5.5s when cart is empty
+  useEffect(() => {
+    if (displayState.cart.length > 0 || displayState.showDigitalPass || isThankYouActive) return;
+
+    const slideTimer = setInterval(() => {
+      setActiveSlide(prev => (prev + 1) % promoSlides.length);
+    }, 5500);
+
+    return () => clearInterval(slideTimer);
+  }, [displayState.cart.length, displayState.showDigitalPass, isThankYouActive, promoSlides.length]);
 
   useEffect(() => {
     loadSettings();
@@ -304,58 +394,138 @@ export const CustomerFacingPage: React.FC = () => {
         </div>
       )}
 
-      {/* 2. MAIN VIEW: CART ITEMS (LEFT) & STATUS / QR (RIGHT) */}
+      {/* 2. MAIN VIEW: IDLE SCREENSAVER vs ACTIVE CART CHECKOUT */}
       {!displayState.showDigitalPass && !isThankYouActive && (
-        <div className="grid grid-cols-12 gap-6 my-auto py-4">
-          {/* Scanned Items List with Photos (7 cols) */}
-          <div className={`col-span-12 lg:col-span-7 rounded-3xl p-6 border flex flex-col h-[520px] shadow-2xl backdrop-blur-sm ${themeStyles.cardBg}`}>
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-700/50">
-              <h2 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${subTextColor}`}>
-                <ShoppingBag className="w-4 h-4 text-amber-500" />
-                <span>รายการสินค้า ({displayState.cart.reduce((s, i) => s + i.qty, 0)} ชิ้น)</span>
-              </h2>
-              <span className="text-xs font-mono opacity-60">OFFICIAL REGISTER</span>
-            </div>
+        displayState.cart.length === 0 ? (
+          /* CINEMA-GRADE LUXURY SCREENSAVER & PROMOTIONAL SLIDESHOW */
+          <div className="my-auto py-4 w-full max-w-5xl mx-auto animate-in fade-in duration-500">
+            <div className={`relative rounded-3xl p-8 sm:p-12 border shadow-2xl backdrop-blur-md overflow-hidden ${themeStyles.cardBg}`}>
+              {/* Ambient Glow in background */}
+              <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
 
-            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-              {displayState.cart.length === 0 ? (
-                /* Welcome Graphic & Text (Pure transparent image with no frame) */
-                <div className="h-full flex flex-col items-center justify-center text-center p-6">
-                  {settings?.welcomeImageUrl && !welcomeImgError ? (
-                    <img
-                      src={settings.welcomeImageUrl}
-                      alt="Welcome"
-                      onError={() => setWelcomeImgError(true)}
-                      style={{
-                        mixBlendMode: !isLight ? 'screen' : 'normal'
-                      }}
-                      className="max-h-56 max-w-sm w-auto h-auto object-contain mb-4 select-none drop-shadow-md"
-                    />
-                  ) : settings?.logoUrl && !logoError ? (
-                    <img
-                      src={settings.logoUrl}
-                      alt="Store Logo"
-                      onError={() => setLogoError(true)}
-                      style={{
-                        mixBlendMode: !isLight ? 'screen' : 'normal'
-                      }}
-                      className="max-h-36 max-w-xs w-auto h-auto object-contain mb-4 select-none drop-shadow-md"
-                    />
-                  ) : (
-                    <div className="w-24 h-24 rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center text-amber-400 mb-4">
-                      <Sparkles className="w-12 h-12" />
+              {/* Slide Content */}
+              <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 min-h-[380px]">
+                {/* Visual Art / Logo Container */}
+                <div className="flex-shrink-0 flex flex-col items-center justify-center">
+                  <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-gradient-to-br from-amber-500/20 via-amber-600/10 to-transparent border-2 border-amber-400/40 p-4 flex items-center justify-center shadow-2xl relative group">
+                    {settings?.welcomeImageUrl && !welcomeImgError ? (
+                      <img
+                        src={settings.welcomeImageUrl}
+                        alt="Welcome"
+                        onError={() => setWelcomeImgError(true)}
+                        className="max-h-full max-w-full object-contain drop-shadow-xl"
+                      />
+                    ) : settings?.logoUrl && !logoError ? (
+                      <img
+                        src={settings.logoUrl}
+                        alt="Logo"
+                        onError={() => setLogoError(true)}
+                        className="max-h-full max-w-full object-contain drop-shadow-xl"
+                      />
+                    ) : (
+                      <div className="text-amber-400">
+                        {promoSlides[activeSlide].icon}
+                      </div>
+                    )}
+                    <div className="absolute -bottom-3 px-3 py-1 bg-slate-900 border border-amber-400/50 rounded-full text-[10px] font-mono font-bold text-amber-300 shadow">
+                      BOUTIQUE DISPLAY
                     </div>
-                  )}
-
-                  <h3 className="text-xl font-extrabold tracking-wide">
-                    {settings?.welcomeTitle || 'ยินดีต้อนรับสู่ KORAT CAT'}
-                  </h3>
-                  <p className={`text-xs ${subTextColor} mt-1.5 max-w-sm leading-relaxed`}>
-                    {settings?.welcomeSubtitle || 'สินค้าแฟชั่นอัตลักษณ์แมวโคราช x เรือนโคราชเฉลิมวัฒนา จะแสดงขึ้นที่นี่เมื่อสแกนบาร์โค้ด'}
-                  </p>
+                  </div>
                 </div>
-              ) : (
-                displayState.cart.map((item) => (
+
+                {/* Text Content of Current Slide */}
+                <div className="flex-1 text-center md:text-left space-y-4">
+                  <div className="inline-flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-mono font-black border ${promoSlides[activeSlide].badgeClass}`}>
+                      {promoSlides[activeSlide].tag}
+                    </span>
+                  </div>
+
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight">
+                    {promoSlides[activeSlide].title}
+                  </h2>
+
+                  <p className={`text-sm sm:text-base ${themeStyles.accentText} font-semibold leading-relaxed`}>
+                    {promoSlides[activeSlide].subtitle}
+                  </p>
+
+                  <p className={`text-xs sm:text-sm ${subTextColor} leading-relaxed max-w-xl`}>
+                    {promoSlides[activeSlide].description}
+                  </p>
+
+                  {/* 3 Key Feature Bullets */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
+                    {promoSlides[activeSlide].highlights.map((h, i) => (
+                      <div
+                        key={i}
+                        className={`p-2.5 rounded-2xl border text-xs font-medium flex items-center gap-2 shadow-xs ${
+                          isLight ? 'bg-amber-50/80 border-amber-200 text-slate-800' : 'bg-slate-800/80 border-slate-700/80 text-slate-200'
+                        }`}
+                      >
+                        <span className="truncate">{h}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Slide Controls & Progress Dots */}
+              <div className="relative z-10 flex items-center justify-between pt-6 mt-6 border-t border-slate-700/40">
+                <div className="flex items-center gap-2">
+                  {promoSlides.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveSlide(idx)}
+                      className={`h-2.5 rounded-full transition-all duration-300 ${
+                        activeSlide === idx 
+                          ? 'w-8 bg-amber-400 shadow-md shadow-amber-500/50' 
+                          : 'w-2.5 bg-slate-600 hover:bg-slate-500'
+                      }`}
+                      title={`สไลด์ที่ ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+
+                <div className="text-xs text-slate-400 flex items-center gap-3">
+                  <span className="hidden sm:inline font-mono text-[11px] opacity-70">
+                    นำสินค้ามาที่เคาน์เตอร์เพื่อสแกนคิดเงินได้ทันที
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setActiveSlide(prev => (prev - 1 + promoSlides.length) % promoSlides.length)}
+                      className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition border border-slate-700"
+                      title="สไลด์ก่อนหน้า"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setActiveSlide(prev => (prev + 1) % promoSlides.length)}
+                      className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition border border-slate-700"
+                      title="สไลด์ถัดไป"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ACTIVE CART & CHECKOUT SPLIT VIEW */
+          <div className="grid grid-cols-12 gap-6 my-auto py-4">
+            {/* Scanned Items List with Photos (7 cols) */}
+            <div className={`col-span-12 lg:col-span-7 rounded-3xl p-6 border flex flex-col h-[520px] shadow-2xl backdrop-blur-sm ${themeStyles.cardBg}`}>
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-700/50">
+                <h2 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${subTextColor}`}>
+                  <ShoppingBag className="w-4 h-4 text-amber-500" />
+                  <span>รายการสินค้า ({displayState.cart.reduce((s, i) => s + i.qty, 0)} ชิ้น)</span>
+                </h2>
+                <span className="text-xs font-mono opacity-60">OFFICIAL REGISTER</span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                {displayState.cart.map((item) => (
                   <div
                     key={item.variantId}
                     className={`p-3.5 rounded-2xl flex items-center justify-between border gap-3 transition ${
@@ -395,18 +565,17 @@ export const CustomerFacingPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))
+                ))}
+              </div>
+
+              {/* Upsell banner */}
+              {displayState.upsellPrompts.length > 0 && (
+                <div className="mt-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs">
+                  <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span className="text-amber-300 font-medium truncate">{displayState.upsellPrompts[0]}</span>
+                </div>
               )}
             </div>
-
-            {/* Upsell banner */}
-            {displayState.upsellPrompts.length > 0 && (
-              <div className="mt-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs">
-                <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span className="text-amber-300 font-medium truncate">{displayState.upsellPrompts[0]}</span>
-              </div>
-            )}
-          </div>
 
           {/* RIGHT COLUMN: PRICE TOTALS & DYNAMIC CHECKOUT QR CODE (5 cols) */}
           <div className={`col-span-12 lg:col-span-5 rounded-3xl p-6 sm:p-7 border flex flex-col justify-between shadow-2xl ${themeStyles.cardBg}`}>
@@ -519,7 +688,7 @@ export const CustomerFacingPage: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+      ))}
 
       {/* Footer */}
       <div className={`text-center text-[11px] ${subTextColor} pt-4 border-t ${themeStyles.headerBorder}`}>

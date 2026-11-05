@@ -249,6 +249,86 @@ export const ReportsPage: React.FC = () => {
     GoogleSheetsBridge.downloadCsv(csv, `รายงานสรุปกะแคชเชียร์_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
+  // 4. Export Monthly VAT Sales Tax Report (รายงานภาษีขาย ภ.พ.30 ตามแบบสรรพากร)
+  const handleExportVatReportCsv = () => {
+    const headers = [
+      'ลำดับที่',
+      'วัน เดือน ปี',
+      'เลขที่ใบกำกับภาษี / เลขที่บิล',
+      'ชื่อผู้ซื้อสินค้า/ผู้รับบริการ',
+      'เลขประจำตัวผู้เสียภาษี / เลขบัตร ปชช.',
+      'สถานประกอบการ',
+      'มูลค่าสินค้าหรือบริการ (ก่อน VAT)',
+      'จำนวนเงินภาษีมูลค่าเพิ่ม (VAT 7%)',
+      'รวมมูลค่าสินค้าพร้อมภาษี (ยอดสุทธิ)'
+    ];
+
+    let runningVat = 0;
+    let runningPreTax = 0;
+    let runningNet = 0;
+
+    const rows = filteredOrders.map((o, idx) => {
+      const vatRate = o.vatRate || settings?.vatRate || 7;
+      let preTax = o.preTaxAmount || 0;
+      let vatAmt = o.vatAmount || 0;
+
+      if (vatAmt === 0 && settings?.vatType === 'INCLUSIVE') {
+        preTax = (o.netTotal * 100) / (100 + vatRate);
+        vatAmt = o.netTotal - preTax;
+      } else if (vatAmt === 0 && settings?.vatType === 'EXCLUSIVE') {
+        preTax = o.netTotal;
+        vatAmt = (o.netTotal * vatRate) / 100;
+      } else if (preTax === 0) {
+        preTax = Math.max(0, o.netTotal - vatAmt);
+      }
+
+      runningPreTax += preTax;
+      runningVat += vatAmt;
+      runningNet += o.netTotal;
+
+      const invoiceNo = o.taxInvoiceNo || o.localOrderId;
+      const customerName = o.taxCustomerInfo?.name || o.customerName || 'ลูกค้าทั่วไป (สด)';
+      const taxId = o.taxCustomerInfo?.taxId || '-';
+      const branch = o.taxCustomerInfo?.branch || 'สำนักงานใหญ่';
+
+      return [
+        idx + 1,
+        `"${new Date(o.timestamp).toLocaleDateString('th-TH')}"`,
+        `"${invoiceNo}"`,
+        `"${customerName.replace(/"/g, '""')}"`,
+        `"${taxId}"`,
+        `"${branch}"`,
+        preTax.toFixed(2),
+        vatAmt.toFixed(2),
+        o.netTotal.toFixed(2)
+      ].join(',');
+    });
+
+    const summaryRow = [
+      'รวมทั้งสิ้น',
+      '',
+      '',
+      '',
+      '',
+      '',
+      runningPreTax.toFixed(2),
+      runningVat.toFixed(2),
+      runningNet.toFixed(2)
+    ].join(',');
+
+    const csv = [
+      `"รายงานภาษีขาย (ภ.พ.30) - ${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}"`,
+      `"ประจำช่วง: ${dateFilterMode}"`,
+      `"เลขประจำตัวผู้เสียภาษีอากร: ${settings?.taxId || '-'}"`,
+      '',
+      headers.join(','),
+      ...rows,
+      summaryRow
+    ].join('\r\n');
+
+    GoogleSheetsBridge.downloadCsv(csv, `รายงานภาษีขาย_ภพ30_${dateFilterMode}_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   const handleOpenTaxInvoice = (order: Order) => {
     setSelectedOrderForInvoice(order);
     setIsInvoiceModalOpen(true);
@@ -303,6 +383,16 @@ export const ReportsPage: React.FC = () => {
           >
             <Clock className="w-4 h-4 text-amber-600" />
             <span>Excel: สรุปกะแคชเชียร์</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportVatReportCsv}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            title="ดาวน์โหลดรายงานภาษีขาย (ภ.พ.30) ประจำงวดตามมาตรฐานสรรพากร"
+          >
+            <FileText className="w-4 h-4 text-amber-200" />
+            <span>📑 ภ.พ.30 (ภาษีขาย)</span>
           </button>
         </div>
       </div>
