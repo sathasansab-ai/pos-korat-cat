@@ -14,19 +14,27 @@ import {
   User
 } from 'lucide-react';
 import { db } from '../db';
-import type { CustomMadeOrder, StoreSettings, Order } from '../types';
+import type { CustomMadeOrder, StoreSettings, Order, Shift, UserAccount } from '../types';
 import { CloudSync } from '../services/cloudSync';
 
 interface CustomOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  staffName: string;
+  staffName?: string;
+  currentUser?: UserAccount | null;
+  activeShift?: Shift | null;
+  onOpenShiftRequired?: () => void;
+  onShiftUpdated?: () => void;
 }
 
 export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
   isOpen,
   onClose,
-  staffName
+  staffName,
+  currentUser,
+  activeShift,
+  onOpenShiftRequired,
+  onShiftUpdated
 }) => {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -82,10 +90,21 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
 
   const handleSaveOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!activeShift) {
+      alert('⚠️ ไม่สามารถบันทึกงานสั่งผลิตหรือรับเงินมัดจำได้!\nเนื่องจาก "ยังไม่ได้เปิดกะทำงาน"\n\nกรุณาไปที่เมนู "กะพนักงาน" เพื่อเปิดกะรับเงินก่อนครับ เพื่อให้ระบบระบุพนักงานผู้รับผิดชอบ และบันทึกยอดเงินเข้าลิ้นชักอย่างถูกต้อง');
+      onClose();
+      if (onOpenShiftRequired) onOpenShiftRequired();
+      return;
+    }
+
     if (!customerName.trim() || !customerPhone.trim() || totalPrice <= 0) {
       alert('กรุณากรอกชื่อลูกค้า, เบอร์โทรศัพท์ และยอดเงินสั่งผลิต');
       return;
     }
+
+    const cashierId = currentUser?.id || activeShift.cashierId;
+    const cashierName = currentUser?.name || staffName || activeShift.cashierName;
+    const shiftId = activeShift.id;
 
     const orderNo = `CUST-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
     const balanceDue = Math.max(0, totalPrice - depositAmount);
@@ -94,8 +113,8 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
       id: `co-${Date.now()}`,
       orderNo,
       createdAt: new Date().toISOString(),
-      staffName,
-      branch: 'SHOP',
+      staffName: cashierName,
+      branch: activeShift.branch || 'SHOP',
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       deliveryMethod,
@@ -117,28 +136,24 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
 
     // 2. นำยอดเงินมัดจำเข้ากะพนักงาน และบันทึกเป็นบิลขายเพื่อรวมเข้ายอดขายหน้าร้านทันที
     if (depositAmount > 0) {
-      const activeShift = await db.shifts.where({ status: 'OPEN' }).last();
-      const shiftId = activeShift ? activeShift.id : 'NO_SHIFT';
-
-      if (activeShift) {
-        const isCash = paymentMethod === 'CASH';
-        const updatedShift = {
-          ...activeShift,
-          totalCashSales: (activeShift.totalCashSales || 0) + (isCash ? depositAmount : 0),
-          totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + (!isCash ? depositAmount : 0),
-          totalTransactions: (activeShift.totalTransactions || 0) + 1
-        };
-        await db.shifts.update(activeShift.id, updatedShift);
-        CloudSync.pushShift(updatedShift);
-      }
+      const isCash = paymentMethod === 'CASH';
+      const updatedShift: Shift = {
+        ...activeShift,
+        totalCashSales: (activeShift.totalCashSales || 0) + (isCash ? depositAmount : 0),
+        totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + (!isCash ? depositAmount : 0),
+        totalTransactions: (activeShift.totalTransactions || 0) + 1
+      };
+      await db.shifts.put(updatedShift);
+      CloudSync.pushShift(updatedShift);
+      if (onShiftUpdated) onShiftUpdated();
 
       // 3. สร้างบิลขายมัดจำลงใน db.orders เพื่อให้ปรากฏในรายงานยอดขายและสมุดรายวัน
       const depositBill: Order = {
         id: `ord-dep-${Date.now()}`,
         localOrderId: `DEP-${newOrder.orderNo}`,
         timestamp: new Date().toISOString(),
-        cashierId: staffName,
-        cashierName: staffName,
+        cashierId: cashierId,
+        cashierName: cashierName,
         shiftId: shiftId,
         customerName: newOrder.customerName,
         items: [{
@@ -422,6 +437,30 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
           ) : (
             /* FORM VIEW */
             <form onSubmit={handleSaveOrder} className="space-y-4 bg-slate-950/60 p-5 rounded-2xl border border-slate-800">
+              {!activeShift && (
+                <div className="p-3.5 bg-rose-500/20 border border-rose-500/50 rounded-xl text-rose-200 text-xs flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⚠️</span>
+                    <div>
+                      <div className="font-bold text-white">ยังไม่มีกะพนักงานเปิดอยู่!</div>
+                      <div className="text-[11px] text-rose-300">จำเป็นต้องเปิดกะก่อนรับเงินมัดจำ เพื่อให้ระบบรวมยอดเงินเข้าลิ้นชักและระบุพนักงานขายได้ถูกต้อง</div>
+                    </div>
+                  </div>
+                  {onOpenShiftRequired && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenShiftRequired();
+                      }}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex-shrink-0"
+                    >
+                      ไปเปิดกะรับเงิน
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
                 <div>

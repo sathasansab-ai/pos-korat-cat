@@ -56,6 +56,21 @@ class CloudSyncService {
    */
   public async pullFromCloud(): Promise<{ success: boolean; summary: string }> {
     try {
+      // 0. Pull Store Settings first & Check for Cross-Device Reset Signal
+      const cloudSettings = await this.pullStoreSettings();
+      if (cloudSettings && cloudSettings.lastResetTimestamp) {
+        const lastApplied = localStorage.getItem('pos_last_applied_reset');
+        if (!lastApplied || new Date(cloudSettings.lastResetTimestamp) > new Date(lastApplied)) {
+          const scope = cloudSettings.lastResetScope || ['orders', 'shifts', 'transfers', 'customOrders'];
+          if (scope.includes('orders')) await db.orders.clear();
+          if (scope.includes('shifts')) await db.shifts.clear();
+          if (scope.includes('transfers')) await db.transfers.clear();
+          if (scope.includes('customOrders')) await db.customOrders.clear();
+          if (scope.includes('customers')) await db.customers.clear();
+          localStorage.setItem('pos_last_applied_reset', cloudSettings.lastResetTimestamp);
+        }
+      }
+
       // 1. Pull Variants
       const vRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?select=*`, {
         headers: this.getHeaders()
@@ -81,6 +96,12 @@ class CloudSyncService {
             supplierName: cv.supplier_name,
             isActive: cv.is_active !== false
           };
+          if (cv.sku) {
+            const existingSameSku = await db.variants.where({ sku: cv.sku }).first();
+            if (existingSameSku && existingSameSku.id !== cv.id) {
+              await db.variants.delete(existingSameSku.id);
+            }
+          }
           await db.variants.put(localVar);
         }
       }
@@ -115,22 +136,26 @@ class CloudSyncService {
       });
       if (tRes.ok) {
         const cloudTransfers: any[] = await tRes.json();
-        for (const ct of cloudTransfers) {
-          const localTransfer: StockTransfer = {
-            id: ct.id,
-            transferNo: ct.transfer_no,
-            timestamp: ct.timestamp,
-            fromBranch: ct.from_branch,
-            toBranch: ct.to_branch,
-            items: ct.items || [],
-            totalQty: Number(ct.total_qty || 0),
-            senderName: ct.sender_name,
-            receiverName: ct.receiver_name,
-            receivedAt: ct.received_at,
-            status: ct.status,
-            notes: ct.notes
-          };
-          await db.transfers.put(localTransfer);
+        if (cloudTransfers.length === 0) {
+          await db.transfers.clear();
+        } else {
+          for (const ct of cloudTransfers) {
+            const localTransfer: StockTransfer = {
+              id: ct.id,
+              transferNo: ct.transfer_no,
+              timestamp: ct.timestamp,
+              fromBranch: ct.from_branch,
+              toBranch: ct.to_branch,
+              items: ct.items || [],
+              totalQty: Number(ct.total_qty || 0),
+              senderName: ct.sender_name,
+              receiverName: ct.receiver_name,
+              receivedAt: ct.received_at,
+              status: ct.status,
+              notes: ct.notes
+            };
+            await db.transfers.put(localTransfer);
+          }
         }
       }
 
@@ -140,31 +165,35 @@ class CloudSyncService {
       });
       if (coRes.ok) {
         const cloudCO: any[] = await coRes.json();
-        for (const co of cloudCO) {
-          const localCO: CustomMadeOrder = {
-            id: co.id,
-            orderNo: co.order_no,
-            createdAt: co.created_at,
-            staffName: co.staff_name,
-            branch: co.branch,
-            customerName: co.customer_name,
-            customerPhone: co.customer_phone,
-            deliveryMethod: co.delivery_method,
-            shippingAddress: co.shipping_address,
-            dueDate: co.due_date,
-            itemDescription: co.item_description,
-            qty: Number(co.qty || 1),
-            totalPrice: Number(co.total_price || 0),
-            depositAmount: Number(co.deposit_amount || 0),
-            balanceDue: Number(co.balance_due || 0),
-            depositPaymentMethod: co.deposit_payment_method,
-            status: co.status,
-            finalPaymentMethod: co.final_payment_method,
-            finalPaidAmount: co.final_paid_amount ? Number(co.final_paid_amount) : undefined,
-            finalPaidAt: co.final_paid_at,
-            notes: co.notes
-          };
-          await db.customOrders.put(localCO);
+        if (cloudCO.length === 0) {
+          await db.customOrders.clear();
+        } else {
+          for (const co of cloudCO) {
+            const localCO: CustomMadeOrder = {
+              id: co.id,
+              orderNo: co.order_no,
+              createdAt: co.created_at,
+              staffName: co.staff_name,
+              branch: co.branch,
+              customerName: co.customer_name,
+              customerPhone: co.customer_phone,
+              deliveryMethod: co.delivery_method,
+              shippingAddress: co.shipping_address,
+              dueDate: co.due_date,
+              itemDescription: co.item_description,
+              qty: Number(co.qty || 1),
+              totalPrice: Number(co.total_price || 0),
+              depositAmount: Number(co.deposit_amount || 0),
+              balanceDue: Number(co.balance_due || 0),
+              depositPaymentMethod: co.deposit_payment_method,
+              status: co.status,
+              finalPaymentMethod: co.final_payment_method,
+              finalPaidAmount: co.final_paid_amount ? Number(co.final_paid_amount) : undefined,
+              finalPaidAt: co.final_paid_at,
+              notes: co.notes
+            };
+            await db.customOrders.put(localCO);
+          }
         }
       }
 
@@ -174,26 +203,30 @@ class CloudSyncService {
       });
       if (sRes.ok) {
         const cloudShifts: any[] = await sRes.json();
-        for (const cs of cloudShifts) {
-          const localShift: Shift = {
-            id: cs.id,
-            branch: cs.branch || 'SHOP',
-            cashierId: cs.cashier_id,
-            cashierName: cs.cashier_name,
-            startTime: cs.start_time,
-            endTime: cs.end_time || undefined,
-            startingCash: Number(cs.starting_cash || 0),
-            closingCashExpected: cs.closing_cash_expected !== null ? Number(cs.closing_cash_expected) : undefined,
-            closingCashActual: cs.closing_cash_actual !== null ? Number(cs.closing_cash_actual) : undefined,
-            cashDifference: cs.cash_difference !== null ? Number(cs.cash_difference) : undefined,
-            totalCashSales: Number(cs.total_cash_sales || 0),
-            totalPromptPaySales: Number(cs.total_promptpay_sales || 0),
-            totalCreditSales: Number(cs.total_credit_sales || 0),
-            totalTransactions: Number(cs.total_transactions || 0),
-            status: cs.status || 'OPEN',
-            notes: cs.notes || undefined
-          };
-          await db.shifts.put(localShift);
+        if (cloudShifts.length === 0) {
+          await db.shifts.clear();
+        } else {
+          for (const cs of cloudShifts) {
+            const localShift: Shift = {
+              id: cs.id,
+              branch: cs.branch || 'SHOP',
+              cashierId: cs.cashier_id,
+              cashierName: cs.cashier_name,
+              startTime: cs.start_time,
+              endTime: cs.end_time || undefined,
+              startingCash: Number(cs.starting_cash || 0),
+              closingCashExpected: cs.closing_cash_expected !== null ? Number(cs.closing_cash_expected) : undefined,
+              closingCashActual: cs.closing_cash_actual !== null ? Number(cs.closing_cash_actual) : undefined,
+              cashDifference: cs.cash_difference !== null ? Number(cs.cash_difference) : undefined,
+              totalCashSales: Number(cs.total_cash_sales || 0),
+              totalPromptPaySales: Number(cs.total_promptpay_sales || 0),
+              totalCreditSales: Number(cs.total_credit_sales || 0),
+              totalTransactions: Number(cs.total_transactions || 0),
+              status: cs.status || 'OPEN',
+              notes: cs.notes || undefined
+            };
+            await db.shifts.put(localShift);
+          }
         }
       }
 
@@ -203,35 +236,36 @@ class CloudSyncService {
       });
       if (oRes.ok) {
         const cloudOrders: any[] = await oRes.json();
-        for (const co of cloudOrders) {
-          const localOrder: Order = {
-            id: co.id,
-            localOrderId: co.local_order_id,
-            timestamp: co.timestamp,
-            cashierId: co.cashier_id,
-            cashierName: co.cashier_name,
-            shiftId: co.shift_id,
-            branch: co.branch || 'SHOP',
-            customerId: co.customer_id || undefined,
-            customerName: co.customer_name || undefined,
-            items: co.items || [],
-            subtotal: Number(co.subtotal || 0),
-            promoDiscount: Number(co.promo_discount || 0),
-            memberDiscountAmount: Number(co.member_discount_amount || 0),
-            memberTier: co.member_tier || undefined,
-            netTotal: Number(co.net_total || 0),
-            payments: co.payments || [],
-            cashReceived: co.cash_received !== null ? Number(co.cash_received) : undefined,
-            changeGiven: co.change_given !== null ? Number(co.change_given) : undefined,
-            status: co.status || 'COMPLETED',
-            isSynced: true
-          };
-          await db.orders.put(localOrder);
+        if (cloudOrders.length === 0) {
+          await db.orders.clear();
+        } else {
+          for (const co of cloudOrders) {
+            const localOrder: Order = {
+              id: co.id,
+              localOrderId: co.local_order_id,
+              timestamp: co.timestamp,
+              cashierId: co.cashier_id,
+              cashierName: co.cashier_name,
+              shiftId: co.shift_id,
+              branch: co.branch || 'SHOP',
+              customerId: co.customer_id || undefined,
+              customerName: co.customer_name || undefined,
+              items: co.items || [],
+              subtotal: Number(co.subtotal || 0),
+              promoDiscount: Number(co.promo_discount || 0),
+              memberDiscountAmount: Number(co.member_discount_amount || 0),
+              memberTier: co.member_tier || undefined,
+              netTotal: Number(co.net_total || 0),
+              payments: co.payments || [],
+              cashReceived: co.cash_received !== null ? Number(co.cash_received) : undefined,
+              changeGiven: co.change_given !== null ? Number(co.change_given) : undefined,
+              status: co.status || 'COMPLETED',
+              isSynced: true
+            };
+            await db.orders.put(localOrder);
+          }
         }
       }
-
-      // 7. Pull Store Settings & Promotional Slides (เพื่อให้จอที่ 2 ฝั่งลูกค้าซิงค์รูปภาพตรงกัน)
-      await this.pullStoreSettings();
 
       return { success: true, summary: 'ดึงข้อมูลล่าสุดจาก Cloud อัปเดตลงเครื่องสำเร็จ (สต็อก, กะ, บิล, ใบโอน, สั่งผลิต, สไลด์ภาพจอ 2)' };
     } catch (err: any) {
@@ -319,9 +353,9 @@ class CloudSyncService {
         if (vRes.ok) {
           variantsSyncedCount = payload.length;
         } else {
-          // หากยังติดปัญหา Batch ให้ลองส่งแบบรายตัว (Individual Upsert)
+          // หากติดปัญหา Batch ให้ลองส่งแบบรายตัว และดักจับ 409 เพื่อ Patch ตาม SKU
           const errText = await vRes.text();
-          console.warn(`Bulk variants error (${vRes.status}): ${errText}. Retrying individually...`);
+          console.warn(`Bulk variants notice (${vRes.status}): ${errText}. Syncing individually...`);
           for (const item of payload) {
             try {
               const singleRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?on_conflict=id`, {
@@ -329,7 +363,17 @@ class CloudSyncService {
                 headers: this.getHeaders(),
                 body: JSON.stringify([item])
               });
-              if (singleRes.ok) variantsSyncedCount++;
+              if (singleRes.ok) {
+                variantsSyncedCount++;
+              } else if (singleRes.status === 409 && item.sku) {
+                // หากติด Unique Constraint SKU ให้ Patch อัปเดตรายการเดิมบน Cloud
+                const patchRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?sku=eq.${encodeURIComponent(item.sku)}`, {
+                  method: 'PATCH',
+                  headers: this.getHeaders(),
+                  body: JSON.stringify(item)
+                });
+                if (patchRes.ok) variantsSyncedCount++;
+              }
             } catch {
               // ignore single item fail
             }
@@ -643,13 +687,36 @@ class CloudSyncService {
         is_active: v.isActive !== false
       };
 
-      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?on_conflict=id`, {
+      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify([payload])
       });
+
+      if (!res.ok && res.status === 409 && payload.sku) {
+        // หากติด Unique Constraint SKU ให้ Patch อัปเดตรายการเดิมบน Cloud
+        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?sku=eq.${encodeURIComponent(payload.sku)}`, {
+          method: 'PATCH',
+          headers: this.getHeaders(),
+          body: JSON.stringify(payload)
+        });
+      }
     } catch (e) {
       console.warn('Failed to push single variant to cloud', e);
+    }
+  }
+
+  /**
+   * ลบสินค้าออกจาก Cloud
+   */
+  public async deleteVariant(id: string): Promise<void> {
+    try {
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?id=eq.${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+    } catch (e) {
+      console.warn('Failed to delete variant from cloud', e);
     }
   }
 

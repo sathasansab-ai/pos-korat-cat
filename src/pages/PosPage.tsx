@@ -927,7 +927,14 @@ export const PosPage: React.FC<PosPageProps> = ({
           {/* Custom Order & Deposit Modal Button */}
           <button
             type="button"
-            onClick={() => setIsCustomOrderModalOpen(true)}
+            onClick={() => {
+              if (!activeShift) {
+                alert('⚠️ ไม่สามารถรับออเดอร์สั่งผลิตหรือรับเงินมัดจำได้!\nเนื่องจาก "ยังไม่ได้เปิดกะทำงาน"\n\nกรุณาไปที่เมนู "กะพนักงาน" เพื่อเปิดกะรับเงินก่อนครับ เพื่อให้ระบบบันทึกยอดเงินเข้าลิ้นชักและระบุพนักงานผู้รับผิดชอบได้อย่างถูกต้อง');
+                if (onOpenShiftRequired) onOpenShiftRequired();
+                return;
+              }
+              setIsCustomOrderModalOpen(true);
+            }}
             className="px-3.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-2xl font-bold flex items-center gap-1.5 shadow-xs transition text-xs whitespace-nowrap"
             title="ออกใบสั่งผลิตงานสั่งทำ / สั่งตัดเย็บ / งานโหล และรับเงินมัดจำ 50%"
           >
@@ -2113,7 +2120,11 @@ export const PosPage: React.FC<PosPageProps> = ({
       <CustomOrderModal
         isOpen={isCustomOrderModalOpen}
         onClose={() => setIsCustomOrderModalOpen(false)}
-        staffName={currentUser.name}
+        staffName={currentUser?.name || 'พนักงาน'}
+        currentUser={currentUser}
+        activeShift={activeShift}
+        onOpenShiftRequired={onOpenShiftRequired}
+        onShiftUpdated={onShiftUpdated}
       />
 
       {/* Custom Price / Non-Catalog Item Modal */}

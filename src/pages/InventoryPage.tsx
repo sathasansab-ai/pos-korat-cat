@@ -25,6 +25,7 @@ import { BarcodePrintModal } from '../components/BarcodePrintModal';
 import { StockTransferModal } from '../components/StockTransferModal';
 import { WarehouseProductionModal } from '../components/WarehouseProductionModal';
 import { ImageOptimizer } from '../services/imageOptimizer';
+import { CloudSync } from '../services/cloudSync';
 
 interface SizeStockEntry {
   size: string;
@@ -220,6 +221,8 @@ export const InventoryPage: React.FC = () => {
 
     if (confirm(`ระบบจะสร้าง Variants ทั้งหมด ${withImages.length} รายการ ต้องการบันทึกหรือไม่?`)) {
       await db.variants.bulkAdd(withImages);
+      // Auto push to Cloud
+      withImages.forEach(v => CloudSync.pushVariant(v));
       setIsMatrixModalOpen(false);
       loadVariants();
       alert(`สร้าง Variants สำเร็จ ${withImages.length} รายการ!`);
@@ -303,6 +306,8 @@ export const InventoryPage: React.FC = () => {
     }
 
     await db.variants.bulkAdd(variantsToAdd);
+    // Auto push each newly added variant to Cloud
+    variantsToAdd.forEach(v => CloudSync.pushVariant(v));
     const totalQty = variantsToAdd.reduce((sum, v) => sum + v.stockQuantity, 0);
 
     setIsSingleModalOpen(false);
@@ -316,13 +321,19 @@ export const InventoryPage: React.FC = () => {
   };
 
   const handleUpdateStock = async (id: string, newStock: number) => {
-    await db.variants.update(id, { stockQuantity: Math.max(0, newStock) });
-    loadVariants();
+    const v = await db.variants.get(id);
+    if (v) {
+      const updated = { ...v, stockQuantity: Math.max(0, newStock) };
+      await db.variants.put(updated);
+      CloudSync.pushVariant(updated);
+      loadVariants();
+    }
   };
 
   const handleDeleteVariant = async (id: string) => {
     if (confirm('คุณแน่ใจว่าต้องการลบตัวเลือกสินค้านี้?')) {
       await db.variants.delete(id);
+      CloudSync.deleteVariant(id);
       loadVariants();
     }
   };

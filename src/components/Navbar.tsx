@@ -16,7 +16,8 @@ import {
   Settings,
   Lock,
   Cloud,
-  Truck
+  Truck,
+  PackageCheck
 } from 'lucide-react';
 import type { UserAccount, Shift, StoreSettings } from '../types';
 import { AuthService } from '../services/auth';
@@ -313,6 +314,33 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       </header>
+
+      {/* Prominent Stock Transfer Arrival Alert Banner for Recipient */}
+      {pendingTransfersCount > 0 && (
+        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 px-4 py-2 font-bold flex flex-wrap items-center justify-between gap-2 shadow-xl border-b-2 border-amber-300 sticky top-[61px] z-30 animate-pulse">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-slate-950 text-amber-400 rounded-xl shadow-xs">
+              <Truck className="w-5 h-5 animate-bounce" />
+            </div>
+            <div>
+              <span className="text-xs sm:text-sm font-black text-slate-950">
+                🚚 แจ้งเตือน: มีสินค้าโอนย้ายข้ามคลังส่งมาถึงแล้ว รอตรวจรับเข้าสต็อก!
+              </span>
+              <span className="ml-2 text-xs bg-slate-950 text-amber-300 px-2.5 py-0.5 rounded-full font-mono font-black border border-amber-400/50">
+                {pendingTransfersCount} รายการรอตรวจรับ
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsTransferModalOpen(true)}
+            className="bg-slate-950 hover:bg-slate-900 text-amber-300 hover:text-white px-4 py-1.5 rounded-xl text-xs font-black shadow-lg flex items-center gap-1.5 border border-amber-400 active:scale-95 transition flex-shrink-0"
+          >
+            <PackageCheck className="w-4 h-4 text-emerald-400" />
+            <span>กดเปิดตรวจรับสินค้าเข้าสต็อกทันที</span>
+          </button>
+        </div>
+      )}
 
       <CloudSyncModal
         isOpen={isCloudSyncOpen}

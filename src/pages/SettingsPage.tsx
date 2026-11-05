@@ -469,6 +469,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       if (resetCustomOrders) await db.customOrders.clear();
       if (resetCustomers) await db.customers.clear();
 
+      const resetTimestamp = new Date().toISOString();
+      const resetScope: string[] = [];
+      if (resetOrders) resetScope.push('orders');
+      if (resetShifts) resetScope.push('shifts');
+      if (resetTransfers) resetScope.push('transfers');
+      if (resetCustomOrders) resetScope.push('customOrders');
+      if (resetCustomers) resetScope.push('customers');
+
+      if (settings) {
+        const updatedSettings: StoreSettings = {
+          ...settings,
+          lastResetTimestamp: resetTimestamp,
+          lastResetScope: resetScope,
+          updatedAt: resetTimestamp
+        };
+        await db.settings.put(updatedSettings);
+        localStorage.setItem('pos_last_applied_reset', resetTimestamp);
+        await CloudSync.pushStoreSettings(updatedSettings).catch(() => {});
+      }
+
       if (resetCloud) {
         try {
           await CloudSync.resetCloudData();
@@ -478,7 +498,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       }
 
       AuthService.logout();
-      alert('ล้างข้อมูลส่วนที่เลือกเรียบร้อยแล้ว!\n(รวมถึงข้อมูลทดสอบบน Cloud)\n\nระบบจะออกจากระบบเพื่อเตรียมพร้อมสำหรับการเปิดร้านจริง');
+      alert('ล้างข้อมูลส่วนที่เลือกเรียบร้อยแล้ว!\n(ระบบบันทึกสถานะลง Cloud เรียบร้อย เพื่อให้เครื่องอื่นล้างข้อมูลทดสอบตามทันที)\n\nระบบจะออกจากระบบเพื่อเตรียมพร้อมสำหรับการเปิดร้านจริง');
       window.location.reload();
     } catch (err: any) {
       setResetError('เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);

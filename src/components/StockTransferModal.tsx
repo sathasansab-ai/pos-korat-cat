@@ -131,9 +131,9 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
       CloudSync.pushTransfer(newTransfer);
       CloudSync.pushVariant(updatedVariant);
 
-      setSuccessNotice(`สร้างใบส่งของ ${transferNo} สำเร็จ! ตัดสต็อก${sourceBranchName}ออก ${transferQty} ชิ้นแล้ว (สถานะ: รอ${targetBranchName}ตรวจรับ)`);
-      await loadData();
+      alert(`✅ บันทึกการส่งของสำเร็จแล้ว!\nเลขที่เอกสาร: ${transferNo}\nตัดสต็อก${sourceBranchName}ออก ${transferQty} ชิ้นเรียบร้อย\n\nระบบได้ส่งใบโอนไปยัง "${targetBranchName}" แล้ว (สถานะ: รอตรวจรับสินค้า)`);
       if (onTransferComplete) onTransferComplete();
+      onClose();
     } catch (err: any) {
       alert('เกิดข้อผิดพลาดในการบันทึกการโอนสินค้า: ' + err.message);
     } finally {
@@ -183,7 +183,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
       // 3. ซิงค์ Cloud
       CloudSync.pushTransfer(updatedTransfer);
 
-      setSuccessNotice(`ตรวจรับสินค้าใบโอน ${transfer.transferNo} เรียบร้อยแล้ว! สต็อกเข้า${transfer.toBranch === 'SHOP' ? 'หน้าร้าน' : 'โกดัง'}สำเร็จ (+${transfer.totalQty} ชิ้น)`);
+      alert(`✅ ตรวจรับสินค้าเข้าสต็อกสำเร็จแล้ว!\nเลขที่เอกสาร: ${transfer.transferNo}\nเพิ่มสต็อกเข้า "${transfer.toBranch === 'SHOP' ? 'หน้าร้านเรือนโคราช' : 'โกดัง/โรงงาน'}" เรียบร้อยแล้ว (+${transfer.totalQty} ชิ้น)`);
       await loadData();
       if (onTransferComplete) onTransferComplete();
     } catch (err: any) {
