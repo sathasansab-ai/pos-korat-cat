@@ -12,6 +12,19 @@ export interface UserAccount {
 
 export type CustomerScreenTheme = 'BLACK_GOLD' | 'BROWN_GOLD' | 'WHITE_GOLD' | 'EMERALD_GOLD';
 
+export interface CustomerSlideItem {
+  id: string;
+  tag: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  imageUrl?: string;
+  highlight1?: string;
+  highlight2?: string;
+  highlight3?: string;
+  badgeColor?: 'AMBER' | 'EMERALD' | 'SKY' | 'PURPLE' | 'ROSE';
+}
+
 export interface StoreSettings {
   id: string;
   storeName: string;
@@ -38,6 +51,7 @@ export interface StoreSettings {
   welcomeSubtitle: string;
   welcomeImageUrl?: string;
   thankYouMessage: string;
+  customSlides?: CustomerSlideItem[];
 
   // POS Display Settings
   showStockQuantityOnPos?: boolean; // แสดง/ซ่อนตัวเลขจำนวนสต็อกบนการ์ดสินค้าหน้าขาย

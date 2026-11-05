@@ -49,8 +49,17 @@ export const CustomerFacingPage: React.FC = () => {
     });
   };
 
-  // Promotional Slides Content
-  const promoSlides = [
+  // Badge color mapping
+  const badgeClasses: Record<string, string> = {
+    AMBER: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    EMERALD: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    SKY: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+    PURPLE: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+    ROSE: 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+  };
+
+  // Promotional Slides Content (ดึงจาก Settings หรือใช้ค่าเริ่มต้นอัตลักษณ์โคราช)
+  const defaultPromoSlides = [
     {
       id: 'heritage',
       tag: 'HERITAGE BOUTIQUE • ผสานอัตลักษณ์เมืองโคราช',
@@ -63,6 +72,7 @@ export const CustomerFacingPage: React.FC = () => {
         '🏛️ มนต์เสน่ห์ศิลปวัฒนธรรมเรือนโคราชเฉลิมวัฒนา',
         '🧵 เส้นใย Premium Comb Cotton 100% สวมใส่สบาย'
       ],
+      imageUrl: undefined as string | undefined,
       icon: <Sparkles className="w-8 h-8 text-amber-400" />
     },
     {
@@ -77,6 +87,7 @@ export const CustomerFacingPage: React.FC = () => {
         '⚡ ระบบคำนวณส่วนลดให้อัตโนมัติบนหน้าจอ',
         '🎁 เหมาะสำหรับเป็นของขวัญและของฝากพรีเมียม'
       ],
+      imageUrl: undefined as string | undefined,
       icon: <Award className="w-8 h-8 text-emerald-400" />
     },
     {
@@ -91,6 +102,7 @@ export const CustomerFacingPage: React.FC = () => {
         '🎁 รับส่วนลด 5% สำหรับ GOLD และ 10% สำหรับ BLACK WISDOM',
         '🎨 สิทธิ์เข้าร่วมกิจกรรม Workshop หัตถศิลป์เรือนโคราชฟรี'
       ],
+      imageUrl: undefined as string | undefined,
       icon: <Star className="w-8 h-8 text-sky-400" />
     },
     {
@@ -105,9 +117,24 @@ export const CustomerFacingPage: React.FC = () => {
         '📜 ใบสั่งผลิตและใบรับมัดจำดิจิทัลพร้อมกำหนดวันนัดรับ',
         '🏪 นัดรับสินค้าได้ที่หน้าร้านเรือนโคราช หรือจัดส่งถึงบ้าน'
       ],
+      imageUrl: undefined as string | undefined,
       icon: <Scissors className="w-8 h-8 text-purple-400" />
     }
   ];
+
+  const promoSlides = (settings?.customSlides && settings.customSlides.length > 0)
+    ? settings.customSlides.map(cs => ({
+        id: cs.id,
+        tag: cs.tag,
+        badgeClass: badgeClasses[cs.badgeColor || 'AMBER'] || badgeClasses.AMBER,
+        title: cs.title,
+        subtitle: cs.subtitle,
+        description: cs.description,
+        highlights: [cs.highlight1, cs.highlight2, cs.highlight3].filter(Boolean) as string[],
+        imageUrl: cs.imageUrl,
+        icon: <Sparkles className="w-8 h-8 text-amber-400" />
+      }))
+    : defaultPromoSlides;
 
   // Auto-advance screensaver slides every 5.5s when cart is empty
   useEffect(() => {
@@ -406,68 +433,82 @@ export const CustomerFacingPage: React.FC = () => {
 
               {/* Slide Content */}
               <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 min-h-[380px]">
-                {/* Visual Art / Logo Container */}
-                <div className="flex-shrink-0 flex flex-col items-center justify-center">
-                  <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-gradient-to-br from-amber-500/20 via-amber-600/10 to-transparent border-2 border-amber-400/40 p-4 flex items-center justify-center shadow-2xl relative group">
-                    {settings?.welcomeImageUrl && !welcomeImgError ? (
-                      <img
-                        src={settings.welcomeImageUrl}
-                        alt="Welcome"
-                        onError={() => setWelcomeImgError(true)}
-                        className="max-h-full max-w-full object-contain drop-shadow-xl"
-                      />
-                    ) : settings?.logoUrl && !logoError ? (
-                      <img
-                        src={settings.logoUrl}
-                        alt="Logo"
-                        onError={() => setLogoError(true)}
-                        className="max-h-full max-w-full object-contain drop-shadow-xl"
-                      />
-                    ) : (
-                      <div className="text-amber-400">
-                        {promoSlides[activeSlide].icon}
+                {(() => {
+                  const curSlide = promoSlides[activeSlide] || promoSlides[0];
+                  if (!curSlide) return null;
+                  return (
+                    <>
+                      {/* Visual Art / Logo Container */}
+                      <div className="flex-shrink-0 flex flex-col items-center justify-center">
+                        <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-gradient-to-br from-amber-500/20 via-amber-600/10 to-transparent border-2 border-amber-400/40 p-4 flex items-center justify-center shadow-2xl relative group">
+                          {curSlide.imageUrl ? (
+                            <img
+                              src={curSlide.imageUrl}
+                              alt="Slide Poster"
+                              className="max-h-full max-w-full object-contain drop-shadow-xl rounded-2xl"
+                            />
+                          ) : settings?.welcomeImageUrl && !welcomeImgError ? (
+                            <img
+                              src={settings.welcomeImageUrl}
+                              alt="Welcome"
+                              onError={() => setWelcomeImgError(true)}
+                              className="max-h-full max-w-full object-contain drop-shadow-xl"
+                            />
+                          ) : settings?.logoUrl && !logoError ? (
+                            <img
+                              src={settings.logoUrl}
+                              alt="Logo"
+                              onError={() => setLogoError(true)}
+                              className="max-h-full max-w-full object-contain drop-shadow-xl"
+                            />
+                          ) : (
+                            <div className="text-amber-400">
+                              {curSlide.icon}
+                            </div>
+                          )}
+                          <div className="absolute -bottom-3 px-3 py-1 bg-slate-900 border border-amber-400/50 rounded-full text-[10px] font-mono font-bold text-amber-300 shadow">
+                            BOUTIQUE DISPLAY
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    <div className="absolute -bottom-3 px-3 py-1 bg-slate-900 border border-amber-400/50 rounded-full text-[10px] font-mono font-bold text-amber-300 shadow">
-                      BOUTIQUE DISPLAY
-                    </div>
-                  </div>
-                </div>
 
-                {/* Text Content of Current Slide */}
-                <div className="flex-1 text-center md:text-left space-y-4">
-                  <div className="inline-flex items-center gap-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-mono font-black border ${promoSlides[activeSlide].badgeClass}`}>
-                      {promoSlides[activeSlide].tag}
-                    </span>
-                  </div>
+                      {/* Text Content of Current Slide */}
+                      <div className="flex-1 text-center md:text-left space-y-4">
+                        <div className="inline-flex items-center gap-2">
+                          <span className={`px-3 py-1 rounded-full text-xs font-mono font-black border ${curSlide.badgeClass}`}>
+                            {curSlide.tag}
+                          </span>
+                        </div>
 
-                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight">
-                    {promoSlides[activeSlide].title}
-                  </h2>
+                        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight">
+                          {curSlide.title}
+                        </h2>
 
-                  <p className={`text-sm sm:text-base ${themeStyles.accentText} font-semibold leading-relaxed`}>
-                    {promoSlides[activeSlide].subtitle}
-                  </p>
+                        <p className={`text-sm sm:text-base ${themeStyles.accentText} font-semibold leading-relaxed`}>
+                          {curSlide.subtitle}
+                        </p>
 
-                  <p className={`text-xs sm:text-sm ${subTextColor} leading-relaxed max-w-xl`}>
-                    {promoSlides[activeSlide].description}
-                  </p>
+                        <p className={`text-xs sm:text-sm ${subTextColor} leading-relaxed max-w-xl`}>
+                          {curSlide.description}
+                        </p>
 
-                  {/* 3 Key Feature Bullets */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
-                    {promoSlides[activeSlide].highlights.map((h, i) => (
-                      <div
-                        key={i}
-                        className={`p-2.5 rounded-2xl border text-xs font-medium flex items-center gap-2 shadow-xs ${
-                          isLight ? 'bg-amber-50/80 border-amber-200 text-slate-800' : 'bg-slate-800/80 border-slate-700/80 text-slate-200'
-                        }`}
-                      >
-                        <span className="truncate">{h}</span>
+                        {/* 3 Key Feature Bullets */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
+                          {curSlide.highlights.map((h, i) => (
+                            <div
+                              key={i}
+                              className={`p-2.5 rounded-2xl border text-xs font-medium flex items-center gap-2 shadow-xs ${
+                                isLight ? 'bg-amber-50/80 border-amber-200 text-slate-800' : 'bg-slate-800/80 border-slate-700/80 text-slate-200'
+                              }`}
+                            >
+                              <span className="truncate">{h}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Slide Controls & Progress Dots */}

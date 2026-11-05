@@ -24,10 +24,46 @@ import {
   EyeOff
 } from 'lucide-react';
 import { db } from '../db';
-import type { StoreSettings, UserAccount, CustomerScreenTheme } from '../types';
+import type { StoreSettings, UserAccount, CustomerScreenTheme, CustomerSlideItem } from '../types';
 import { AuthService } from '../services/auth';
 import { ImageOptimizer } from '../services/imageOptimizer';
 import { CloudSync } from '../services/cloudSync';
+
+const DEFAULT_PROMO_SLIDES: CustomerSlideItem[] = [
+  {
+    id: 'heritage',
+    tag: 'HERITAGE BOUTIQUE • ผสานอัตลักษณ์เมืองโคราช',
+    badgeColor: 'AMBER',
+    title: 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
+    subtitle: 'ผสานศิลปวัฒนธรรมเรือนโคราชเฉลิมวัฒนา และแฟชั่นอัตลักษณ์แมวสีสวาด',
+    description: 'งานหัตถศิลป์ทรงคุณค่า เอกลักษณ์เมืองนครราชสีมา เสื้อยืดพรีเมียมลิมิเต็ด ลายฉลุทองคำประณีต สกรีน DTF & Flex นูนเมทัลลิกชั้นสูง',
+    highlight1: '✨ สกรีน DTF สีสวาดทองคำ ลิขสิทธิ์แท้',
+    highlight2: '🏛️ มนต์เสน่ห์ศิลปวัฒนธรรมเรือนโคราชเฉลิมวัฒนา',
+    highlight3: '🧵 เส้นใย Premium Comb Cotton 100% สวมใส่สบาย'
+  },
+  {
+    id: 'mix_match',
+    tag: 'SPECIAL PRIVILEGE • เซ็ตสุดคุ้ม',
+    badgeColor: 'EMERALD',
+    title: 'โปรโมชั่นพิเศษ "Mix & Match 3 ชิ้น ฿1,000"',
+    subtitle: 'จับคู่ความคุ้มค่า ซื้อเสื้อยืดหรือของที่ระลึก 3 ชิ้น ประหยัดทันที 170 บาท',
+    description: 'สามารถเลือกคละสี คละไซส์ (S, M, L, XL, 2XL) และคละลายพิมพ์ฉลุได้ตามใจชอบ ระบบจะคำนวณราคาโปรโมชั่นให้อัตโนมัติที่หน้าเคาน์เตอร์',
+    highlight1: '🏷️ คละสี คละไซส์ คละลายพิมพ์ได้อิสระ',
+    highlight2: '⚡ ระบบคำนวณส่วนลดให้อัตโนมัติบนหน้าจอ',
+    highlight3: '🎁 เหมาะสำหรับเป็นของขวัญและของฝากพรีเมียม'
+  },
+  {
+    id: 'custom_made',
+    tag: 'HAUTE COUTURE SERVICES • งานสั่งตัด',
+    badgeColor: 'PURPLE',
+    title: 'บริการสั่งตัดเย็บ & สกรีนสั่งผลิตพิเศษ',
+    subtitle: 'รับทำเสื้อทีม ลายปักประณีต และของที่ระลึกองค์กร วางมัดจำเพียง 50%',
+    description: 'สร้างสรรค์ชิ้นงานเฉพาะบุคคลโดยกลุ่มวิสาหกิจชุมชนหัตถศิลป์โคราช พร้อมออกใบสั่งผลิตดิจิทัลและนัดรับสินค้าได้ที่หน้าร้าน',
+    highlight1: '✂️ งานปักตราสัญลักษณ์ และงานสกรีนตามแบบเฉพาะคุณ',
+    highlight2: '📜 ใบสั่งผลิตและใบรับมัดจำดิจิทัลพร้อมกำหนดวันนัดรับ',
+    highlight3: '🏪 นัดรับสินค้าได้ที่หน้าร้านเรือนโคราช หรือจัดส่งถึงบ้าน'
+  }
+];
 
 interface SettingsPageProps {
   currentUser: UserAccount;
@@ -43,6 +79,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [ownerName, setOwnerName] = useState('');
   const [ownerPin, setOwnerPin] = useState('');
   const [showOwnerPin, setShowOwnerPin] = useState(false);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
   // New Staff Modal
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -136,6 +173,78 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       setSettings(prev => prev ? { ...prev, welcomeImageUrl: base64 } : prev);
     } catch {
       alert('ไม่สามารถประมวลผลไฟล์รูปภาพได้');
+    }
+  };
+
+  // Upload Slide Poster / Image from local file
+  const handleSlideImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !settings) return;
+    try {
+      const base64 = await ImageOptimizer.resizeAndCompress(file, 600, 600, 0.88);
+      const currentSlides = settings.customSlides && settings.customSlides.length > 0 
+        ? [...settings.customSlides] 
+        : [...DEFAULT_PROMO_SLIDES];
+      if (currentSlides[index]) {
+        currentSlides[index] = { ...currentSlides[index], imageUrl: base64 };
+        setSettings({ ...settings, customSlides: currentSlides });
+      }
+    } catch {
+      alert('ไม่สามารถประมวลผลไฟล์รูปภาพได้');
+    }
+  };
+
+  const handleUpdateSlideField = (index: number, field: keyof CustomerSlideItem, value: any) => {
+    if (!settings) return;
+    const currentSlides = settings.customSlides && settings.customSlides.length > 0 
+      ? [...settings.customSlides] 
+      : [...DEFAULT_PROMO_SLIDES];
+    if (currentSlides[index]) {
+      currentSlides[index] = { ...currentSlides[index], [field]: value };
+      setSettings({ ...settings, customSlides: currentSlides });
+    }
+  };
+
+  const handleAddSlide = () => {
+    if (!settings) return;
+    const currentSlides = settings.customSlides && settings.customSlides.length > 0 
+      ? [...settings.customSlides] 
+      : [...DEFAULT_PROMO_SLIDES];
+    const newSlide: CustomerSlideItem = {
+      id: `slide-${Date.now()}`,
+      tag: 'NEW PROMOTION • โปรโมชั่นใหม่',
+      badgeColor: 'AMBER',
+      title: 'โปรโมชั่นพิเศษต้อนรับลูกค้า',
+      subtitle: 'สิทธิพิเศษและข้อเสนอประจำสัปดาห์',
+      description: 'กรอกรายละเอียดข้อเสนอ หรือโปรโมชั่นของร้านเพื่อดึงดูดความสนใจของลูกค้าที่เคาน์เตอร์',
+      highlight1: '✨ ไฮไลต์จุดเด่นข้อที่ 1',
+      highlight2: '🏷️ ไฮไลต์จุดเด่นข้อที่ 2',
+      highlight3: '🎁 ไฮไลต์จุดเด่นข้อที่ 3'
+    };
+    const updated = [...currentSlides, newSlide];
+    setSettings({ ...settings, customSlides: updated });
+    setActiveSlideIndex(updated.length - 1);
+  };
+
+  const handleDeleteSlide = (index: number) => {
+    if (!settings) return;
+    const currentSlides = settings.customSlides && settings.customSlides.length > 0 
+      ? [...settings.customSlides] 
+      : [...DEFAULT_PROMO_SLIDES];
+    if (currentSlides.length <= 1) {
+      alert('ต้องมีสไลด์โฆษณาอย่างน้อย 1 สไลด์');
+      return;
+    }
+    const updated = currentSlides.filter((_, i) => i !== index);
+    setSettings({ ...settings, customSlides: updated });
+    setActiveSlideIndex(Math.max(0, index - 1));
+  };
+
+  const handleResetSlidesToDefault = () => {
+    if (!settings) return;
+    if (confirm('ต้องการรีเซ็ตสไลด์โฆษณาทั้งหมดกลับเป็นค่าเริ่มต้นอัตลักษณ์โคราช 3 สไลด์หรือไม่?')) {
+      setSettings({ ...settings, customSlides: [...DEFAULT_PROMO_SLIDES] });
+      setActiveSlideIndex(0);
     }
   };
 
@@ -673,6 +782,250 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 placeholder="เช่น ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา ขอให้มีความสุขในการสวมใส่"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
               />
+            </div>
+
+            {/* Custom Promo Slides Manager (แก้ไขข้อความ & ภาพสไลด์โชว์ที่วงกลมสีแดง) */}
+            <div className="md:col-span-2 pt-4 border-t border-slate-200 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="block font-black text-slate-800 text-sm flex items-center gap-1.5">
+                    <span>🎬 ปรับแต่งเนื้อหาและรูปภาพสไลด์โฆษณาบนจอที่ 2 (Screensaver & Promo Slides)</span>
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    แก้ไขข้อความหัวข้อ คำบรรยาย รูปภาพ และไฮไลต์ของแต่ละสไลด์ (ที่วนแสดงบนจอฝั่งลูกค้าขณะพักจอ)
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetSlidesToDefault}
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold flex items-center gap-1"
+                    title="คืนค่ากลับเป็นสไลด์อัตลักษณ์โคราช 3 สไลด์เริ่มต้น"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>คืนค่าเริ่มต้น</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddSlide}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>เพิ่มสไลด์ใหม่</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Slide Tabs Navigation */}
+              {(() => {
+                const slides = settings.customSlides && settings.customSlides.length > 0 
+                  ? settings.customSlides 
+                  : DEFAULT_PROMO_SLIDES;
+                const curSlide = slides[activeSlideIndex] || slides[0];
+
+                return (
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-4">
+                    {/* Tabs */}
+                    <div className="flex flex-wrap gap-1.5 pb-2 border-b border-slate-200">
+                      {slides.map((s, idx) => (
+                        <button
+                          key={s.id || idx}
+                          type="button"
+                          onClick={() => setActiveSlideIndex(idx)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                            activeSlideIndex === idx
+                              ? 'bg-amber-600 text-white shadow-sm'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>สไลด์ที่ {idx + 1}:</span>
+                          <span className="truncate max-w-[120px] font-normal">{s.title || `สไลด์ ${idx + 1}`}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Active Slide Form Fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Left: Image / Poster for this slide */}
+                      <div className="md:col-span-2 p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                        {curSlide.imageUrl ? (
+                          <div className="relative group flex-shrink-0">
+                            <img
+                              src={curSlide.imageUrl}
+                              alt="Slide Poster"
+                              className="w-24 h-24 rounded-xl object-contain border border-amber-300 bg-slate-900 p-1"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateSlideField(activeSlideIndex, 'imageUrl', '')}
+                              className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow"
+                              title="ลบภาพสไลด์นี้"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="w-24 h-24 rounded-xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center text-slate-400 text-center p-2 flex-shrink-0">
+                            <ImageIcon className="w-6 h-6 mb-1 text-slate-300" />
+                            <span className="text-[9px]">ใช้โลโก้ร้านแทน</span>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5 flex-1 w-full text-xs">
+                          <div className="font-bold text-slate-700">
+                            รูปภาพประกอบสไลด์ที่ {activeSlideIndex + 1} (แสดงในกรอบ BOUTIQUE DISPLAY ด้านซ้าย)
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5 shadow transition">
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>อัปโหลดภาพสำหรับสไลด์นี้ (PNG, JPG)</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={e => handleSlideImageUpload(activeSlideIndex, e)}
+                                className="hidden"
+                              />
+                            </label>
+                            {curSlide.imageUrl && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateSlideField(activeSlideIndex, 'imageUrl', '')}
+                                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold"
+                              >
+                                ใช้โลโก้เริ่มต้น
+                              </button>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            value={curSlide.imageUrl || ''}
+                            onChange={e => handleUpdateSlideField(activeSlideIndex, 'imageUrl', e.target.value)}
+                            placeholder="หรือวางลิงก์รูปภาพ เช่น https://..."
+                            className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Tag & Badge Color */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">
+                          ข้อความป้ายหัวเรื่อง (Tag Badge)
+                        </label>
+                        <input
+                          type="text"
+                          value={curSlide.tag}
+                          onChange={e => handleUpdateSlideField(activeSlideIndex, 'tag', e.target.value)}
+                          placeholder="เช่น HAUTE COUTURE SERVICES • งานสั่งตัด"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">
+                          สีป้ายหัวเรื่อง (Badge Color)
+                        </label>
+                        <select
+                          value={curSlide.badgeColor || 'AMBER'}
+                          onChange={e => handleUpdateSlideField(activeSlideIndex, 'badgeColor', e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-xs"
+                        >
+                          <option value="AMBER">🟡 ทองอำพัน (Amber Gold)</option>
+                          <option value="PURPLE">🟣 ม่วงหรูหรา (Haute Purple)</option>
+                          <option value="EMERALD">🟢 เขียวมรกต (Emerald Green)</option>
+                          <option value="SKY">🔵 ฟ้าสดใส (Sky Blue)</option>
+                          <option value="ROSE">🔴 ชมพูกุหลาบ (Rose Red)</option>
+                        </select>
+                      </div>
+
+                      {/* Title */}
+                      <div className="md:col-span-2">
+                        <label className="block font-bold text-slate-700 mb-1">
+                          หัวข้อหลักของสไลด์ (Slide Title)
+                        </label>
+                        <input
+                          type="text"
+                          value={curSlide.title}
+                          onChange={e => handleUpdateSlideField(activeSlideIndex, 'title', e.target.value)}
+                          placeholder="เช่น บริการสั่งตัดเย็บ & สกรีนสั่งผลิตพิเศษ"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-extrabold text-sm text-slate-900"
+                        />
+                      </div>
+
+                      {/* Subtitle */}
+                      <div className="md:col-span-2">
+                        <label className="block font-bold text-slate-700 mb-1">
+                          คำโปรยรอง (Subtitle)
+                        </label>
+                        <input
+                          type="text"
+                          value={curSlide.subtitle}
+                          onChange={e => handleUpdateSlideField(activeSlideIndex, 'subtitle', e.target.value)}
+                          placeholder="เช่น รับทำเสื้อทีม ลายปักประณีต และของที่ระลึกองค์กร วางมัดจำเพียง 50%"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-xs text-amber-900"
+                        />
+                      </div>
+
+                      {/* Description */}
+                      <div className="md:col-span-2">
+                        <label className="block font-bold text-slate-700 mb-1">
+                          คำอธิบายรายละเอียด (Description)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={curSlide.description}
+                          onChange={e => handleUpdateSlideField(activeSlideIndex, 'description', e.target.value)}
+                          placeholder="คำอธิบายเพิ่มเติมเกี่ยวกับสินค้าหรือบริการที่จะแสดงให้ลูกค้าอ่าน..."
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs"
+                        />
+                      </div>
+
+                      {/* 3 Highlights */}
+                      <div className="md:col-span-2 space-y-2">
+                        <label className="block font-bold text-slate-700">
+                          จุดเด่น 3 ข้อด้านล่าง (Highlights Pills)
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <input
+                            type="text"
+                            value={curSlide.highlight1 || ''}
+                            onChange={e => handleUpdateSlideField(activeSlideIndex, 'highlight1', e.target.value)}
+                            placeholder="เช่น ✂️ งานปักตราสัญลักษณ์"
+                            className="p-2 bg-white border border-slate-300 rounded-xl text-xs"
+                          />
+                          <input
+                            type="text"
+                            value={curSlide.highlight2 || ''}
+                            onChange={e => handleUpdateSlideField(activeSlideIndex, 'highlight2', e.target.value)}
+                            placeholder="เช่น 📜 ใบสั่งผลิตและใบรับมัดจำดิจิทัล"
+                            className="p-2 bg-white border border-slate-300 rounded-xl text-xs"
+                          />
+                          <input
+                            type="text"
+                            value={curSlide.highlight3 || ''}
+                            onChange={e => handleUpdateSlideField(activeSlideIndex, 'highlight3', e.target.value)}
+                            placeholder="เช่น 🏪 นัดรับสินค้าที่หน้าร้านเรือนโคราช"
+                            className="p-2 bg-white border border-slate-300 rounded-xl text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Delete Slide Button */}
+                      {slides.length > 1 && (
+                        <div className="md:col-span-2 pt-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSlide(activeSlideIndex)}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>ลบสไลด์นี้ออก</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
