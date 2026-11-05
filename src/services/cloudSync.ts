@@ -514,7 +514,6 @@ class CloudSyncService {
         message: `ส่งข้อมูลขึ้น Cloud สำเร็จสมบูรณ์! (สินค้า: ${variantsSyncedCount}, บิล: ${localOrders.length}, กะ: ${localShifts.length}, สั่งผลิต: ${localCustomOrders.length}, ภาพจอฝั่งลูกค้า: ${settingsSynced ? 'ซิงค์สำเร็จ' : 'บันทึกในเครื่อง'})` 
       };
     } catch (err: any) {
-    } catch (err: any) {
       return { success: false, message: `เกิดข้อผิดพลาดในการส่งข้อมูลขึ้น Cloud: ${err.message}` };
     }
   }
