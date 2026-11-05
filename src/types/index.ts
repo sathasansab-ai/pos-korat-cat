@@ -23,6 +23,7 @@ export interface CustomerSlideItem {
   highlight2?: string;
   highlight3?: string;
   badgeColor?: 'AMBER' | 'EMERALD' | 'SKY' | 'PURPLE' | 'ROSE';
+  layoutMode?: 'SPLIT' | 'FULL_IMAGE'; // 'SPLIT' = แบบข้อความ+รูป (ปัจจุบัน), 'FULL_IMAGE' = ภาพโปสเตอร์เต็มกรอบ
 }
 
 export interface StoreSettings {

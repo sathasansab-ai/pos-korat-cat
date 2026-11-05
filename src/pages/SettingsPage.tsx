@@ -846,6 +846,46 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                     {/* Active Slide Form Fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Layout Mode Selector (แบบที่ 1: ข้อความ+รูป VS แบบที่ 2: ภาพโปสเตอร์เต็มกรอบ) */}
+                      <div className="md:col-span-2 p-3 bg-amber-500/10 rounded-xl border border-amber-500/30">
+                        <label className="block font-black text-slate-800 text-xs mb-1.5 flex items-center gap-1.5">
+                          <span>🖼️ เลือกรูปแบบการแสดงผลของสไลด์ที่ {activeSlideIndex + 1}:</span>
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateSlideField(activeSlideIndex, 'layoutMode', 'SPLIT')}
+                            className={`p-3 rounded-xl border-2 text-left transition flex items-center gap-3 ${
+                              (curSlide.layoutMode || 'SPLIT') === 'SPLIT'
+                                ? 'bg-white border-amber-500 text-slate-900 shadow-sm font-bold ring-2 ring-amber-400'
+                                : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-white'
+                            }`}
+                          >
+                            <span className="text-xl">📝</span>
+                            <div>
+                              <div className="font-extrabold text-xs">แบบที่ 1: ข้อความ + ภาพ (แบบปัจจุบัน)</div>
+                              <div className="text-[10px] text-slate-500 font-normal">มีกล่องภาพด้านซ้าย พร้อมหัวข้อ คำบรรยาย และ 3 ไฮไลต์</div>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateSlideField(activeSlideIndex, 'layoutMode', 'FULL_IMAGE')}
+                            className={`p-3 rounded-xl border-2 text-left transition flex items-center gap-3 ${
+                              curSlide.layoutMode === 'FULL_IMAGE'
+                                ? 'bg-white border-amber-500 text-slate-900 shadow-sm font-bold ring-2 ring-amber-400'
+                                : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-white'
+                            }`}
+                          >
+                            <span className="text-xl">🖼️</span>
+                            <div>
+                              <div className="font-extrabold text-xs">แบบที่ 2: ภาพโปสเตอร์เต็มกรอบ 100%</div>
+                              <div className="text-[10px] text-slate-500 font-normal">แสดงรูปภาพแบนเนอร์/โปสเตอร์เต็มพื้นที่ ไม่มีข้อความมาบดบัง</div>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Left: Image / Poster for this slide */}
                       <div className="md:col-span-2 p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                         {curSlide.imageUrl ? (
@@ -873,12 +913,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                         <div className="space-y-1.5 flex-1 w-full text-xs">
                           <div className="font-bold text-slate-700">
-                            รูปภาพประกอบสไลด์ที่ {activeSlideIndex + 1} (แสดงในกรอบ BOUTIQUE DISPLAY ด้านซ้าย)
+                            {curSlide.layoutMode === 'FULL_IMAGE'
+                              ? `🖼️ รูปภาพโปสเตอร์/แบนเนอร์ของสไลด์ที่ ${activeSlideIndex + 1} (จะแสดงแบบเต็มกรอบ 100% บนจอที่ 2)`
+                              : `รูปภาพประกอบสไลด์ที่ ${activeSlideIndex + 1} (แสดงในกรอบ BOUTIQUE DISPLAY ด้านซ้าย)`}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             <label className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5 shadow transition">
                               <Upload className="w-3.5 h-3.5" />
-                              <span>อัปโหลดภาพสำหรับสไลด์นี้ (PNG, JPG)</span>
+                              <span>{curSlide.layoutMode === 'FULL_IMAGE' ? 'อัปโหลดภาพโปสเตอร์เต็มกรอบ (PNG, JPG)' : 'อัปโหลดภาพสำหรับสไลด์นี้ (PNG, JPG)'}</span>
                               <input
                                 type="file"
                                 accept="image/*"
@@ -905,6 +947,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           />
                         </div>
                       </div>
+
+                      {curSlide.layoutMode === 'FULL_IMAGE' && (
+                        <div className="md:col-span-2 p-3 bg-sky-50 rounded-xl border border-sky-200 text-sky-900 text-xs flex items-center gap-2">
+                          <span>💡</span>
+                          <span>
+                            <b>โหมดภาพโปสเตอร์เต็มกรอบ 100%:</b> ระบบจะดึงรูปภาพด้านบนไปขยายแสดงเต็มกรอบสวยงามบนจอที่ 2 โดยไม่ต้องมีกรอบข้อความมาบดบัง
+                          </span>
+                        </div>
+                      )}
 
                       {/* Tag & Badge Color */}
                       <div>

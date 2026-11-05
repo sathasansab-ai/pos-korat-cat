@@ -132,9 +132,10 @@ export const CustomerFacingPage: React.FC = () => {
         description: cs.description,
         highlights: [cs.highlight1, cs.highlight2, cs.highlight3].filter(Boolean) as string[],
         imageUrl: cs.imageUrl,
+        layoutMode: cs.layoutMode || 'SPLIT',
         icon: <Sparkles className="w-8 h-8 text-amber-400" />
       }))
-    : defaultPromoSlides;
+    : defaultPromoSlides.map(ds => ({ ...ds, layoutMode: 'SPLIT' as 'SPLIT' | 'FULL_IMAGE' }));
 
   // Auto-advance screensaver slides every 5.5s when cart is empty
   useEffect(() => {
@@ -432,12 +433,46 @@ export const CustomerFacingPage: React.FC = () => {
               <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
 
               {/* Slide Content */}
-              <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 min-h-[380px]">
+              <div className="relative z-10 min-h-[380px]">
                 {(() => {
                   const curSlide = promoSlides[activeSlide] || promoSlides[0];
                   if (!curSlide) return null;
+
+                  if (curSlide.layoutMode === 'FULL_IMAGE') {
+                    /* MODE 2: แบบที่ 2 - ภาพสไลด์โปสเตอร์อย่างเดียว เต็มกรอบ 100% */
+                    return (
+                      <div className="w-full flex flex-col items-center justify-center min-h-[380px] sm:min-h-[440px]">
+                        {curSlide.imageUrl ? (
+                          <div className="w-full h-[380px] sm:h-[460px] rounded-2xl overflow-hidden flex items-center justify-center bg-black/40 border border-amber-500/30 shadow-2xl relative group">
+                            <img
+                              src={curSlide.imageUrl}
+                              alt={curSlide.title || 'Poster'}
+                              className="w-full h-full object-contain drop-shadow-2xl"
+                            />
+                            {/* Subtle Tag Overlay in top-left */}
+                            {curSlide.tag && (
+                              <div className="absolute top-4 left-4 px-3.5 py-1 bg-slate-950/80 backdrop-blur-md rounded-full text-[11px] font-mono font-bold text-amber-300 border border-amber-500/40 shadow-lg">
+                                {curSlide.tag}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-full h-[360px] sm:h-[420px] rounded-2xl border-2 border-dashed border-amber-500/40 flex flex-col items-center justify-center text-center p-6 bg-slate-900/40">
+                            <ImageIcon className="w-16 h-16 text-amber-400/60 mb-3" />
+                            <h3 className="font-bold text-lg text-white">โหมดภาพสไลด์เต็มกรอบ (Full Poster Mode)</h3>
+                            <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                              สไลด์นี้ถูกตั้งค่าเป็นแบบ "ภาพเต็มกรอบ" แต่ยังไม่ได้อัปโหลดภาพ<br />
+                              กรุณาไปที่เมนู <b>ตั้งค่า &gt; จอภาพฝั่งลูกค้า</b> เพื่ออัปโหลดไฟล์ภาพโปสเตอร์
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  /* MODE 1: แบบที่ 1 - แบบปัจจุบัน (ข้อความ + กรอบภาพด้านซ้าย) */
                   return (
-                    <>
+                    <div className="flex flex-col md:flex-row items-center gap-8 min-h-[380px]">
                       {/* Visual Art / Logo Container */}
                       <div className="flex-shrink-0 flex flex-col items-center justify-center">
                         <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-gradient-to-br from-amber-500/20 via-amber-600/10 to-transparent border-2 border-amber-400/40 p-4 flex items-center justify-center shadow-2xl relative group">
@@ -506,7 +541,7 @@ export const CustomerFacingPage: React.FC = () => {
                           ))}
                         </div>
                       </div>
-                    </>
+                    </div>
                   );
                 })()}
               </div>
