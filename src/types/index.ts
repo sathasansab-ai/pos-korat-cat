@@ -71,6 +71,11 @@ export interface StoreSettings {
   lastResetTimestamp?: string;
   lastResetScope?: string[];
   updatedAt?: string;
+
+  // Cloud Sync for Staff Accounts & Owner Admin PIN
+  ownerName?: string;
+  ownerPin?: string;
+  staffAccounts?: UserAccount[];
 }
 
 export interface Product {

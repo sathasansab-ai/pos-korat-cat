@@ -44,6 +44,12 @@ export function App() {
   useEffect(() => {
     const init = async () => {
       await seedInitialData();
+
+      // ดึงการตั้งค่าล่าสุดรวมถึงรหัส PIN แอดมินและพนักงานจาก Cloud ก่อนแสดงหน้าจอ Login
+      if (navigator.onLine) {
+        await CloudSync.pullStoreSettings().catch(() => {});
+      }
+
       const settings = await db.settings.get('current_store_settings');
       if (settings) setStoreSettings(settings);
 

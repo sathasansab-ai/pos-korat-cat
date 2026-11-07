@@ -928,6 +928,22 @@ class CloudSyncService {
           }
         }
 
+        // ซิงค์รหัส PIN แอดมินและบัญชีพนักงานลงฐานข้อมูล IndexedDB ในเครื่องนี้อัตโนมัติ
+        if (cloudSettings.ownerPin) {
+          const owner = await db.users.where({ role: 'OWNER' }).first();
+          if (owner) {
+            await db.users.update(owner.id, { 
+              pin: cloudSettings.ownerPin,
+              name: cloudSettings.ownerName || owner.name
+            });
+          }
+        }
+        if (cloudSettings.staffAccounts && cloudSettings.staffAccounts.length > 0) {
+          for (const s of cloudSettings.staffAccounts) {
+            await db.users.put(s);
+          }
+        }
+
         await db.settings.put(cloudSettings);
         return cloudSettings;
       }

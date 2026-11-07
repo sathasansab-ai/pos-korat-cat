@@ -114,22 +114,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
             <div>
               <div className="font-extrabold text-sm tracking-wide flex items-center gap-1.5 uppercase">
-                <span className="text-white">{settings?.storeName || 'KORAT CAT x เรือนโคราช'}</span>
-                <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono font-bold">
+                <span className="text-white whitespace-nowrap">{settings?.storeName || 'KORAT CAT x เรือนโคราช'}</span>
+                <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono font-bold hidden sm:inline">
                   BOUTIQUE
                 </span>
               </div>
-              <p className="text-[10px] text-amber-400/80 font-sans truncate max-w-[280px]">
+              <p className="text-[10px] text-amber-400/80 font-sans truncate max-w-[200px] xl:max-w-[280px] hidden md:block">
                 {settings?.subTitle || 'ผสานศิลปวัฒนธรรมเรือนโคราชเฉลิมวัฒนา'}
               </p>
             </div>
           </div>
 
-          {/* Navigation Menus */}
-          <nav className="flex items-center space-x-1">
+          {/* Navigation Menus (Auto scrollable on small laptops) */}
+          <nav className="flex items-center space-x-1 overflow-x-auto no-scrollbar py-0.5">
             <button
               onClick={() => onSelectTab('pos')}
-              className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+              className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition flex-shrink-0 ${
                 activeTab === 'pos' 
                   ? 'bg-amber-600 text-white shadow' 
                   : 'text-slate-300 hover:bg-slate-800'
@@ -141,7 +141,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => onSelectTab('shift')}
-              className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+              className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition flex-shrink-0 ${
                 activeTab === 'shift' 
                   ? 'bg-amber-600 text-white shadow' 
                   : 'text-slate-300 hover:bg-slate-800'
@@ -157,7 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <>
                 <button
                   onClick={() => onSelectTab('inventory')}
-                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition flex-shrink-0 ${
                     activeTab === 'inventory' 
                       ? 'bg-amber-600 text-white shadow' 
                       : 'text-slate-300 hover:bg-slate-800'
@@ -169,7 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => onSelectTab('promotions')}
-                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition flex-shrink-0 ${
                     activeTab === 'promotions' 
                       ? 'bg-amber-600 text-white shadow' 
                       : 'text-slate-300 hover:bg-slate-800'
@@ -181,19 +181,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => onSelectTab('members')}
-                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition flex-shrink-0 ${
                     activeTab === 'members' 
                       ? 'bg-amber-600 text-white shadow' 
                       : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
                   <Users className="w-4 h-4 text-amber-300" />
-                  <span>จัดการสมาชิก & บัตร</span>
+                  <span>จัดการสมาชิก</span>
                 </button>
 
                 <button
                   onClick={() => onSelectTab('reports')}
-                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition flex-shrink-0 ${
                     activeTab === 'reports' 
                       ? 'bg-amber-600 text-white shadow' 
                       : 'text-slate-300 hover:bg-slate-800'
@@ -205,7 +205,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => onSelectTab('sheets')}
-                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition flex-shrink-0 ${
                     activeTab === 'sheets' 
                       ? 'bg-amber-600 text-white shadow' 
                       : 'text-slate-300 hover:bg-slate-800'
@@ -217,14 +217,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => onSelectTab('settings')}
-                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition flex-shrink-0 ${
                     activeTab === 'settings' 
                       ? 'bg-amber-600 text-white shadow' 
                       : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
                   <Settings className="w-4 h-4 text-amber-400" />
-                  <span>ตั้งค่าร้าน & พนักงาน</span>
+                  <span>ตั้งค่าร้าน</span>
                 </button>
               </>
             ) : (

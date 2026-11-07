@@ -373,9 +373,9 @@ export const InventoryPage: React.FC = () => {
   });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Boxes className="w-6 h-6 text-amber-500" />
@@ -386,11 +386,11 @@ export const InventoryPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setIsProductionModalOpen(true)}
-            className="px-4 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition"
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0"
             title="ตรวจดูรายการสั่งผลิตพิเศษ เสื้อสกรีน/มัดจำ 50% สำหรับคลังและช่างผลิต"
           >
             <Scissors className="w-4 h-4 text-purple-200" />
@@ -400,7 +400,7 @@ export const InventoryPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsTransferModalOpen(true)}
-            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition"
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0"
             title="โอนย้ายสต็อกระหว่างโกดัง/โรงงานผลิต เข้าหน้าร้าน"
           >
             <Truck className="w-4 h-4 text-emerald-200" />
@@ -417,7 +417,7 @@ export const InventoryPage: React.FC = () => {
               resetSingleForm();
               setIsSingleModalOpen(true);
             }}
-            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow transition"
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow transition flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>+ เพิ่มสินค้า (แยกสต็อกตามไซส์)</span>
@@ -425,7 +425,7 @@ export const InventoryPage: React.FC = () => {
 
           <button
             onClick={() => setIsMatrixModalOpen(true)}
-            className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition"
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0"
           >
             <Sparkles className="w-4 h-4" />
             <span>+ สร้าง Matrix Variants (DTF/Flex)</span>

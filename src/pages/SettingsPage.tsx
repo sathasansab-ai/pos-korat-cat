@@ -323,21 +323,29 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     e.preventDefault();
     if (!settings) return;
 
-    const newSettings: StoreSettings = { ...settings, updatedAt: new Date().toISOString() };
-    await persistAndBroadcastSettings(newSettings);
-
     // Update Owner Name and PIN
     const owner = users.find(x => x.role === 'OWNER');
     if (owner) {
       await db.users.update(owner.id, {
-        name: ownerName,
-        pin: ownerPin
+        name: ownerName.trim(),
+        pin: ownerPin.trim()
       });
       // Update session if current user is owner
       if (currentUser.role === 'OWNER') {
-        AuthService.setCurrentUser({ ...currentUser, name: ownerName, pin: ownerPin });
+        AuthService.setCurrentUser({ ...currentUser, name: ownerName.trim(), pin: ownerPin.trim() });
       }
     }
+
+    const allCurrentUsers = await db.users.toArray();
+    const newSettings: StoreSettings = { 
+      ...settings, 
+      ownerName: ownerName.trim(),
+      ownerPin: ownerPin.trim(),
+      staffAccounts: allCurrentUsers,
+      updatedAt: new Date().toISOString() 
+    };
+    await persistAndBroadcastSettings(newSettings);
+    CloudSync.pushStoreSettings(newSettings).catch(() => {});
 
     setSaveSuccess(true);
     // Auto-scroll smoothly to top so user sees the top view
@@ -366,6 +374,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     };
 
     await db.users.add(newStaff);
+    const updatedUsers = await db.users.toArray();
+    if (settings) {
+      const updatedSettings: StoreSettings = { 
+        ...settings, 
+        staffAccounts: updatedUsers, 
+        updatedAt: new Date().toISOString() 
+      };
+      await persistAndBroadcastSettings(updatedSettings);
+      CloudSync.pushStoreSettings(updatedSettings).catch(() => {});
+    }
     setNewStaffName('');
     setNewStaffPin('');
     setIsStaffModalOpen(false);
@@ -375,6 +393,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const handleDeleteStaff = async (id: string) => {
     if (confirm('คุณแน่ใจว่าต้องการลบพนักงานคนนี้?')) {
       await db.users.delete(id);
+      const updatedUsers = await db.users.toArray();
+      if (settings) {
+        const updatedSettings: StoreSettings = { 
+          ...settings, 
+          staffAccounts: updatedUsers, 
+          updatedAt: new Date().toISOString() 
+        };
+        await persistAndBroadcastSettings(updatedSettings);
+        CloudSync.pushStoreSettings(updatedSettings).catch(() => {});
+      }
       loadData();
     }
   };
@@ -508,7 +536,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   if (!settings) return null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8 pb-16 relative">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-8 pb-16 relative">
       {/* FLOATING SUCCESS TOAST (Always visible on screen when saved) */}
       {saveSuccess && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm border-2 border-emerald-400 animate-in slide-in-from-top duration-300">

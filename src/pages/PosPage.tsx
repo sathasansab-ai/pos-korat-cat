@@ -1266,8 +1266,8 @@ export const PosPage: React.FC<PosPageProps> = ({
         )}
       </div>
 
-      {/* RIGHT: Cart, Member Selector, Calculations & Payments (40%) */}
-      <div className="w-[440px] bg-white flex flex-col shadow-xl">
+      {/* RIGHT: Cart, Member Selector, Calculations & Payments (Responsive width for laptops & desktops) */}
+      <div className="w-[360px] xl:w-[420px] 2xl:w-[460px] flex-shrink-0 bg-white flex flex-col shadow-xl">
         {/* Customer & Member Live Dropdown Selector */}
         <div className="p-3 bg-slate-50 border-b border-slate-200 relative">
           {selectedCustomer ? (
