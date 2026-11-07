@@ -140,6 +140,14 @@ class CloudSyncService {
           await db.transfers.clear();
         } else {
           for (const ct of cloudTransfers) {
+            const localMatch = await db.transfers.where('transferNo').equals(ct.transfer_no).first()
+              || await db.transfers.get(ct.id);
+
+            // หากเครื่องนี้เคยกดตรวจรับเสร็จสมบูรณ์แล้ว (COMPLETED) อย่าให้ Cloud ย้อนสถานะกลับมาเป็น PENDING_RECEIPT
+            const finalStatus = (localMatch && localMatch.status === 'COMPLETED') ? 'COMPLETED' : ct.status;
+            const finalReceiver = (localMatch && localMatch.receiverName) || ct.receiver_name;
+            const finalReceivedAt = (localMatch && localMatch.receivedAt) || ct.received_at;
+
             const localTransfer: StockTransfer = {
               id: ct.id,
               transferNo: ct.transfer_no,
@@ -149,12 +157,26 @@ class CloudSyncService {
               items: ct.items || [],
               totalQty: Number(ct.total_qty || 0),
               senderName: ct.sender_name,
-              receiverName: ct.receiver_name,
-              receivedAt: ct.received_at,
-              status: ct.status,
+              receiverName: finalReceiver,
+              receivedAt: finalReceivedAt,
+              status: finalStatus,
               notes: ct.notes
             };
+
+            // ลบรายการซ้ำที่ transferNo เดียวกันแต่คนละ id
+            const duplicates = await db.transfers.where('transferNo').equals(ct.transfer_no).toArray();
+            for (const d of duplicates) {
+              if (d.id !== ct.id) {
+                await db.transfers.delete(d.id);
+              }
+            }
+
             await db.transfers.put(localTransfer);
+
+            // หากสถานะ local เป็น COMPLETED แต่บน Cloud ยังเป็น PENDING_RECEIPT ให้อัปเดต Cloud ทันที
+            if (localMatch && localMatch.status === 'COMPLETED' && ct.status !== 'COMPLETED') {
+              this.pushTransfer(localTransfer).catch(() => {});
+            }
           }
         }
       }
@@ -683,8 +705,8 @@ class CloudSyncService {
         body: JSON.stringify([payload])
       });
 
-      // 2. หากไม่สำเร็จ ให้ PATCH ตาม id หรือ transfer_no โดยตรง (ตัด id ออกเพื่อไม่ให้ชน immutable PK)
-      if (!res.ok) {
+      // 2. หากไม่สำเร็จ หรือสถานะเป็น COMPLETED ให้ PATCH ตาม transfer_no โดยตรงทันทีเพื่อรับประกันการอัปเดตสถานะข้ามเครื่อง
+      if (!res.ok || transfer.status === 'COMPLETED') {
         const { id, ...updateFields } = payload;
         await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?transfer_no=eq.${encodeURIComponent(payload.transfer_no)}`, {
           method: 'PATCH',
