@@ -985,14 +985,6 @@ export const PosPage: React.FC<PosPageProps> = ({
             </button>
           </div>
         </form>
-              <>
-                <EyeOff className="w-4 h-4 text-slate-500" />
-                <span className="hidden sm:inline">ซ่อนตารางสินค้า</span>
-                <span className="sm:hidden">ซ่อน</span>
-              </>
-            )}
-          </button>
-        </form>
 
         {/* Stock Warning Toast Notification */}
         {stockNotice && (
