@@ -319,7 +319,7 @@ class CloudSyncService {
           // ป้องกัน SKU ซ้ำกันเองใน Batch
           let finalSku = rawSku;
           if (seenSkus.has(skuKey)) {
-            finalSku = `${rawSku}-${Date.now().toString().slice(-4)}`;
+            finalSku = `${rawSku}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 5)}`;
             skuKey = finalSku.toLowerCase();
           }
           if (finalSku) seenSkus.add(skuKey);
@@ -329,7 +329,7 @@ class CloudSyncService {
             product_id: v.productId ? String(v.productId) : null,
             product_name: String(v.productName || ''),
             category: String(v.category || 'สินค้าทั่วไป'),
-            sku: finalSku || `SKU-${Date.now().toString().slice(-6)}`,
+            sku: finalSku || `SKU-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             barcode: String(v.barcode || ''),
             attributes: v.attributes || {},
             cost_price: Number(v.costPrice || 0),
@@ -353,9 +353,9 @@ class CloudSyncService {
         if (vRes.ok) {
           variantsSyncedCount = payload.length;
         } else {
-          // หากติดปัญหา Batch ให้ลองส่งแบบรายตัว และดักจับ 409 เพื่อ Patch ตาม SKU
+          // หากติดปัญหา Batch หรือ 409 variants_sku_key ให้ส่งแบบรายตัวและ PATCH ตาม SKU
           const errText = await vRes.text();
-          console.warn(`Bulk variants notice (${vRes.status}): ${errText}. Syncing individually...`);
+          console.warn(`Bulk variants notice (${vRes.status}): ${errText}. Syncing individually with SKU resolution...`);
           for (const item of payload) {
             try {
               const singleRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?on_conflict=id`, {
@@ -366,11 +366,12 @@ class CloudSyncService {
               if (singleRes.ok) {
                 variantsSyncedCount++;
               } else if (singleRes.status === 409 && item.sku) {
-                // หากติด Unique Constraint SKU ให้ Patch อัปเดตรายการเดิมบน Cloud
+                // หากติด Unique Constraint SKU ให้แยก id ออกแล้ว PATCH รายการเดิมบน Cloud ตาม SKU
+                const { id: _unusedId, ...patchFields } = item;
                 const patchRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?sku=eq.${encodeURIComponent(item.sku)}`, {
                   method: 'PATCH',
                   headers: this.getHeaders(),
-                  body: JSON.stringify(item)
+                  body: JSON.stringify(patchFields)
                 });
                 if (patchRes.ok) variantsSyncedCount++;
               }
@@ -573,11 +574,20 @@ class CloudSyncService {
       if (tRes.ok) {
         const cloudTransfers: any[] = await tRes.json();
         if (cloudTransfers.length === 0) {
-          await db.transfers.clear();
           return;
         }
 
         for (const ct of cloudTransfers) {
+          // ตรวจสอบกับข้อมูลในเครื่องก่อน หากในเครื่องสถานะเป็น COMPLETED แล้ว (รับของแล้ว)
+          // แต่ Cloud ยังส่ง PENDING_RECEIPT มา ให้คง COMPLETED ไว้ และดันอัปเดตกลับขึ้น Cloud
+          const localMatch = await db.transfers.where('transferNo').equals(ct.transfer_no).first() 
+            || await db.transfers.get(ct.id);
+
+          if (localMatch && localMatch.status === 'COMPLETED' && ct.status === 'PENDING_RECEIPT') {
+            this.pushTransfer(localMatch).catch(() => {});
+            continue;
+          }
+
           const localTransfer: StockTransfer = {
             id: ct.id,
             transferNo: ct.transfer_no,
@@ -666,22 +676,25 @@ class CloudSyncService {
         notes: transfer.notes ?? null
       };
 
-      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?on_conflict=transfer_no`, {
+      // 1. ลอง Upsert ด้วย id ก่อน (Primary Key ในตาราง Supabase)
+      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify([payload])
       });
 
-      // Fallback: หากติดปัญหา Conflict หรือ status update ให้ Patch ตาม transfer_no โดยตรง
-      if (!res.ok && payload.transfer_no) {
+      // 2. หากไม่สำเร็จ ให้ PATCH ตาม id หรือ transfer_no โดยตรง (ตัด id ออกเพื่อไม่ให้ชน immutable PK)
+      if (!res.ok) {
+        const { id, ...updateFields } = payload;
         await fetch(`${SUPABASE_CONFIG.url}/rest/v1/stock_transfers?transfer_no=eq.${encodeURIComponent(payload.transfer_no)}`, {
           method: 'PATCH',
           headers: this.getHeaders(),
-          body: JSON.stringify(payload)
+          body: JSON.stringify(updateFields)
         });
       }
     } catch (e) {
       console.warn('Failed to push transfer to cloud', e);
+    }
     }
   }
 

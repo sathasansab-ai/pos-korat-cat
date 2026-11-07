@@ -50,6 +50,7 @@ import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 import { DigitalPassModal } from '../components/DigitalPassModal';
 import { CustomOrderModal } from '../components/CustomOrderModal';
 import { CloudSync } from '../services/cloudSync';
+import { BarcodeScannerHelper } from '../services/barcodeScannerHelper';
 
 interface PosPageProps {
   currentUser: UserAccount;
@@ -208,7 +209,8 @@ export const PosPage: React.FC<PosPageProps> = ({
   }, [searchTerm]);
 
   // Global Barcode Scanner Listener:
-  // Catches rapid scanner keystrokes (< 55ms) even if focus was outside the input field
+  // Catches rapid scanner keystrokes (< 90ms) even if focus was outside the input field
+  // Automatically decodes Thai keyboard input (e.g. "คคถจๅจจๅ" -> "88501001")
   useEffect(() => {
     let scanBuffer = '';
     let lastKeyTime = Date.now();
@@ -231,39 +233,30 @@ export const PosPage: React.FC<PosPageProps> = ({
           const scanned = scanBuffer.trim();
           scanBuffer = '';
 
-          // 1. Check member
-          const memberMatch = await db.customers
-            .filter(c => (c.memberCode && c.memberCode.toLowerCase() === scanned.toLowerCase()) || c.phone === scanned)
-            .first();
+          const result = await BarcodeScannerHelper.findMatch(scanned);
 
-          if (memberMatch) {
-            setSelectedCustomer(memberMatch);
+          if (result.type === 'MEMBER' && result.customer) {
+            setSelectedCustomer(result.customer);
             SoundEffects.playSuccess();
             return;
           }
 
-          // 2. Check product variant
-          const matched = await db.variants
-            .filter(v => v.isActive !== false && (
-              v.barcode === scanned || 
-              v.sku.toLowerCase() === scanned.toLowerCase()
-            ))
-            .first();
-
-          if (matched) {
-            addToCart(matched);
-          } else {
-            SoundEffects.playWarning();
-            setStockNotice(`ไม่พบสินค้าสำหรับรหัส: "${scanned}"`);
-            setTimeout(() => setStockNotice(null), 3500);
+          if (result.type === 'PRODUCT' && result.variant) {
+            addToCart(result.variant);
+            return;
           }
+
+          SoundEffects.playWarning();
+          const thaiHint = result.resolvedCode !== scanned ? `(แปลงจากแป้นไทย: ${result.resolvedCode})` : '';
+          setStockNotice(`ไม่พบสินค้าสำหรับรหัส: "${scanned}" ${thaiHint}`);
+          setTimeout(() => setStockNotice(null), 3500);
         }
         scanBuffer = '';
         return;
       }
 
-      // If interval is longer than 60ms, it's slow manual human typing, discard buffer
-      if (now - lastKeyTime > 60) {
+      // If interval is longer than 90ms, it's slow manual human typing, discard buffer
+      if (now - lastKeyTime > 90) {
         scanBuffer = '';
       }
 
@@ -282,37 +275,32 @@ export const PosPage: React.FC<PosPageProps> = ({
     const raw = searchTerm.trim();
     if (!raw) return;
 
-    // 1. Check if the scanned barcode matches a Member Code (e.g. KCAT-9842 or Member Phone)
-    const memberMatch = await db.customers
-      .filter(c => (c.memberCode && c.memberCode.toLowerCase() === raw.toLowerCase()) || c.phone === raw)
-      .first();
+    // 1. Resolve match using BarcodeScannerHelper (handles both English and Thai keyboard layout)
+    const result = await BarcodeScannerHelper.findMatch(raw);
 
-    if (memberMatch) {
-      setSelectedCustomer(memberMatch);
+    if (result.type === 'MEMBER' && result.customer) {
+      setSelectedCustomer(result.customer);
       SoundEffects.playSuccess();
       setSearchTerm('');
       return;
     }
 
-    // 2. Otherwise, check for Product Barcode / SKU
-    const matched = await db.variants
-      .filter(v => v.isActive !== false && (
-        v.barcode === raw || 
-        v.sku.toLowerCase() === raw.toLowerCase()
-      ))
-      .first();
-
-    if (matched) {
-      addToCart(matched);
+    if (result.type === 'PRODUCT' && result.variant) {
+      addToCart(result.variant);
       setSearchTerm('');
-    } else if (searchResults.length === 1) {
+      return;
+    }
+
+    if (searchResults.length === 1) {
       addToCart(searchResults[0]);
       setSearchTerm('');
-    } else {
-      SoundEffects.playWarning();
-      setStockNotice(`ไม่พบสินค้าสำหรับรหัสหรือบาร์โค้ด: "${raw}"`);
-      setTimeout(() => setStockNotice(null), 3500);
+      return;
     }
+
+    SoundEffects.playWarning();
+    const thaiHint = result.resolvedCode !== raw ? ` (แปลงจากแป้นพิมพ์ไทย: "${result.resolvedCode}")` : '';
+    setStockNotice(`ไม่พบสินค้าสำหรับรหัสหรือบาร์โค้ด: "${raw}"${thaiHint}`);
+    setTimeout(() => setStockNotice(null), 3500);
   };
 
   const addToCart = async (variant: ProductVariant) => {
@@ -893,8 +881,16 @@ export const PosPage: React.FC<PosPageProps> = ({
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="ยิงบาร์โค้ดสินค้า / หรือยิงบัตรสมาชิก / พิมพ์ชื่อสินค้า หรือ SKU..."
               autoFocus
-              className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl border border-slate-300 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-sm"
+              className="w-full pl-11 pr-28 py-3 bg-white rounded-2xl border border-slate-300 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-sm"
             />
+            {/* Reassuring Barcode Status Indicator */}
+            <div 
+              title="ระบบตรวจจับบาร์โค้ดอัตโนมัติ สแกนได้ทันทีแม้อยู่ภาษาไทย (Auto TH/EN Keyboard Translation)"
+              className="absolute right-2.5 top-2.5 hidden sm:flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-800 rounded-xl text-[10px] font-bold border border-emerald-200 shadow-xs select-none"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>สแกนเนอร์พร้อม (Auto TH/EN)</span>
+            </div>
           </div>
           <button
             type="submit"

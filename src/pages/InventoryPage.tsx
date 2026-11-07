@@ -117,7 +117,20 @@ export const InventoryPage: React.FC = () => {
         await CloudSync.syncTransfersOnly().catch(() => {});
       }
       const allTransfers = await db.transfers.toArray();
-      const p = allTransfers.filter(t => t.status === 'PENDING_RECEIPT').length;
+      // รวบรวม transferNo ที่ได้รับการตรวจรับเสร็จสมบูรณ์แล้ว (COMPLETED)
+      const completedNos = new Set(
+        allTransfers.filter(t => t.status === 'COMPLETED').map(t => t.transferNo)
+      );
+      
+      // กวาดล้างรายการซ้ำที่ค้างสถานะ PENDING_RECEIPT ถ้า transferNo นั้นถูกตรวจรับไปแล้ว
+      for (const t of allTransfers) {
+        if (t.status === 'PENDING_RECEIPT' && completedNos.has(t.transferNo)) {
+          await db.transfers.update(t.id, { status: 'COMPLETED' });
+        }
+      }
+
+      // นับเฉพาะรายการที่ยังรอตรวจรับจริงเท่านั้น
+      const p = allTransfers.filter(t => t.status === 'PENDING_RECEIPT' && !completedNos.has(t.transferNo)).length;
       setPendingTransferCount(p);
     } catch {
       setPendingTransferCount(0);
