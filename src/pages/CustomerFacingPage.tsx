@@ -474,9 +474,9 @@ export const CustomerFacingPage: React.FC = () => {
                     /* MODE 2: แบบที่ 2 - ภาพสไลด์โปสเตอร์อย่างเดียว เต็มกรอบ 100% */
                     const posterImg = curSlide.imageUrl || settings?.welcomeImageUrl || (settings?.customSlides && settings.customSlides.find(s => s.imageUrl)?.imageUrl) || settings?.logoUrl;
                     return (
-                      <div className="w-full flex flex-col items-center justify-center min-h-[380px] sm:min-h-[460px] lg:min-h-[540px] xl:min-h-[620px]">
+                      <div className="w-full flex flex-col items-center justify-center min-h-[380px] sm:min-h-[440px]">
                         {posterImg ? (
-                          <div className="w-full h-[380px] sm:h-[460px] lg:h-[540px] xl:h-[620px] rounded-2xl overflow-hidden flex items-center justify-center bg-black/40 border border-amber-500/30 shadow-2xl relative group">
+                          <div className="w-full h-[380px] sm:h-[460px] rounded-2xl overflow-hidden flex items-center justify-center bg-black/40 border border-amber-500/30 shadow-2xl relative group">
                             <img
                               src={posterImg}
                               alt={curSlide.title || 'Poster'}
@@ -490,7 +490,7 @@ export const CustomerFacingPage: React.FC = () => {
                             )}
                           </div>
                         ) : (
-                          <div className="w-full h-[380px] sm:h-[460px] lg:h-[540px] xl:h-[620px] rounded-2xl border-2 border-dashed border-amber-500/40 flex flex-col items-center justify-center text-center p-6 bg-slate-900/40">
+                          <div className="w-full h-[360px] sm:h-[420px] rounded-2xl border-2 border-dashed border-amber-500/40 flex flex-col items-center justify-center text-center p-6 bg-slate-900/40">
                             <ImageIcon className="w-16 h-16 text-amber-400/60 mb-3" />
                             <h3 className="font-bold text-lg text-white">โหมดภาพสไลด์เต็มกรอบ (Full Poster Mode)</h3>
                             <p className="text-xs text-slate-400 mt-1 max-w-sm">

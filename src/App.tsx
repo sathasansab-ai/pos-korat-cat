@@ -125,7 +125,7 @@ export function App() {
         }}
       />
 
-      <main className="flex-1 min-h-0 overflow-auto flex flex-col">
+      <main className="flex-1 overflow-auto">
         {activeTab === 'pos' && (
           <PosPage
             currentUser={currentUser}

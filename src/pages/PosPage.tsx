@@ -867,7 +867,7 @@ export const PosPage: React.FC<PosPageProps> = ({
   };
 
   return (
-    <div className="flex flex-1 h-full min-h-0 overflow-hidden bg-slate-100">
+    <div className="flex h-[calc(100vh-61px)] overflow-hidden bg-slate-100">
       {/* LEFT: Product Catalog & Quick Keys (60%) */}
       <div className="flex-1 flex flex-col p-4 overflow-hidden border-r border-slate-200">
         {/* Omni Search & Barcode input (Split into 2 clean responsive rows) */}
