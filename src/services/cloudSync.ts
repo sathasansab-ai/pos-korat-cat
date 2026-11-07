@@ -695,7 +695,6 @@ class CloudSyncService {
     } catch (e) {
       console.warn('Failed to push transfer to cloud', e);
     }
-    }
   }
 
   /**
