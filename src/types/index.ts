@@ -76,6 +76,9 @@ export interface StoreSettings {
   ownerName?: string;
   ownerPin?: string;
   staffAccounts?: UserAccount[];
+
+  // Consignment Vendors (ผู้ประกอบการ/วิสาหกิจชุมชนที่นำสินค้ามาฝากขาย)
+  consignors?: ConsignmentVendor[];
 }
 
 export interface Product {
@@ -89,6 +92,38 @@ export interface Product {
 }
 
 export type BranchLocation = 'SHOP' | 'WAREHOUSE';
+
+export interface ConsignmentVendor {
+  id: string;
+  code: string; // เช่น VND-01, CSG-KORAT
+  name: string; // เช่น คุณกอ (กลุ่มหัตถกรรมเครื่องเคลือบดินเผาด่านเกวียน)
+  phone: string;
+  bankName?: string; // ธนาคาร
+  bankAccountNo?: string; // เลขที่บัญชี หรือเบอร์พร้อมเพย์
+  bankAccountName?: string; // ชื่อบัญชี
+  defaultGpPercent: number; // เปอร์เซ็นต์หักของร้านเริ่มต้น เช่น 20%
+  notes?: string;
+  createdAt: string;
+  isActive: boolean;
+}
+
+export interface ConsignmentSettlement {
+  id: string;
+  settlementNo: string; // เช่น STL-202611-001
+  vendorId: string;
+  vendorName: string;
+  periodStart: string;
+  periodEnd: string;
+  totalQtySold: number;
+  totalGrossSales: number;
+  totalStoreFee: number;
+  totalVendorPayout: number;
+  status: 'PENDING' | 'PAID';
+  paidAt?: string;
+  paymentMethod?: 'TRANSFER' | 'CASH';
+  paymentRef?: string;
+  notes?: string;
+}
 
 export interface ProductVariant {
   id: string;
@@ -107,6 +142,13 @@ export interface ProductVariant {
   imageUrl?: string;
   supplierName?: string;
   isActive: boolean;
+
+  // Consignment Fields (ระบบฝากขายสินค้าชุมชน)
+  isConsignment?: boolean;
+  vendorId?: string;
+  vendorName?: string;
+  gpPercent?: number; // เปอร์เซ็นต์ที่ร้านหัก เช่น 20 หมายถึง ร้านได้ 20% ผู้ฝากได้ 80%
+  vendorPayoutPrice?: number; // ยอดเงินคืนผู้ฝากต่อชิ้น (salePrice - (salePrice * gpPercent / 100))
 }
 
 export interface StockTransferItem {
@@ -181,6 +223,13 @@ export interface CartItem {
   costPrice: number;
   unitPrice: number;
   qty: number;
+
+  // Consignment Fields
+  isConsignment?: boolean;
+  vendorId?: string;
+  vendorName?: string;
+  gpPercent?: number;
+  vendorPayoutPrice?: number;
 }
 
 export interface Customer {
@@ -231,6 +280,14 @@ export interface Order {
     unitPrice: number;
     costPrice: number;
     lineTotal: number;
+
+    // Consignment Fields (บันทึกรายได้ของร้าน vs ยอดที่ต้องจ่ายคืนผู้ฝาก)
+    isConsignment?: boolean;
+    vendorId?: string;
+    vendorName?: string;
+    gpPercent?: number; // % GP หักร้าน เช่น 20%
+    storeRevenue?: number; // ยอดส่วนแบ่งที่ร้านได้รับ (lineTotal * gpPercent / 100)
+    vendorPayout?: number; // ยอดที่ต้องส่งมอบคืนผู้ประกอบการ (lineTotal - storeRevenue)
   }[];
   subtotal: number;
   promoDiscount: number;

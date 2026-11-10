@@ -18,7 +18,7 @@ import {
   Scissors
 } from 'lucide-react';
 import { db } from '../db';
-import type { ProductVariant, StoreSettings } from '../types';
+import type { ProductVariant, StoreSettings, ConsignmentVendor } from '../types';
 import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
 import { MatrixBuilder, type AttributeGroup } from '../services/matrixBuilder';
 import { BarcodePrintModal } from '../components/BarcodePrintModal';
@@ -90,6 +90,21 @@ export const InventoryPage: React.FC = () => {
   const [newSizeName, setNewSizeName] = useState('');
   const [singleFixedStock, setSingleFixedStock] = useState<number>(20);
 
+  // Consignment Vendors State
+  const [consignors, setConsignors] = useState<ConsignmentVendor[]>([]);
+  const [isConsignment, setIsConsignment] = useState(false);
+  const [selectedVendorId, setSelectedVendorId] = useState('');
+  const [consignmentGpPercent, setConsignmentGpPercent] = useState<number>(20);
+  const [consignmentVendorPayout, setConsignmentVendorPayout] = useState<number>(312);
+  const [isAddVendorOpen, setIsAddVendorOpen] = useState(false);
+  const [newVendorName, setNewVendorName] = useState('');
+  const [newVendorCode, setNewVendorCode] = useState('');
+  const [newVendorPhone, setNewVendorPhone] = useState('');
+  const [newVendorBank, setNewVendorBank] = useState('');
+  const [newVendorAccountNo, setNewVendorAccountNo] = useState('');
+  const [newVendorDefaultGp, setNewVendorDefaultGp] = useState<number>(20);
+  const [consignmentFilter, setConsignmentFilter] = useState<'ALL' | 'SHOP_ONLY' | 'CONSIGNMENT_ONLY'>('ALL');
+
   const resetSingleForm = () => {
     setSingleName('');
     setSingleCategory(DEFAULT_PRODUCT_CATEGORIES[0]);
@@ -109,6 +124,10 @@ export const InventoryPage: React.FC = () => {
     ]);
     setSingleFixedStock(20);
     setNewSizeName('');
+    setIsConsignment(false);
+    setSelectedVendorId('');
+    setConsignmentGpPercent(20);
+    setConsignmentVendorPayout(312);
   };
 
   const updatePendingCount = async () => {
@@ -147,7 +166,46 @@ export const InventoryPage: React.FC = () => {
     setVariants(list);
     const s = await db.settings.get('current_store_settings');
     if (s) setSettings(s);
+    const vList = await db.consignors.toArray();
+    setConsignors(vList.filter(v => v.isActive !== false));
     await updatePendingCount();
+  };
+
+  const handleCreateVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newVendorName.trim()) return;
+    const newVendor: ConsignmentVendor = {
+      id: `vnd-${Date.now()}`,
+      code: newVendorCode.trim().toUpperCase() || `VND-${Date.now().toString().slice(-4)}`,
+      name: newVendorName.trim(),
+      phone: newVendorPhone.trim(),
+      bankName: newVendorBank.trim() || undefined,
+      bankAccountNo: newVendorAccountNo.trim() || undefined,
+      defaultGpPercent: newVendorDefaultGp,
+      createdAt: new Date().toISOString(),
+      isActive: true
+    };
+    await db.consignors.put(newVendor);
+    const updated = await db.consignors.toArray();
+    setConsignors(updated.filter(v => v.isActive !== false));
+    setSelectedVendorId(newVendor.id);
+    setConsignmentGpPercent(newVendor.defaultGpPercent);
+    setConsignmentVendorPayout(Math.round(singlePrice * (1 - newVendor.defaultGpPercent / 100)));
+
+    const currentSettings = await db.settings.get('current_store_settings');
+    if (currentSettings) {
+      const mergedConsignors = [...(currentSettings.consignors || []).filter(c => c.id !== newVendor.id), newVendor];
+      await db.settings.update('current_store_settings', { consignors: mergedConsignors });
+      CloudSync.pushStoreSettings({ ...currentSettings, consignors: mergedConsignors }).catch(() => {});
+    }
+
+    setIsAddVendorOpen(false);
+    setNewVendorName('');
+    setNewVendorCode('');
+    setNewVendorPhone('');
+    setNewVendorBank('');
+    setNewVendorAccountNo('');
+    alert(`ลงทะเบียนผู้ประกอบการ "${newVendor.name}" สำเร็จเรียบร้อย!`);
   };
 
   useEffect(() => {
@@ -257,10 +315,18 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  // Add Single Product (Now supports saving each size as its own stock variant!)
+  // Add Single Product (Supports size breakdown and consignment)
   const handleAddSingleProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!singleName.trim()) return;
+
+    if (isConsignment && !selectedVendorId) {
+      alert('กรุณาเลือกผู้ประกอบการ / ชุมชนผู้ฝากขาย');
+      return;
+    }
+
+    const vendor = consignors.find(c => c.id === selectedVendorId);
+    const vendorName = vendor?.name || 'ผู้ประกอบการฝากขาย';
 
     const targetCat = singleCategory === 'CUSTOM' ? (singleCustomCategory.trim() || 'สินค้าทั่วไป') : singleCategory;
     const baseProductId = `prod-${Date.now()}`;
@@ -292,16 +358,28 @@ export const InventoryPage: React.FC = () => {
           attributes: {
             color: singleColor,
             size: s.size,
-            technique: singleTechnique
+            technique: singleTechnique,
+            ...(isConsignment ? {
+              isConsignment: 'true',
+              vendorId: selectedVendorId,
+              vendorName: vendorName,
+              gpPercent: consignmentGpPercent.toString(),
+              vendorPayoutPrice: consignmentVendorPayout.toString()
+            } : {})
           },
-          costPrice: singleCost,
+          costPrice: isConsignment ? consignmentVendorPayout : singleCost,
           salePrice: singlePrice,
           stockQuantity: s.qty,
           warehouseStock: wh,
           shopStock: sh,
           minStockAlert: 3,
           imageUrl: singleImagePreview || undefined,
-          isActive: true
+          isActive: true,
+          isConsignment: isConsignment,
+          vendorId: isConsignment ? selectedVendorId : undefined,
+          vendorName: isConsignment ? vendorName : undefined,
+          gpPercent: isConsignment ? consignmentGpPercent : undefined,
+          vendorPayoutPrice: isConsignment ? consignmentVendorPayout : undefined
         });
       });
     } else {
@@ -320,16 +398,28 @@ export const InventoryPage: React.FC = () => {
         barcode: autoBarcode,
         attributes: {
           color: singleColor,
-          format: 'ฟรีไซส์ / ชิ้นเดียว'
+          format: 'ฟรีไซส์ / ชิ้นเดียว',
+          ...(isConsignment ? {
+            isConsignment: 'true',
+            vendorId: selectedVendorId,
+            vendorName: vendorName,
+            gpPercent: consignmentGpPercent.toString(),
+            vendorPayoutPrice: consignmentVendorPayout.toString()
+          } : {})
         },
-        costPrice: singleCost,
+        costPrice: isConsignment ? consignmentVendorPayout : singleCost,
         salePrice: singlePrice,
         stockQuantity: singleFixedStock,
         warehouseStock: wh,
         shopStock: sh,
         minStockAlert: 3,
         imageUrl: singleImagePreview || undefined,
-        isActive: true
+        isActive: true,
+        isConsignment: isConsignment,
+        vendorId: isConsignment ? selectedVendorId : undefined,
+        vendorName: isConsignment ? vendorName : undefined,
+        gpPercent: isConsignment ? consignmentGpPercent : undefined,
+        vendorPayoutPrice: isConsignment ? consignmentVendorPayout : undefined
       });
     }
 
@@ -372,8 +462,11 @@ export const InventoryPage: React.FC = () => {
     const matchesSearch = 
       v.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       v.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.barcode.includes(searchTerm);
+      v.barcode.includes(searchTerm) ||
+      (v.vendorName && v.vendorName.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCat = selectedCategoryFilter === 'ALL' || v.category === selectedCategoryFilter;
+    if (consignmentFilter === 'SHOP_ONLY' && v.isConsignment) return false;
+    if (consignmentFilter === 'CONSIGNMENT_ONLY' && !v.isConsignment) return false;
     return matchesSearch && matchesCat;
   });
 
@@ -451,21 +544,47 @@ export const InventoryPage: React.FC = () => {
           />
         </div>
 
-        {/* Category Filter Dropdown */}
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <select
-            value={selectedCategoryFilter}
-            onChange={e => setSelectedCategoryFilter(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none"
-          >
-            <option value="ALL">ทุกหมวดหมู่ ({variants.length})</option>
-            {allCategories.map(cat => (
-              <option key={cat} value={cat}>
-                {cat} ({variants.filter(v => v.category === cat).length})
-              </option>
-            ))}
-          </select>
+        {/* Consignment & Category Filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-bold border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setConsignmentFilter('ALL')}
+              className={`px-2.5 py-1 rounded-lg transition ${consignmentFilter === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              ทั้งหมด ({variants.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setConsignmentFilter('SHOP_ONLY')}
+              className={`px-2.5 py-1 rounded-lg transition ${consignmentFilter === 'SHOP_ONLY' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              ของร้านเอง ({variants.filter(v => !v.isConsignment).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setConsignmentFilter('CONSIGNMENT_ONLY')}
+              className={`px-2.5 py-1 rounded-lg transition ${consignmentFilter === 'CONSIGNMENT_ONLY' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-700 hover:text-amber-900'}`}
+            >
+              🤝 ฝากขายชุมชน ({variants.filter(v => v.isConsignment).length})
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <select
+              value={selectedCategoryFilter}
+              onChange={e => setSelectedCategoryFilter(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none"
+            >
+              <option value="ALL">ทุกหมวดหมู่ ({variants.length})</option>
+              {allCategories.map(cat => (
+                <option key={cat} value={cat}>
+                  {cat} ({variants.filter(v => v.category === cat).length})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -512,13 +631,22 @@ export const InventoryPage: React.FC = () => {
                       <div className="text-[11px] text-amber-700 font-semibold">{item.barcode}</div>
                     </td>
                     <td className="p-3.5">
-                      <div className="font-bold text-slate-900">{item.productName}</div>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {Object.entries(item.attributes).map(([k, v]) => (
-                          <span key={k} className="px-1.5 py-0.5 bg-amber-50 text-amber-900 border border-amber-200 rounded text-[10px]">
-                            {k}: {v}
+                      <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                        <span>{item.productName}</span>
+                        {item.isConsignment && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                            🤝 ฝากขาย: {item.vendorName || 'ชุมชน'} (หัก GP {item.gpPercent}%)
                           </span>
-                        ))}
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {Object.entries(item.attributes)
+                          .filter(([k]) => !['isConsignment', 'vendorId', 'vendorName', 'gpPercent', 'vendorPayoutPrice'].includes(k))
+                          .map(([k, v]) => (
+                            <span key={k} className="px-1.5 py-0.5 bg-amber-50 text-amber-900 border border-amber-200 rounded text-[10px]">
+                              {k}: {v}
+                            </span>
+                          ))}
                       </div>
                     </td>
                     <td className="p-3.5">
@@ -710,23 +838,165 @@ export const InventoryPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">ต้นทุนมาตรฐาน (บาท)</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {isConsignment ? 'ต้นทุนสินค้า / จ่ายคืนผู้ฝาก (บาท)' : 'ต้นทุนมาตรฐาน (บาท)'}
+                  </label>
                   <input
                     type="number"
-                    value={singleCost}
-                    onChange={e => setSingleCost(parseFloat(e.target.value) || 0)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono"
+                    value={isConsignment ? consignmentVendorPayout : singleCost}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0;
+                      if (isConsignment) {
+                        setConsignmentVendorPayout(val);
+                        if (singlePrice > 0) {
+                          setConsignmentGpPercent(Math.max(0, Math.round(((singlePrice - val) / singlePrice) * 100)));
+                        }
+                      } else {
+                        setSingleCost(val);
+                      }
+                    }}
+                    className={`w-full p-2.5 border rounded-xl font-mono ${isConsignment ? 'bg-emerald-50 border-emerald-300 font-bold text-emerald-800' : 'bg-slate-50 border-slate-300'}`}
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">ราคาขายมาตรฐาน (บาท)</label>
+                  <label className="block font-bold text-slate-700 mb-1">ราคาขายหน้าร้าน (บาท) *</label>
                   <input
                     type="number"
                     value={singlePrice}
-                    onChange={e => setSinglePrice(parseFloat(e.target.value) || 0)}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setSinglePrice(val);
+                      if (isConsignment) {
+                        setConsignmentVendorPayout(Math.round(val * (1 - consignmentGpPercent / 100)));
+                      }
+                    }}
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-amber-700"
                   />
                 </div>
+              </div>
+
+              {/* CONSIGNMENT SECTION (สินค้าฝากขายจากวิสาหกิจชุมชน) */}
+              <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200/90 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🤝</span>
+                    <div>
+                      <span className="font-bold text-amber-950 text-sm">สินค้าฝากขาย (Consignment ชุมชน)</span>
+                      <p className="text-[11px] text-amber-800">สินค้าของวิสาหกิจชุมชน/ผู้ประกอบการรายเล็ก นำมาฝากจำหน่ายในร้าน</p>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-xs">
+                    <input
+                      type="checkbox"
+                      checked={isConsignment}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setIsConsignment(checked);
+                        if (checked && consignors.length > 0 && !selectedVendorId) {
+                          setSelectedVendorId(consignors[0].id);
+                          setConsignmentGpPercent(consignors[0].defaultGpPercent || 20);
+                          setConsignmentVendorPayout(Math.round(singlePrice * (1 - (consignors[0].defaultGpPercent || 20) / 100)));
+                        }
+                      }}
+                      className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
+                    />
+                    <span className="text-xs font-bold text-amber-900">เป็นสินค้าฝากขาย</span>
+                  </label>
+                </div>
+
+                {isConsignment && (
+                  <div className="pt-2 border-t border-amber-200 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-bold text-amber-900">ผู้ประกอบการ / ชุมชนผู้ฝาก *</label>
+                          <button
+                            type="button"
+                            onClick={() => setIsAddVendorOpen(true)}
+                            className="text-[11px] text-amber-700 hover:text-amber-900 font-bold underline"
+                          >
+                            + เพิ่มผู้ฝากรายใหม่
+                          </button>
+                        </div>
+                        <select
+                          value={selectedVendorId}
+                          onChange={e => {
+                            const vId = e.target.value;
+                            setSelectedVendorId(vId);
+                            const v = consignors.find(c => c.id === vId);
+                            if (v) {
+                              setConsignmentGpPercent(v.defaultGpPercent || 20);
+                              setConsignmentVendorPayout(Math.round(singlePrice * (1 - (v.defaultGpPercent || 20) / 100)));
+                            }
+                          }}
+                          className="w-full p-2.5 bg-white border border-amber-300 rounded-xl text-xs font-semibold text-slate-900"
+                        >
+                          <option value="">-- เลือกผู้ประกอบการฝากขาย --</option>
+                          {consignors.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} {c.code ? `(${c.code})` : ''} - GP {c.defaultGpPercent}%
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-bold text-amber-900 mb-1">
+                            หัก % ร้าน (GP)
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={consignmentGpPercent}
+                              onChange={e => {
+                                const gp = parseFloat(e.target.value) || 0;
+                                setConsignmentGpPercent(gp);
+                                setConsignmentVendorPayout(Math.round(singlePrice * (1 - gp / 100)));
+                              }}
+                              className="w-full p-2.5 bg-white border border-amber-300 rounded-xl text-xs font-mono font-bold text-center"
+                            />
+                            <span className="absolute right-2.5 top-2.5 text-xs text-amber-700 font-bold">%</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-emerald-900 mb-1">
+                            ยอดเงินคืนผู้ฝาก/ชิ้น
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={consignmentVendorPayout}
+                              onChange={e => {
+                                const payout = parseFloat(e.target.value) || 0;
+                                setConsignmentVendorPayout(payout);
+                                if (singlePrice > 0) {
+                                  const computedGp = Math.round(((singlePrice - payout) / singlePrice) * 100);
+                                  setConsignmentGpPercent(Math.max(0, computedGp));
+                                }
+                              }}
+                              className="w-full p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-mono font-bold text-center text-emerald-800"
+                            />
+                            <span className="absolute right-2.5 top-2.5 text-xs text-emerald-700 font-bold">฿</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 bg-white rounded-xl border border-amber-200 text-xs flex flex-wrap items-center justify-between gap-1">
+                      <span className="text-slate-600">
+                        สรุปการแบ่งรายได้ต่อชิ้น (ราคาขาย <b>฿{singlePrice.toLocaleString()}</b>):
+                      </span>
+                      <span className="font-bold">
+                        ร้านได้ <span className="text-amber-700">฿{(singlePrice - consignmentVendorPayout).toLocaleString()}</span> ({consignmentGpPercent}%) | 
+                        คืนผู้ฝาก <span className="text-emerald-700">฿{consignmentVendorPayout.toLocaleString()}</span> ({100 - consignmentGpPercent}%)
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* SIZE BREAKDOWN SELECTOR */}
@@ -1044,6 +1314,109 @@ export const InventoryPage: React.FC = () => {
                 <span>คำนวณและสร้าง Matrix Variants ทันที</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD CONSIGNOR MODAL */}
+      {isAddVendorOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-amber-200">
+            <h3 className="text-lg font-black text-slate-900 mb-1 flex items-center gap-2">
+              <span>🤝</span> ลงทะเบียนผู้ประกอบการฝากขายใหม่
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              บันทึกข้อมูลผู้ผลิต วิสาหกิจชุมชน เพื่อใช้สรุปยอดขายและคำนวณเงินส่งมอบคืน
+            </p>
+            <form onSubmit={handleCreateVendor} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อผู้ประกอบการ / ชุมชน *</label>
+                <input
+                  type="text"
+                  required
+                  value={newVendorName}
+                  onChange={e => setNewVendorName(e.target.value)}
+                  placeholder="เช่น คุณกอ (เครื่องเคลือบดินเผาด่านเกวียน)"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
+                  autoFocus
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">รหัสผู้ประกอบการ</label>
+                  <input
+                    type="text"
+                    value={newVendorCode}
+                    onChange={e => setNewVendorCode(e.target.value)}
+                    placeholder="เช่น VND-03"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">เบอร์โทรศัพท์ *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={newVendorPhone}
+                    onChange={e => setNewVendorPhone(e.target.value)}
+                    placeholder="เช่น 081-234-5678"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ธนาคาร / พร้อมเพย์</label>
+                  <input
+                    type="text"
+                    value={newVendorBank}
+                    onChange={e => setNewVendorBank(e.target.value)}
+                    placeholder="เช่น กสิกรไทย / พร้อมเพย์"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">เลขที่บัญชี</label>
+                  <input
+                    type="text"
+                    value={newVendorAccountNo}
+                    onChange={e => setNewVendorAccountNo(e.target.value)}
+                    placeholder="เช่น 044-x-xxxxx-x"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">เปอร์เซ็นต์หักของร้านเริ่มต้น (GP %)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={newVendorDefaultGp}
+                    onChange={e => setNewVendorDefaultGp(parseFloat(e.target.value) || 20)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-center"
+                  />
+                  <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-bold">%</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">เช่น 20% หมายถึง ร้านได้รับค่าส่วนแบ่ง 20% และส่งมอบเงินคืนผู้ฝาก 80%</p>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddVendorOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md transition"
+                >
+                  บันทึกผู้ประกอบการ
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

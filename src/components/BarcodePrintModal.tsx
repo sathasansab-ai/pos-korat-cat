@@ -26,50 +26,69 @@ interface StickerPreset {
   widthMm: number;
   heightMm: number;
   desc: string;
+  defaultMode?: 'ROLL' | 'SHEET';
+  stickersPerPageA4?: number;
 }
 
 const STICKER_PRESETS: StickerPreset[] = [
   { 
-    id: 'tag_45_70', 
-    name: 'ป้ายแท็กผ้าหน้าร้าน (45 x 70 มม.)', 
+    id: 'a4_tag_45_65', 
+    name: '📄 กระดาษ A4: ป้ายแท็กมาตรฐาน (45 x 65 มม. - 12 ป้าย/แผ่น)', 
     widthMm: 45, 
-    heightMm: 70, 
-    desc: 'สัดส่วนตรงกับป้ายแท็กแมวโคราชจริงในรูปภาพ' 
+    heightMm: 65, 
+    desc: '3 คอลัมน์ × 4 แถว พอดีหน้า 1 แผ่น A4 ไม่ล้นหน้า 2 มีเส้นประตัดง่าย',
+    defaultMode: 'SHEET',
+    stickersPerPageA4: 12
   },
   { 
-    id: 'sticker_40_50', 
-    name: 'สติ๊กเกอร์แปะหลังแท็ก (40 x 50 มม.)', 
+    id: 'a4_tag_45_70', 
+    name: '📄 กระดาษ A4: ป้ายแท็กทรงยาว (45 x 70 มม. - 9 ป้าย/แผ่น)', 
+    widthMm: 45, 
+    heightMm: 70, 
+    desc: '3 คอลัมน์ × 3 แถว สัดส่วนตรงกับป้ายแท็กผ้าแมวโคราช เว้นขอบหัว-ท้ายปลอดภัย',
+    defaultMode: 'SHEET',
+    stickersPerPageA4: 9
+  },
+  { 
+    id: 'a4_sticker_40_50', 
+    name: '📄 กระดาษ A4: สติ๊กเกอร์แปะหลังแท็ก (40 x 50 มม. - 20 ป้าย/แผ่น)', 
     widthMm: 40, 
     heightMm: 50, 
-    desc: 'พอดีหลังป้ายแท็ก มีระยะเว้นขอบ 2.5 มม. ไม่ล้นขอบ' 
+    desc: '4 คอลัมน์ × 5 แถว ขนาดกะทัดรัด แปะหลังป้ายแบรนด์เดิมได้สวยงาม',
+    defaultMode: 'SHEET',
+    stickersPerPageA4: 20
+  },
+  { 
+    id: 'a4_mini_40_30', 
+    name: '📄 กระดาษ A4: สติ๊กเกอร์มินิ (40 x 30 มม. - 28 ป้าย/แผ่น)', 
+    widthMm: 40, 
+    heightMm: 30, 
+    desc: '4 คอลัมน์ × 7 แถว สำหรับของที่ระลึก พวงกุญแจ แก้วเซรามิก',
+    defaultMode: 'SHEET',
+    stickersPerPageA4: 28
   },
   { 
     id: 'roll_50_30', 
-    name: 'สติ๊กเกอร์ม้วนมาตรฐาน (50 x 30 มม.)', 
+    name: '🏷️ สติ๊กเกอร์ม้วนความร้อน (50 x 30 มม.)', 
     widthMm: 50, 
     heightMm: 30, 
-    desc: 'ม้วนสติ๊กเกอร์ความร้อนเครื่องพิมพ์บาร์โค้ดยอดนิยม' 
+    desc: 'สำหรับเครื่องพิมพ์สติ๊กเกอร์ม้วนความร้อน (Thermal Barcode Printer)',
+    defaultMode: 'ROLL'
   },
   { 
     id: 'roll_40_30', 
-    name: 'สติ๊กเกอร์มินิ (40 x 30 มม.)', 
+    name: '🏷️ สติ๊กเกอร์ม้วนเล็ก (40 x 30 มม.)', 
     widthMm: 40, 
     heightMm: 30, 
-    desc: 'ขนาดเล็กสำหรับของที่ระลึก พวงกุญแจ เครื่องประดับ' 
-  },
-  { 
-    id: 'roll_40_60', 
-    name: 'สติ๊กเกอร์ทรงสูง (40 x 60 มม.)', 
-    widthMm: 40, 
-    heightMm: 60, 
-    desc: 'สติ๊กเกอร์แนวยาวสำหรับติดป้ายสินค้าทรงกระบอก' 
+    desc: 'ม้วนความร้อนขนาดเล็กสำหรับของตกแต่งและเครื่องประดับ',
+    defaultMode: 'ROLL'
   },
   { 
     id: 'custom', 
-    name: 'กำหนดขนาดเอง (Custom W x H mm)', 
+    name: '⚙️ กำหนดขนาดเอง (Custom W x H mm)', 
     widthMm: 45, 
-    heightMm: 70, 
-    desc: 'ระบุความกว้างและความสูงตามขนาดกระดาษที่มี' 
+    heightMm: 65, 
+    desc: 'ระบุความกว้างและความสูงตามขนาดกระดาษหรือป้ายแท็กที่คุณมี'
   },
 ];
 
@@ -101,8 +120,16 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     if (p && presetId !== 'custom') {
       setWidthMm(p.widthMm);
       setHeightMm(p.heightMm);
+      if (p.defaultMode) {
+        setPrintMode(p.defaultMode);
+      }
+      if (p.stickersPerPageA4 && p.defaultMode === 'SHEET' && printCount === 1) {
+        setPrintCount(p.stickersPerPageA4);
+      }
     }
   };
+
+  const currentPreset = STICKER_PRESETS.find(p => p.id === selectedPresetId);
 
   // Adjust barcode height proportionally (Giant mode takes ~52% of the sticker height!)
   const barcodeHeightMm = barcodeSizeOption === 'GIANT'
@@ -203,7 +230,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       ` : `
         @page { 
           size: A4 portrait; 
-          margin: 6mm 8mm !important; 
+          margin: 15mm 12mm 15mm 12mm !important; 
         }
         body { 
           background: #ffffff !important; 
@@ -213,9 +240,11 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         }
         .stickers-print-grid {
-          display: grid !important;
-          grid-template-columns: repeat(auto-fill, minmax(${widthMm}mm, 1fr)) !important;
-          gap: 3mm !important;
+          display: flex !important;
+          flex-wrap: wrap !important;
+          justify-content: flex-start !important;
+          align-content: flex-start !important;
+          gap: 4mm !important;
           width: 100% !important;
           margin: 0 auto !important;
         }
@@ -223,9 +252,9 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           width: ${widthMm}mm !important;
           height: ${heightMm}mm !important;
           max-height: ${heightMm}mm !important;
-          border: 1px dashed #94a3b8 !important;
+          border: 1.5px dashed #64748b !important;
           border-radius: 4px !important;
-          padding: 1.5mm !important;
+          padding: 2mm !important;
           page-break-inside: avoid !important;
           break-inside: avoid !important;
           display: flex !important;
@@ -499,6 +528,20 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                 >
                   เท่าสต็อก ({variant.stockQuantity})
                 </button>
+                {currentPreset?.stickersPerPageA4 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const perPage = currentPreset.stickersPerPageA4 || 12;
+                      const currentPages = Math.max(1, Math.ceil(printCount / perPage));
+                      setPrintCount(currentPages * perPage);
+                    }}
+                    className="px-2 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-xs font-semibold transition"
+                    title={`จัดให้เต็มแผ่น A4 พอดี (${currentPreset.stickersPerPageA4} ป้ายต่อแผ่น ไม่ล้น ไม่ขาด)`}
+                  >
+                    เต็มแผ่น A4 ({currentPreset.stickersPerPageA4})
+                  </button>
+                )}
               </div>
 
               <button

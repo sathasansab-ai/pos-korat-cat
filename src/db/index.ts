@@ -10,7 +10,9 @@ import type {
   UserAccount,
   StoreSettings,
   StockTransfer,
-  CustomMadeOrder
+  CustomMadeOrder,
+  ConsignmentVendor,
+  ConsignmentSettlement
 } from '../types';
 
 export class PosDatabase extends Dexie {
@@ -24,20 +26,24 @@ export class PosDatabase extends Dexie {
   settings!: Table<StoreSettings, string>;
   transfers!: Table<StockTransfer, string>;
   customOrders!: Table<CustomMadeOrder, string>;
+  consignors!: Table<ConsignmentVendor, string>;
+  settlements!: Table<ConsignmentSettlement, string>;
 
   constructor() {
     super('PosKoratCatDB');
-    this.version(3).stores({
+    this.version(4).stores({
       users: 'id, role, pin, isActive',
       products: 'id, skuPrefix, category, isActive',
-      variants: 'id, productId, sku, barcode, category, isActive',
+      variants: 'id, productId, sku, barcode, category, isActive, isConsignment, vendorId',
       promotions: 'id, type, isActive',
       customers: 'id, phone, memberCode',
       orders: 'id, localOrderId, shiftId, cashierId, status, timestamp, isSynced, branch',
       shifts: 'id, cashierId, status, startTime, branch',
       settings: 'id',
       transfers: 'id, transferNo, fromBranch, toBranch, status, timestamp',
-      customOrders: 'id, orderNo, branch, status, createdAt, customerPhone'
+      customOrders: 'id, orderNo, branch, status, createdAt, customerPhone',
+      consignors: 'id, code, name, phone, isActive',
+      settlements: 'id, settlementNo, vendorId, status, periodStart, periodEnd'
     });
   }
 }
@@ -377,5 +383,39 @@ export async function seedInitialData() {
       }
     ];
     await db.customers.bulkAdd(customers);
+  }
+
+  // 6. Seed Initial Consignment Vendors (ผู้ประกอบการชุมชนฝากขาย)
+  const vendorCount = await db.consignors.count();
+  if (vendorCount === 0) {
+    const initialVendors: ConsignmentVendor[] = [
+      {
+        id: 'vnd-001',
+        code: 'VND-01',
+        name: 'คุณกอ (วิสาหกิจเครื่องเคลือบดินเผาด่านเกวียน)',
+        phone: '081-999-1111',
+        bankName: 'กสิกรไทย (KBANK)',
+        bankAccountNo: '045-2-12345-6',
+        bankAccountName: 'วิสาหกิจชุมชนด่านเกวียน',
+        defaultGpPercent: 20, // ร้านหัก 20%
+        notes: 'สินค้าประเภทแก้วเซรามิก ของที่ระลึกแมวโคราชดินเผา',
+        createdAt: new Date().toISOString(),
+        isActive: true
+      },
+      {
+        id: 'vnd-002',
+        code: 'VND-02',
+        name: 'กลุ่มหัตถกรรมผ้าไหมมัดหมี่และฝ้ายทอมือปักธงชัย',
+        phone: '089-888-2222',
+        bankName: 'กรุงไทย (KTB)',
+        bankAccountNo: '301-0-98765-4',
+        bankAccountName: 'กลุ่มทอผ้าไหมปักธงชัย',
+        defaultGpPercent: 15, // ร้านหัก 15%
+        notes: 'ผ้าพันคอไหม สร้อยข้อมือสายไหมแท้ลายอัตลักษณ์',
+        createdAt: new Date().toISOString(),
+        isActive: true
+      }
+    ];
+    await db.consignors.bulkAdd(initialVendors);
   }
 }

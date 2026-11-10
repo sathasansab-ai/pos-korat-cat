@@ -94,7 +94,12 @@ class CloudSyncService {
             minStockAlert: Number(cv.min_stock_alert || 5),
             imageUrl: cv.image_url,
             supplierName: cv.supplier_name,
-            isActive: cv.is_active !== false
+            isActive: cv.is_active !== false,
+            isConsignment: (cv as any).is_consignment ?? (cv.attributes?.isConsignment === 'true' || cv.attributes?.isConsignment === true || Boolean(cv.attributes?.vendorId)),
+            vendorId: (cv as any).vendor_id ?? cv.attributes?.vendorId,
+            vendorName: (cv as any).vendor_name ?? cv.attributes?.vendorName,
+            gpPercent: (cv as any).gp_percent ?? (cv.attributes?.gpPercent ? Number(cv.attributes.gpPercent) : undefined),
+            vendorPayoutPrice: (cv as any).vendor_payout_price ?? (cv.attributes?.vendorPayoutPrice ? Number(cv.attributes.vendorPayoutPrice) : undefined)
           };
           if (cv.sku) {
             const existingSameSku = await db.variants.where({ sku: cv.sku }).first();
@@ -963,6 +968,13 @@ class CloudSyncService {
         if (cloudSettings.staffAccounts && cloudSettings.staffAccounts.length > 0) {
           for (const s of cloudSettings.staffAccounts) {
             await db.users.put(s);
+          }
+        }
+
+        // ซิงค์รายชื่อผู้ประกอบการฝากขายวิสาหกิจชุมชนลงฐานข้อมูล
+        if (cloudSettings.consignors && cloudSettings.consignors.length > 0) {
+          for (const c of cloudSettings.consignors) {
+            await db.consignors.put(c);
           }
         }
 

@@ -347,7 +347,12 @@ export const PosPage: React.FC<PosPageProps> = ({
           category: variant.category,
           costPrice: variant.costPrice,
           unitPrice: variant.salePrice,
-          qty: 1
+          qty: 1,
+          isConsignment: variant.isConsignment,
+          vendorId: variant.vendorId,
+          vendorName: variant.vendorName,
+          gpPercent: variant.gpPercent,
+          vendorPayoutPrice: variant.vendorPayoutPrice
         }
       ];
     });
@@ -718,17 +723,29 @@ export const PosPage: React.FC<PosPageProps> = ({
         shiftId: activeShift.id,
         customerId: selectedCustomer?.id,
         customerName: selectedCustomer?.name,
-        items: cart.map(i => ({
-          variantId: i.variantId,
-          productName: i.productName,
-          sku: i.sku,
-          imageUrl: i.imageUrl,
-          attributes: i.attributes,
-          qty: i.qty,
-          unitPrice: i.unitPrice,
-          costPrice: i.costPrice,
-          lineTotal: i.unitPrice * i.qty
-        })),
+        items: cart.map(i => {
+          const lineTotal = i.unitPrice * i.qty;
+          const gp = i.gpPercent ?? 0;
+          const storeRevenue = i.isConsignment ? Math.round(lineTotal * (gp / 100)) : lineTotal;
+          const vendorPayout = i.isConsignment ? lineTotal - storeRevenue : 0;
+          return {
+            variantId: i.variantId,
+            productName: i.productName,
+            sku: i.sku,
+            imageUrl: i.imageUrl,
+            attributes: i.attributes,
+            qty: i.qty,
+            unitPrice: i.unitPrice,
+            costPrice: i.costPrice,
+            lineTotal,
+            isConsignment: i.isConsignment,
+            vendorId: i.vendorId,
+            vendorName: i.vendorName,
+            gpPercent: i.gpPercent,
+            storeRevenue,
+            vendorPayout
+          };
+        }),
         subtotal: promoResult.originalSubtotal,
         promoDiscount: promoResult.discountTotal,
         
@@ -1402,7 +1419,14 @@ export const PosPage: React.FC<PosPageProps> = ({
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-xs font-bold text-slate-800 truncate">{item.productName}</h4>
+                    <div className="flex items-center gap-1">
+                      <h4 className="text-xs font-bold text-slate-800 truncate">{item.productName}</h4>
+                      {item.isConsignment && (
+                        <span className="text-[9px] px-1 py-0.2 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300 flex-shrink-0">
+                          ฝากขาย
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] text-slate-400 font-mono">
                       ฿{item.unitPrice.toLocaleString()} x {item.qty}
                     </div>

@@ -69,10 +69,19 @@ export const LoginLockScreen: React.FC<LoginLockScreenProps> = ({
           {subTitle}
         </p>
 
-        {hasActiveShift && (
-          <div className="mb-4 px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 rounded-full text-[11px] text-emerald-300 font-bold flex items-center gap-1.5 animate-pulse">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span>มีกะกำลังเปิดใช้งานอยู่ (เข้าใช้งานต่อได้)</span>
+        {hasActiveShift ? (
+          <div className="mb-4 px-3 py-1.5 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-center">
+            <div className="text-[11px] text-emerald-300 font-bold flex items-center justify-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>กะของร้านเปิดอยู่ (พร้อมขายต่อเนื่อง)</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              ระบบเครื่องนี้ปลอดภัย ไม่มีการล็อกอินค้างจากภายนอก
+            </p>
+          </div>
+        ) : (
+          <div className="mb-4 px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-[11px] text-slate-400 text-center">
+            🔒 ยังไม่มีการเปิดกะ (เข้าสู่ระบบเพื่อเริ่มเปิดกะขาย)
           </div>
         )}
 
