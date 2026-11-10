@@ -227,7 +227,7 @@ export const PosPage: React.FC<PosPageProps> = ({
       const now = Date.now();
       const char = e.key;
 
-      if (char === 'Enter') {
+      if (char === 'Enter' || char === 'Tab') {
         if (scanBuffer.length >= 3) {
           e.preventDefault();
           const scanned = scanBuffer.trim();

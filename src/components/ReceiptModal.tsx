@@ -20,9 +20,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   onOpenTaxInvoice
 }) => {
   const receiptRef = useRef<HTMLDivElement>(null);
-  const [paperWidth, setPaperWidth] = React.useState<'58mm' | '80mm'>(
-    settings.printerPaperWidth || '80mm'
-  );
+  const [paperWidth, setPaperWidth] = React.useState<'58mm' | '80mm'>(() => {
+    const saved = localStorage.getItem('pos_thermal_paper_width');
+    if (saved === '58mm' || saved === '80mm') return saved;
+    return settings.printerPaperWidth || '80mm';
+  });
+
+  const handleSelectPaperWidth = (w: '58mm' | '80mm') => {
+    setPaperWidth(w);
+    localStorage.setItem('pos_thermal_paper_width', w);
+  };
 
   if (!isOpen || !order) return null;
 
@@ -66,42 +73,66 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             ${styles}
             <style>
               @page { 
-                size: ${paperWidth === '80mm' ? '80mm auto' : '58mm auto'}; 
-                margin: 0mm !important; 
+                size: ${paperWidth === '80mm' ? '80mm' : '58mm'} auto; 
+                margin: 0 !important; 
               }
               * { 
-                box-sizing: border-box; 
-                -webkit-print-color-adjust: exact; 
-                print-color-adjust: exact; 
+                box-sizing: border-box !important; 
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
+                color: #000000 !important;
+                -webkit-text-fill-color: #000000 !important;
+                text-shadow: none !important;
               }
               html, body { 
                 background: #ffffff !important; 
                 color: #000000 !important; 
-                padding: 1mm 2mm 3mm 2mm !important; 
+                padding: 1mm 2mm 2mm 2mm !important; 
                 margin: 0 auto !important; 
                 width: 100% !important;
                 max-width: ${paperWidth === '80mm' ? '72mm' : '48mm'} !important;
-                font-family: 'Courier New', Courier, monospace, system-ui, sans-serif !important;
-                font-size: ${paperWidth === '80mm' ? '11px' : '9.5px'} !important;
-                line-height: 1.25 !important;
+                min-width: ${paperWidth === '80mm' ? '72mm' : '48mm'} !important;
+                font-family: 'Tahoma', 'Segoe UI', 'Prompt', 'Arial', sans-serif !important;
+                font-size: ${paperWidth === '80mm' ? '12px' : '10px'} !important;
+                font-weight: 700 !important;
+                line-height: 1.3 !important;
                 overflow: hidden !important;
                 height: auto !important;
+                min-height: 0 !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
               }
               #printable-thermal-receipt { 
                 width: 100% !important; 
                 max-width: ${paperWidth === '80mm' ? '72mm' : '48mm'} !important;
                 border: none !important; 
-                padding: 0 !important; 
-                margin: 0 auto !important;
+                padding: 0 0 2mm 0 !important; 
+                margin: 0 auto !important; 
                 background: #ffffff !important; 
                 box-shadow: none !important; 
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+              .font-bold, .font-extrabold, .font-black {
+                font-weight: 900 !important;
+              }
+              .border-dashed {
+                border-bottom: 1.5px dashed #000000 !important;
+              }
+              .border-b {
+                border-bottom: 1.5px solid #000000 !important;
+              }
+              .border-t {
+                border-top: 1.5px solid #000000 !important;
               }
               img {
-                max-width: ${paperWidth === '80mm' ? '46mm' : '36mm'} !important;
+                max-width: ${paperWidth === '80mm' ? '50mm' : '38mm'} !important;
                 height: auto !important;
                 display: block !important;
                 margin-left: auto !important;
                 margin-right: auto !important;
+                image-rendering: -webkit-optimize-contrast !important;
+                shape-rendering: crispEdges !important;
               }
               .no-print { display: none !important; }
             </style>
@@ -122,8 +153,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     }
   };
 
-  const barcodeDataUrl = BarcodeGenerator.generateDataUrl(order.localOrderId, {
-    height: 40,
+  const barcodeSvg = BarcodeGenerator.generateSvg(order.localOrderId, {
+    height: 42,
     showText: true
   });
 
@@ -139,27 +170,27 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* 58mm vs 80mm Switcher */}
+            {/* 58mm vs 80mm Switcher with clear Brand model hints */}
             <div className="flex rounded-lg bg-slate-800 p-0.5 text-[11px] font-bold border border-slate-700">
               <button
                 type="button"
-                onClick={() => setPaperWidth('58mm')}
-                className={`px-2 py-0.5 rounded transition ${
-                  paperWidth === '58mm' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                onClick={() => handleSelectPaperWidth('80mm')}
+                className={`px-2.5 py-1 rounded transition flex items-center gap-1 ${
+                  paperWidth === '80mm' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'
                 }`}
-                title="XP-58IIH หรือเครื่องสลิปขนาดเล็ก 58mm"
+                title="EasyPrint ES-9910UB, Epson TM, หรือเครื่องความร้อนหน้ากว้าง 80 มม."
               >
-                58 มม.
+                <span>🖨️ EasyPrint (80 มม.)</span>
               </button>
               <button
                 type="button"
-                onClick={() => setPaperWidth('80mm')}
-                className={`px-2 py-0.5 rounded transition ${
-                  paperWidth === '80mm' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                onClick={() => handleSelectPaperWidth('58mm')}
+                className={`px-2.5 py-1 rounded transition flex items-center gap-1 ${
+                  paperWidth === '58mm' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'
                 }`}
-                title="Epson, Xprinter, Sunmi ขนาด 80mm"
+                title="Xprinter XP-58IIH หรือเครื่องสลิปขนาดกะทัดรัด 58 มม."
               >
-                80 มม.
+                <span>🖨️ Xprinter (58 มม.)</span>
               </button>
             </div>
 
@@ -306,9 +337,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </div>
           </div>
 
-          {/* Barcode & Footer */}
+          {/* Barcode & Footer (Vector SVG for Razor-Sharp Thermal Printing) */}
           <div className="text-center pt-3 space-y-2">
-            <img src={barcodeDataUrl} alt="Order Barcode" className="mx-auto max-h-12" />
+            <div 
+              className="flex justify-center items-center [&_svg]:max-w-[85%] [&_svg]:h-auto [&_svg]:mx-auto"
+              dangerouslySetInnerHTML={{ __html: barcodeSvg }}
+            />
             <div className="text-[10px] text-slate-600 font-sans whitespace-pre-line leading-relaxed">
               {settings.receiptFooter}
             </div>

@@ -91,11 +91,17 @@ export class BarcodeScannerHelper {
       }
     }
 
-    // 2. Try finding Product Variant (by Barcode or SKU)
+    // 2. Try finding Product Variant (by Barcode, SKU, or Digits-Only sequence)
     for (const code of candidates) {
       const lower = code.toLowerCase();
+      const numOnly = code.replace(/\D/g, '');
       const variant = await db.variants
-        .filter(v => v.isActive !== false && (v.barcode === code || v.sku.toLowerCase() === lower))
+        .filter(v => {
+          if (v.isActive === false) return false;
+          if (v.barcode === code || v.barcode.toLowerCase() === lower || v.sku.toLowerCase() === lower) return true;
+          if (numOnly.length >= 4 && v.barcode.replace(/\D/g, '') === numOnly) return true;
+          return false;
+        })
         .first();
       if (variant) {
         return { type: 'PRODUCT', variant, resolvedCode: code };
