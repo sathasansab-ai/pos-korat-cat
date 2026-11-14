@@ -66,6 +66,13 @@ export function App() {
     };
 
     init();
+
+    const handleOnline = () => {
+      CloudSync.pushAllToCloud().catch(() => {});
+      CloudSync.pullFromCloud().catch(() => {});
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
   }, []);
 
   if (isDisplayPath) {

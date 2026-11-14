@@ -17,7 +17,8 @@ import {
   Printer,
   Boxes,
   Scissors,
-  Truck
+  Truck,
+  RefreshCw
 } from 'lucide-react';
 import { db } from '../db';
 import type { Order, Shift, StoreSettings, ConsignmentVendor } from '../types';
@@ -55,6 +56,8 @@ export const ReportsPage: React.FC = () => {
   
   // Active Report Sub-Tab
   const [reportTab, setReportTab] = useState<'OVERVIEW' | 'SHIFTS' | 'DAILY' | 'ACCOUNTING' | 'ORDERS' | 'CONSIGNMENT'>('OVERVIEW');
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const loadData = () => {
     Promise.all([
@@ -70,8 +73,29 @@ export const ReportsPage: React.FC = () => {
     });
   };
 
+  const handleSyncFromCloud = async () => {
+    setIsSyncingCloud(true);
+    setSyncMessage('กำลังดึงยอดขายและกะล่าสุดจาก Cloud...');
+    try {
+      const res = await CloudSync.pullFromCloud();
+      loadData();
+      setSyncMessage(res.success ? 'ดึงยอดล่าสุดจากหน้าร้านสำเร็จเรียบร้อย!' : res.summary);
+    } catch (err: any) {
+      setSyncMessage(`เกิดข้อผิดพลาด: ${err.message}`);
+    } finally {
+      setIsSyncingCloud(false);
+      setTimeout(() => setSyncMessage(null), 4000);
+    }
+  };
+
   useEffect(() => {
     loadData();
+    // Auto-refresh in background when online so store owner at Home sees latest shop sales
+    if (navigator.onLine) {
+      CloudSync.pullFromCloud().then(res => {
+        if (res.success) loadData();
+      }).catch(() => {});
+    }
   }, []);
 
   // Filter Orders based on selected Date Range
@@ -719,10 +743,26 @@ export const ReportsPage: React.FC = () => {
           <p className="text-xs text-slate-500 mt-0.5">
             วิเคราะห์ยอดขาย กำไรขั้นต้น (Gross Profit) สรุปกะพนักงาน สรุปรายวัน บัญชีแจกแจงรายการ และพิมพ์ใบกำกับภาษีย้อนหลัง
           </p>
+          {syncMessage && (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
+              <span>{syncMessage}</span>
+            </div>
+          )}
         </div>
 
-        {/* Excel / CSV Export Action Group */}
+        {/* Excel / CSV Export & Cloud Sync Action Group */}
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSyncFromCloud}
+            disabled={isSyncingCloud}
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition disabled:opacity-50"
+            title="ดึงยอดขาย บิล และกะล่าสุดจากหน้าร้านผ่าน Supabase Cloud เพื่อให้แอดมินที่บ้านเห็นยอดสดตรงกัน"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+            <span>{isSyncingCloud ? 'กำลังดึงยอด...' : '🔄 ดึงยอดขายล่าสุดจากหน้าร้าน (Cloud)'}</span>
+          </button>
+
           <button
             type="button"
             onClick={handleExportOrdersCsv}

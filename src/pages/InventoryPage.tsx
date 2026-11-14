@@ -15,7 +15,8 @@ import {
   Check,
   X,
   Truck,
-  Scissors
+  Scissors,
+  RefreshCw
 } from 'lucide-react';
 import { db } from '../db';
 import type { ProductVariant, StoreSettings, ConsignmentVendor } from '../types';
@@ -44,6 +45,20 @@ export const InventoryPage: React.FC = () => {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isProductionModalOpen, setIsProductionModalOpen] = useState(false);
   const [pendingTransferCount, setPendingTransferCount] = useState(0);
+  const [isSyncingStock, setIsSyncingStock] = useState(false);
+
+  const handleSyncStock = async () => {
+    setIsSyncingStock(true);
+    try {
+      const res = await CloudSync.pullFromCloud();
+      await loadVariants();
+      alert(res.success ? 'ดึงสต็อกและข้อมูลสินค้าล่าสุดจาก Cloud เรียบร้อย!' : res.summary);
+    } catch (e: any) {
+      alert(`ซิงค์ข้อมูลล้มเหลว: ${e.message}`);
+    } finally {
+      setIsSyncingStock(false);
+    }
+  };
 
   // Stock Destination Choice (Where new stock goes: Shop 100% (หน้าร้านพร้อมขาย), Warehouse 100%, or 50/50)
   const [stockDestination, setStockDestination] = useState<'WAREHOUSE' | 'SHOP' | 'HALF'>('SHOP');
@@ -500,6 +515,17 @@ export const InventoryPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSyncStock}
+            disabled={isSyncingStock}
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0 disabled:opacity-50"
+            title="ดึงสต็อกและรายการสินค้าล่าสุดจาก Cloud เพื่อให้ข้อมูลทุกเครื่องตรงกัน"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncingStock ? 'animate-spin' : ''}`} />
+            <span>{isSyncingStock ? 'กำลังดึงสต็อก...' : '🔄 ดึงสต็อกล่าสุด (Cloud)'}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsProductionModalOpen(true)}

@@ -133,6 +133,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   const loadData = async () => {
+    if (navigator.onLine) {
+      await CloudSync.pullStoreSettings().catch(() => {});
+    }
     const s = await db.settings.get('current_store_settings');
     if (s) {
       const slides = (s.customSlides && s.customSlides.length > 0)

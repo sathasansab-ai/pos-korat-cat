@@ -28,6 +28,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   const [livePromptPaySales, setLivePromptPaySales] = useState(0);
   const [liveTxCount, setLiveTxCount] = useState(0);
   const [pastShifts, setPastShifts] = useState<Shift[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadPastShifts = async () => {
     const list = await db.shifts.orderBy('startTime').reverse().limit(10).toArray();
@@ -35,6 +36,15 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   };
 
   const refreshLiveShift = async () => {
+    setIsRefreshing(true);
+    try {
+      if (navigator.onLine) {
+        await CloudSync.pullFromCloud().catch(() => {});
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+
     const shift = (await db.shifts.where({ status: 'OPEN' }).last()) || activeShift;
     setLiveShift(shift || null);
     await loadPastShifts();
@@ -83,7 +93,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
     };
 
     await db.shifts.add(newShift);
-    CloudSync.pushShift(newShift);
+    await CloudSync.pushShift(newShift);
     onShiftUpdated();
     refreshLiveShift();
   };
@@ -115,7 +125,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
     };
 
     await db.shifts.update(currentShift.id, updated);
-    CloudSync.pushShift(updated);
+    await CloudSync.pushShift(updated);
 
     setPrintedShift(updated);
     setIsClosingShift(false);
@@ -223,10 +233,11 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
           <button
             type="button"
             onClick={refreshLiveShift}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+            disabled={isRefreshing}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-            <span>รีเฟรชยอดเงิน</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isRefreshing ? 'กำลังดึงยอด...' : 'รีเฟรชยอดเงิน (Cloud)'}</span>
           </button>
         )}
       </div>

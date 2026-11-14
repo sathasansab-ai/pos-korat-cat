@@ -274,7 +274,7 @@ class CloudSyncService {
       }
 
       // 6. Pull Orders (บิลขายย้อนหลัง)
-      const oRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders?select=*&order=timestamp.desc&limit=200`, {
+      const oRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders?select=*&order=timestamp.desc&limit=1000`, {
         headers: this.getHeaders()
       });
       if (oRes.ok) {
@@ -383,7 +383,8 @@ class CloudSyncService {
             min_stock_alert: Number(v.minStockAlert ?? 5),
             image_url: v.imageUrl ? String(v.imageUrl) : null,
             supplier_name: v.supplierName ? String(v.supplierName) : null,
-            is_active: v.isActive !== false
+            is_active: v.isActive !== false,
+            updated_at: v.updatedAt || new Date().toISOString()
           });
         }
 
@@ -761,7 +762,8 @@ class CloudSyncService {
         min_stock_alert: Number(v.minStockAlert ?? 5),
         image_url: v.imageUrl ? String(v.imageUrl) : null,
         supplier_name: v.supplierName ? String(v.supplierName) : null,
-        is_active: v.isActive !== false
+        is_active: v.isActive !== false,
+        updated_at: v.updatedAt || new Date().toISOString()
       };
 
       // 1. ลอง Insert/Upsert ด้วย ID

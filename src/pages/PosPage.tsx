@@ -809,6 +809,9 @@ export const PosPage: React.FC<PosPageProps> = ({
         totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + promptPayPortion,
         totalTransactions: (activeShift.totalTransactions || 0) + 1
       });
+      db.shifts.get(activeShift.id).then(s => {
+        if (s) CloudSync.pushShift(s).catch(() => {});
+      }).catch(() => {});
       if (onShiftUpdated) onShiftUpdated();
 
       // 4. Update Customer Reward Points & Auto Tier Progression
