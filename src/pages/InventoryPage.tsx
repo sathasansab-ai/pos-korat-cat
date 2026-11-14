@@ -45,8 +45,8 @@ export const InventoryPage: React.FC = () => {
   const [isProductionModalOpen, setIsProductionModalOpen] = useState(false);
   const [pendingTransferCount, setPendingTransferCount] = useState(0);
 
-  // Stock Destination Choice (Where new stock goes: Warehouse 100%, Shop 100%, or 50/50)
-  const [stockDestination, setStockDestination] = useState<'WAREHOUSE' | 'SHOP' | 'HALF'>('WAREHOUSE');
+  // Stock Destination Choice (Where new stock goes: Shop 100% (หน้าร้านพร้อมขาย), Warehouse 100%, or 50/50)
+  const [stockDestination, setStockDestination] = useState<'WAREHOUSE' | 'SHOP' | 'HALF'>('SHOP');
   
   // Barcode Label Print Modal
   const [selectedVariantForPrint, setSelectedVariantForPrint] = useState<ProductVariant | null>(null);
@@ -299,19 +299,21 @@ export const InventoryPage: React.FC = () => {
       return { stockQuantity: qty, warehouseStock: wh, shopStock: sh };
     };
 
+    const nowIso = new Date().toISOString();
     const withImages = generated.map(v => ({ 
       ...v, 
       ...getCalculatedStocks(v.stockQuantity || 10),
-      imageUrl: matrixImagePreview || v.imageUrl 
+      imageUrl: matrixImagePreview || v.imageUrl,
+      updatedAt: nowIso
     }));
 
     if (confirm(`ระบบจะสร้าง Variants ทั้งหมด ${withImages.length} รายการ ต้องการบันทึกหรือไม่?`)) {
       await db.variants.bulkAdd(withImages);
-      // Auto push to Cloud
-      withImages.forEach(v => CloudSync.pushVariant(v));
+      // Auto push to Cloud with Promise.all
+      await Promise.all(withImages.map(v => CloudSync.pushVariant(v)));
       setIsMatrixModalOpen(false);
       loadVariants();
-      alert(`สร้าง Variants สำเร็จ ${withImages.length} รายการ!`);
+      alert(`สร้าง Variants สำเร็จ ${withImages.length} รายการ และซิงค์ขึ้น Cloud เรียบร้อย!`);
     }
   };
 
@@ -330,9 +332,12 @@ export const InventoryPage: React.FC = () => {
 
     const targetCat = singleCategory === 'CUSTOM' ? (singleCustomCategory.trim() || 'สินค้าทั่วไป') : singleCategory;
     const baseProductId = `prod-${Date.now()}`;
-    const cleanPrefix = singleName.trim().slice(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, '') || 'ITEM';
+    const rawEnglish = singleName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const uniqueShort = Date.now().toString().slice(-4);
+    const cleanPrefix = rawEnglish.length >= 3 ? rawEnglish.slice(0, 5) : `ITM${uniqueShort}`;
 
     const variantsToAdd: ProductVariant[] = [];
+    const nowIso = new Date().toISOString();
 
     if (hasSizes) {
       // Create a variant for each size entry that has stock > 0
@@ -375,6 +380,7 @@ export const InventoryPage: React.FC = () => {
           minStockAlert: 3,
           imageUrl: singleImagePreview || undefined,
           isActive: true,
+          updatedAt: nowIso,
           isConsignment: isConsignment,
           vendorId: isConsignment ? selectedVendorId : undefined,
           vendorName: isConsignment ? vendorName : undefined,
@@ -385,7 +391,7 @@ export const InventoryPage: React.FC = () => {
     } else {
       // Single Fixed Item (e.g. Bag, Souvenir, Workshop Ticket)
       const autoBarcode = `885${Date.now().toString().slice(-7)}`;
-      const autoSku = `KCAT-${cleanPrefix}`;
+      const autoSku = `KCAT-${cleanPrefix}-${uniqueShort}`;
       const wh = stockDestination === 'WAREHOUSE' ? singleFixedStock : stockDestination === 'SHOP' ? 0 : Math.floor(singleFixedStock / 2);
       const sh = singleFixedStock - wh;
 
@@ -415,6 +421,7 @@ export const InventoryPage: React.FC = () => {
         minStockAlert: 3,
         imageUrl: singleImagePreview || undefined,
         isActive: true,
+        updatedAt: nowIso,
         isConsignment: isConsignment,
         vendorId: isConsignment ? selectedVendorId : undefined,
         vendorName: isConsignment ? vendorName : undefined,
@@ -424,8 +431,8 @@ export const InventoryPage: React.FC = () => {
     }
 
     await db.variants.bulkAdd(variantsToAdd);
-    // Auto push each newly added variant to Cloud
-    variantsToAdd.forEach(v => CloudSync.pushVariant(v));
+    // Auto push each newly added variant to Cloud with Promise.all
+    await Promise.all(variantsToAdd.map(v => CloudSync.pushVariant(v)));
     const totalQty = variantsToAdd.reduce((sum, v) => sum + v.stockQuantity, 0);
 
     setIsSingleModalOpen(false);
@@ -441,9 +448,17 @@ export const InventoryPage: React.FC = () => {
   const handleUpdateStock = async (id: string, newStock: number) => {
     const v = await db.variants.get(id);
     if (v) {
-      const updated = { ...v, stockQuantity: Math.max(0, newStock) };
+      const safeNewStock = Math.max(0, newStock);
+      const diff = safeNewStock - v.stockQuantity;
+      const newShop = Math.max(0, (v.shopStock ?? v.stockQuantity) + diff);
+      const updated: ProductVariant = { 
+        ...v, 
+        stockQuantity: safeNewStock,
+        shopStock: newShop,
+        updatedAt: new Date().toISOString()
+      };
       await db.variants.put(updated);
-      CloudSync.pushVariant(updated);
+      await CloudSync.pushVariant(updated);
       loadVariants();
     }
   };

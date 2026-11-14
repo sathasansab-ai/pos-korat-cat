@@ -95,18 +95,34 @@ class CloudSyncService {
             imageUrl: cv.image_url,
             supplierName: cv.supplier_name,
             isActive: cv.is_active !== false,
+            updatedAt: cv.updated_at || undefined,
             isConsignment: (cv as any).is_consignment ?? (cv.attributes?.isConsignment === 'true' || cv.attributes?.isConsignment === true || Boolean(cv.attributes?.vendorId)),
             vendorId: (cv as any).vendor_id ?? cv.attributes?.vendorId,
             vendorName: (cv as any).vendor_name ?? cv.attributes?.vendorName,
             gpPercent: (cv as any).gp_percent ?? (cv.attributes?.gpPercent ? Number(cv.attributes.gpPercent) : undefined),
             vendorPayoutPrice: (cv as any).vendor_payout_price ?? (cv.attributes?.vendorPayoutPrice ? Number(cv.attributes.vendorPayoutPrice) : undefined)
           };
-          if (cv.sku) {
-            const existingSameSku = await db.variants.where({ sku: cv.sku }).first();
-            if (existingSameSku && existingSameSku.id !== cv.id) {
-              await db.variants.delete(existingSameSku.id);
+
+          // Safe Merge: ตรวจสอบไม่ให้ Cloud ย้อนทับสต็อกที่เพิ่งบันทึกหรือแก้ไขในเครื่องนี้
+          const localMatch = await db.variants.get(cv.id) 
+            || (cv.sku ? await db.variants.where({ sku: cv.sku }).first() : null);
+
+          if (localMatch) {
+            const localTime = localMatch.updatedAt ? new Date(localMatch.updatedAt).getTime() : 0;
+            const cloudTime = cv.updated_at ? new Date(cv.updated_at).getTime() : 0;
+
+            // หากเครื่องนี้เพิ่งอัปเดตสต็อกใหม่กว่า Cloud ให้คงค่าในเครื่องไว้ และส่งอัปเดตขึ้น Cloud แทน
+            if (localTime > cloudTime && localTime > 0) {
+              this.pushVariant(localMatch).catch(() => {});
+              continue;
+            }
+
+            // หาก id ในเครื่องกับ Cloud ไม่ตรงกัน แต่ SKU เดียวกัน ให้ลบ id เก่าออกเพื่อไม่ให้ซ้ำซ้อน
+            if (localMatch.id !== cv.id) {
+              await db.variants.delete(localMatch.id);
             }
           }
+
           await db.variants.put(localVar);
         }
       }
@@ -725,9 +741,9 @@ class CloudSyncService {
   }
 
   /**
-   * ส่งข้อมูลสินค้าตัวเดียวขึ้น Cloud ทันที
+   * ส่งข้อมูลสินค้าตัวเดียวขึ้น Cloud ทันที (พร้อม Fallback PATCH ตาม SKU เมื่อติด Unique Conflict)
    */
-  public async pushVariant(v: ProductVariant): Promise<void> {
+  public async pushVariant(v: ProductVariant): Promise<{ success: boolean; message?: string }> {
     try {
       const payload = {
         id: String(v.id),
@@ -740,30 +756,45 @@ class CloudSyncService {
         cost_price: Number(v.costPrice || 0),
         sale_price: Number(v.salePrice || 0),
         stock_quantity: Number(v.stockQuantity || 0),
-        warehouse_stock: Number(v.warehouseStock ?? v.stockQuantity ?? 0),
-        shop_stock: Number(v.shopStock ?? 0),
+        warehouse_stock: Number(v.warehouseStock ?? 0),
+        shop_stock: Number(v.shopStock ?? v.stockQuantity ?? 0),
         min_stock_alert: Number(v.minStockAlert ?? 5),
         image_url: v.imageUrl ? String(v.imageUrl) : null,
         supplier_name: v.supplierName ? String(v.supplierName) : null,
         is_active: v.isActive !== false
       };
 
+      // 1. ลอง Insert/Upsert ด้วย ID
       const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?on_conflict=id`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify([payload])
       });
 
-      if (!res.ok && res.status === 409 && payload.sku) {
-        // หากติด Unique Constraint SKU ให้ Patch อัปเดตรายการเดิมบน Cloud
-        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?sku=eq.${encodeURIComponent(payload.sku)}`, {
+      if (res.ok) {
+        return { success: true };
+      }
+
+      // 2. หากไม่สำเร็จ (เช่น 409 Conflict หรือติด variants_sku_key) ให้แยก ID ออกแล้ว PATCH ตาม SKU ทันที
+      if (payload.sku) {
+        const { id: _ignoreId, ...patchFields } = payload;
+        const patchRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?sku=eq.${encodeURIComponent(payload.sku)}`, {
           method: 'PATCH',
           headers: this.getHeaders(),
-          body: JSON.stringify(payload)
+          body: JSON.stringify(patchFields)
         });
+
+        if (patchRes.ok) {
+          return { success: true };
+        }
       }
-    } catch (e) {
+
+      const errText = await res.text().catch(() => '');
+      console.warn('Failed to push variant to cloud:', res.status, errText);
+      return { success: false, message: `HTTP ${res.status}: ${errText}` };
+    } catch (e: any) {
       console.warn('Failed to push single variant to cloud', e);
+      return { success: false, message: e.message };
     }
   }
 

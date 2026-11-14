@@ -142,6 +142,7 @@ export interface ProductVariant {
   imageUrl?: string;
   supplierName?: string;
   isActive: boolean;
+  updatedAt?: string; // ISO timestamp to prevent Cloud sync conflicts
 
   // Consignment Fields (ระบบฝากขายสินค้าชุมชน)
   isConsignment?: boolean;

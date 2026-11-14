@@ -788,11 +788,12 @@ export const PosPage: React.FC<PosPageProps> = ({
           const updatedVariant: ProductVariant = {
             ...v,
             shopStock: newShop,
-            stockQuantity: newTotal
+            stockQuantity: newTotal,
+            updatedAt: new Date().toISOString()
           };
 
           await db.variants.put(updatedVariant);
-          CloudSync.pushVariant(updatedVariant);
+          CloudSync.pushVariant(updatedVariant).catch(() => {});
         }
       }
       // Refresh Quick Items in real-time immediately after cutting stock (Safe in-memory filter)

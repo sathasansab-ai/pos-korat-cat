@@ -126,13 +126,14 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         ...currentVariant,
         warehouseStock: newWarehouse,
         shopStock: newShop,
-        stockQuantity: newWarehouse + newShop
+        stockQuantity: newWarehouse + newShop,
+        updatedAt: new Date().toISOString()
       };
       await db.variants.put(updatedVariant);
 
       // 3. ส่งขึ้น Cloud (ทั้งใบโอนและสต็อกสินค้าที่ตัดแล้ว)
-      CloudSync.pushTransfer(newTransfer);
-      CloudSync.pushVariant(updatedVariant);
+      await CloudSync.pushTransfer(newTransfer);
+      await CloudSync.pushVariant(updatedVariant);
 
       alert(`✅ บันทึกการส่งของสำเร็จแล้ว!\nเลขที่เอกสาร: ${transferNo}\nตัดสต็อก${sourceBranchName}ออก ${transferQty} ชิ้นเรียบร้อย\n\nระบบได้ส่งใบโอนไปยัง "${targetBranchName}" แล้ว (สถานะ: รอตรวจรับสินค้า)`);
       if (onTransferComplete) onTransferComplete();
@@ -167,10 +168,11 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
             ...v,
             shopStock: currentShop,
             warehouseStock: currentWh,
-            stockQuantity: currentWh + currentShop
+            stockQuantity: currentWh + currentShop,
+            updatedAt: new Date().toISOString()
           };
           await db.variants.put(updatedV);
-          CloudSync.pushVariant(updatedV);
+          await CloudSync.pushVariant(updatedV);
         }
       }
 

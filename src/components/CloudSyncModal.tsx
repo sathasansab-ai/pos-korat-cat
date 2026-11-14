@@ -11,6 +11,7 @@ import {
   Database
 } from 'lucide-react';
 import { CloudSync, SUPABASE_CONFIG } from '../services/cloudSync';
+import { db } from '../db';
 
 interface CloudSyncModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     success: false,
     message: 'กำลังตรวจสอบการเชื่อมต่อ...'
   });
+  const [localStats, setLocalStats] = useState<{ variants: number; orders: number }>({ variants: 0, orders: 0 });
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
 
@@ -35,6 +37,11 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setConnStatus({ checked: false, success: false, message: 'กำลังตรวจสอบการเชื่อมต่อกับ Supabase...' });
     const res = await CloudSync.testConnection();
     setConnStatus({ checked: true, success: res.success, message: res.message });
+    try {
+      const vCount = await db.variants.count();
+      const oCount = await db.orders.count();
+      setLocalStats({ variants: vCount, orders: oCount });
+    } catch {}
   };
 
   useEffect(() => {
@@ -116,6 +123,11 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
               <p className="text-[11px] leading-relaxed">{connStatus.message}</p>
               <div className="mt-2 text-[10px] font-mono text-slate-400 truncate">
                 URL: {SUPABASE_CONFIG.url}
+              </div>
+              <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center gap-3 text-[11px] font-semibold text-slate-300">
+                <span>📦 สินค้าในเครื่องนี้: <b className="text-amber-400 font-mono">{localStats.variants}</b> รายการ</span>
+                <span>•</span>
+                <span>🧾 บิลขาย: <b className="text-emerald-400 font-mono">{localStats.orders}</b> บิล</span>
               </div>
             </div>
           </div>
