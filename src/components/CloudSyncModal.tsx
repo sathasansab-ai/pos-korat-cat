@@ -68,6 +68,27 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     const res = await CloudSync.pullFromCloud();
     setIsSyncing(false);
     setSyncResult(res.summary);
+    try {
+      const vCount = await db.variants.count();
+      const oCount = await db.orders.count();
+      setLocalStats({ variants: vCount, orders: oCount });
+    } catch {}
+    if (res.success && onSyncComplete) onSyncComplete();
+  };
+
+  const handleMirrorCatalog = async () => {
+    if (!confirm('ยืนยันดึงแคตตาล็อกสินค้าจาก Cloud มาแทนที่ในเครื่องนี้ให้ตรงกัน 100% หรือไม่?\n(เหมาะสำหรับจัดสต็อกที่บ้านเสร็จแล้วมาอัปเดตที่ร้านให้ตรงกันเป๊ะ)')) {
+      return;
+    }
+    setIsSyncing(true);
+    setSyncResult(null);
+    const res = await CloudSync.mirrorCatalogFromCloud();
+    setIsSyncing(false);
+    setSyncResult(res.message);
+    try {
+      const vCount = await db.variants.count();
+      setLocalStats(prev => ({ ...prev, variants: vCount }));
+    } catch {}
     if (res.success && onSyncComplete) onSyncComplete();
   };
 
@@ -169,6 +190,22 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
               <span className="text-xs">ดึงข้อมูลจาก Cloud</span>
               <span className="text-[10px] font-normal text-slate-400">ดึงสต็อกล่าสุดจาก Cloud ลงเครื่อง</span>
             </button>
+
+            {/* Mirror Cloud -> Local (100% Match) */}
+            <div className="col-span-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                disabled={isSyncing}
+                onClick={handleMirrorCatalog}
+                className="w-full p-3 rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white flex items-center justify-center gap-2 font-bold shadow transition active:scale-95 disabled:opacity-50 text-xs"
+              >
+                <RefreshCw className="w-4 h-4 text-blue-200" />
+                <span>⚡ ดึงแคตตาล็อกสินค้าให้ตรงกับ Cloud 100% (Mirror Master)</span>
+              </button>
+              <p className="text-[10px] text-slate-400 text-center mt-1">
+                ใช้เมื่อจัดสินค้าที่บ้านเรียบร้อยแล้ว ต้องการให้สินค้าที่ร้านตรงกับ Cloud เป๊ะ 1:1 ล้างรายการตกค้าง
+              </p>
+            </div>
           </div>
 
           {/* Live Sync Spinner or Result Toast */}

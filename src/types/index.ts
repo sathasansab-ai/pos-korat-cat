@@ -79,6 +79,21 @@ export interface StoreSettings {
 
   // Consignment Vendors (ผู้ประกอบการ/วิสาหกิจชุมชนที่นำสินค้ามาฝากขาย)
   consignors?: ConsignmentVendor[];
+
+  // Free Gifts with Purchase (โปรโมชั่นแจกของสมนาคุณตัดสต็อกฟรี)
+  freeGiftTiers?: FreeGiftTier[];
+}
+
+export interface FreeGiftTier {
+  id: string;
+  minSpend: number; // ยอดซื้อขั้นต่ำ เช่น 1000 หรือ 2000
+  giftVariantId: string;
+  giftProductName: string;
+  giftSku: string;
+  giftBarcode?: string;
+  giftQty: number; // จำนวนชิ้นที่แจก เช่น 1
+  isActive: boolean;
+  description?: string;
 }
 
 export interface Product {
@@ -231,6 +246,9 @@ export interface CartItem {
   vendorName?: string;
   gpPercent?: number;
   vendorPayoutPrice?: number;
+
+  // Free Gift with purchase
+  isFreeGift?: boolean;
 }
 
 export interface Customer {
@@ -289,6 +307,7 @@ export interface Order {
     gpPercent?: number; // % GP หักร้าน เช่น 20%
     storeRevenue?: number; // ยอดส่วนแบ่งที่ร้านได้รับ (lineTotal * gpPercent / 100)
     vendorPayout?: number; // ยอดที่ต้องส่งมอบคืนผู้ประกอบการ (lineTotal - storeRevenue)
+    isFreeGift?: boolean;
   }[];
   subtotal: number;
   promoDiscount: number;

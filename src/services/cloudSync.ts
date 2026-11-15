@@ -367,6 +367,20 @@ class CloudSyncService {
           }
           if (finalSku) seenSkus.add(skuKey);
 
+          const defaultShop = v.shopStock !== undefined ? v.shopStock : v.stockQuantity;
+          const defaultWh = v.warehouseStock ?? 0;
+
+          const mergedAttributes = {
+            ...(v.attributes || {}),
+            ...(v.isConsignment ? {
+              isConsignment: 'true',
+              vendorId: v.vendorId || '',
+              vendorName: v.vendorName || '',
+              gpPercent: String(v.gpPercent || 20),
+              vendorPayoutPrice: String(v.vendorPayoutPrice || '')
+            } : {})
+          };
+
           payload.push({
             id: finalId,
             product_id: v.productId ? String(v.productId) : null,
@@ -374,12 +388,12 @@ class CloudSyncService {
             category: String(v.category || 'สินค้าทั่วไป'),
             sku: finalSku || `SKU-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             barcode: String(v.barcode || ''),
-            attributes: v.attributes || {},
+            attributes: mergedAttributes,
             cost_price: Number(v.costPrice || 0),
             sale_price: Number(v.salePrice || 0),
             stock_quantity: Number(v.stockQuantity || 0),
-            warehouse_stock: Number(v.warehouseStock ?? v.stockQuantity ?? 0),
-            shop_stock: Number(v.shopStock ?? 0),
+            warehouse_stock: Number(defaultWh),
+            shop_stock: Number(defaultShop),
             min_stock_alert: Number(v.minStockAlert ?? 5),
             image_url: v.imageUrl ? String(v.imageUrl) : null,
             supplier_name: v.supplierName ? String(v.supplierName) : null,
@@ -746,6 +760,17 @@ class CloudSyncService {
    */
   public async pushVariant(v: ProductVariant): Promise<{ success: boolean; message?: string }> {
     try {
+      const mergedAttributes = {
+        ...(v.attributes || {}),
+        ...(v.isConsignment ? {
+          isConsignment: 'true',
+          vendorId: v.vendorId || '',
+          vendorName: v.vendorName || '',
+          gpPercent: String(v.gpPercent || 20),
+          vendorPayoutPrice: String(v.vendorPayoutPrice || '')
+        } : {})
+      };
+
       const payload = {
         id: String(v.id),
         product_id: v.productId ? String(v.productId) : null,
@@ -753,7 +778,7 @@ class CloudSyncService {
         category: String(v.category || 'สินค้าทั่วไป'),
         sku: String(v.sku || ''),
         barcode: String(v.barcode || ''),
-        attributes: v.attributes || {},
+        attributes: mergedAttributes,
         cost_price: Number(v.costPrice || 0),
         sale_price: Number(v.salePrice || 0),
         stock_quantity: Number(v.stockQuantity || 0),
@@ -1018,6 +1043,62 @@ class CloudSyncService {
       console.warn('Failed to pull store settings from cloud', e);
     }
     return null;
+  }
+
+  /**
+   * ดึงแคตตาล็อกสินค้าทั้งหมดจาก Cloud มาแทนที่ในเครื่องนี้แบบ 1:1 (Cloud Master Mirror)
+   * ใช้เมื่อต้องการให้สินค้าตรงกับที่จัดไว้บน Cloud 100% ล้างรายการผีที่ตกค้างออกทั้งหมด
+   */
+  public async mirrorCatalogFromCloud(): Promise<{ success: boolean; count: number; message: string }> {
+    try {
+      const vRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?select=*`, {
+        headers: this.getHeaders()
+      });
+      if (!vRes.ok) {
+        return { success: false, count: 0, message: `ไม่สามารถดึงข้อมูลจาก Cloud ได้ (HTTP ${vRes.status})` };
+      }
+      const cloudVariants: any[] = await vRes.json();
+      if (cloudVariants.length === 0) {
+        return { success: false, count: 0, message: 'ไม่พบรายการสินค้าบน Cloud (สต็อกบน Cloud ว่างเปล่า)' };
+      }
+
+      await db.variants.clear();
+      for (const cv of cloudVariants) {
+        const localVar: ProductVariant = {
+          id: cv.id,
+          productId: cv.product_id,
+          productName: cv.product_name,
+          category: cv.category,
+          sku: cv.sku,
+          barcode: cv.barcode,
+          attributes: cv.attributes || {},
+          costPrice: Number(cv.cost_price || 0),
+          salePrice: Number(cv.sale_price || 0),
+          stockQuantity: Number(cv.stock_quantity || 0),
+          warehouseStock: Number(cv.warehouse_stock || 0),
+          shopStock: Number(cv.shop_stock ?? cv.stock_quantity ?? 0),
+          minStockAlert: Number(cv.min_stock_alert || 5),
+          imageUrl: cv.image_url,
+          supplierName: cv.supplier_name,
+          isActive: cv.is_active !== false,
+          updatedAt: cv.updated_at || undefined,
+          isConsignment: (cv as any).is_consignment ?? (cv.attributes?.isConsignment === 'true' || cv.attributes?.isConsignment === true || Boolean(cv.attributes?.vendorId)),
+          vendorId: (cv as any).vendor_id ?? cv.attributes?.vendorId,
+          vendorName: (cv as any).vendor_name ?? cv.attributes?.vendorName,
+          gpPercent: (cv as any).gp_percent ?? (cv.attributes?.gpPercent ? Number(cv.attributes.gpPercent) : undefined),
+          vendorPayoutPrice: (cv as any).vendor_payout_price ?? (cv.attributes?.vendorPayoutPrice ? Number(cv.attributes.vendorPayoutPrice) : undefined)
+        };
+        await db.variants.put(localVar);
+      }
+
+      return { 
+        success: true, 
+        count: cloudVariants.length, 
+        message: `ดึงแคตตาล็อกสินค้าจาก Cloud สำเร็จเรียบร้อย (${cloudVariants.length} รายการ ตรงกับ Cloud 100%)` 
+      };
+    } catch (e: any) {
+      return { success: false, count: 0, message: `เกิดข้อผิดพลาด: ${e.message}` };
+    }
   }
 
   /**

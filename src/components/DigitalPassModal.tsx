@@ -85,10 +85,10 @@ export const DigitalPassModal: React.FC<DigitalPassModalProps> = ({
 
   const tierName = tierConfig.name;
 
-  // Barcode & QR Data URLs
+  // Barcode & QR Data URLs (Points directly to Mobile Pass web view for saving to customer photos)
   const barcodeUrl = BarcodeGenerator.generateDataUrl(memberCode, { height: 36, showText: true });
-  // Dynamic QR: encoded with JSON or Direct Code for cashier scanning
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(memberCode)}&format=svg`;
+  const mobilePassUrl = `${window.location.origin}/pass?code=${encodeURIComponent(memberCode)}&name=${encodeURIComponent(customer.name)}&phone=${encodeURIComponent(customer.phone)}&tier=${encodeURIComponent(tier)}&pts=${customer.rewardPoints || 0}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(mobilePassUrl)}&format=svg`;
 
   // Send to Customer Monitor (/display)
   const handleSendToCustomerScreen = () => {

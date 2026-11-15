@@ -1,9 +1,10 @@
 // src/pages/PromotionsPage.tsx
 import React, { useState, useEffect } from 'react';
-import { Tag, Plus, CheckCircle, XCircle, Sparkles, Trash2, Users, ShieldAlert } from 'lucide-react';
+import { Tag, Plus, CheckCircle, XCircle, Sparkles, Trash2, Users, ShieldAlert, Gift, Check, AlertCircle } from 'lucide-react';
 import { db } from '../db';
-import type { PromotionRule } from '../types';
+import type { PromotionRule, ProductVariant, StoreSettings, FreeGiftTier } from '../types';
 import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
+import { CloudSync } from '../services/cloudSync';
 
 export const PromotionsPage: React.FC = () => {
   const [promotions, setPromotions] = useState<PromotionRule[]>([]);
@@ -19,9 +20,100 @@ export const PromotionsPage: React.FC = () => {
     DEFAULT_PRODUCT_CATEGORIES[1]
   ]);
 
+  const [settings, setSettings] = useState<StoreSettings | null>(null);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+
+  // Free Gift Tier Form State
+  const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
+  const [giftMinSpend, setGiftMinSpend] = useState<number>(1000);
+  const [giftVariantId, setGiftVariantId] = useState<string>('');
+  const [giftQty, setGiftQty] = useState<number>(1);
+  const [giftDesc, setGiftDesc] = useState<string>('');
+
   const loadPromos = async () => {
-    const list = await db.promotions.toArray();
+    const [list, s, vList] = await Promise.all([
+      db.promotions.toArray(),
+      db.settings.get('current_store_settings'),
+      db.variants.filter(v => v.isActive !== false).toArray()
+    ]);
     setPromotions(list);
+    if (s) setSettings(s);
+    setVariants(vList);
+    if (vList.length > 0 && !giftVariantId) {
+      setGiftVariantId(vList[0].id);
+    }
+  };
+
+  const handleCreateGiftTier = async () => {
+    if (!settings) return;
+    if (giftMinSpend <= 0) {
+      alert('กรุณาระบุยอดซื้อขั้นต่ำ');
+      return;
+    }
+    const chosenVariant = variants.find(v => v.id === giftVariantId);
+    if (!chosenVariant) {
+      alert('กรุณาเลือกสินค้าของสมนาคุณจากสต็อก');
+      return;
+    }
+
+    const newTier: FreeGiftTier = {
+      id: `gwp-${Date.now()}`,
+      minSpend: giftMinSpend,
+      giftVariantId: chosenVariant.id,
+      giftProductName: chosenVariant.productName,
+      giftSku: chosenVariant.sku,
+      giftBarcode: chosenVariant.barcode,
+      giftQty: Math.max(1, giftQty),
+      isActive: true,
+      description: giftDesc.trim() || `ยอดซื้อครบ ฿${giftMinSpend.toLocaleString()} รับฟรี ${chosenVariant.productName} 1 ชิ้น`
+    };
+
+    const updatedTiers = [...(settings.freeGiftTiers || []), newTier];
+    const updatedSettings: StoreSettings = {
+      ...settings,
+      freeGiftTiers: updatedTiers,
+      updatedAt: new Date().toISOString()
+    };
+
+    await db.settings.put(updatedSettings);
+    setSettings(updatedSettings);
+    CloudSync.pushStoreSettings(updatedSettings).catch(() => {});
+
+    setIsGiftModalOpen(false);
+    setGiftMinSpend(1000);
+    setGiftQty(1);
+    setGiftDesc('');
+    alert(`เพิ่มเกณฑ์ของสมนาคุณ "ยอดซื้อครบ ฿${newTier.minSpend.toLocaleString()} รับฟรี ${newTier.giftProductName}" เรียบร้อย!`);
+  };
+
+  const handleToggleGiftTier = async (id: string, currentStatus: boolean) => {
+    if (!settings || !settings.freeGiftTiers) return;
+    const updatedTiers = settings.freeGiftTiers.map(t => 
+      t.id === id ? { ...t, isActive: !currentStatus } : t
+    );
+    const updatedSettings: StoreSettings = {
+      ...settings,
+      freeGiftTiers: updatedTiers,
+      updatedAt: new Date().toISOString()
+    };
+    await db.settings.put(updatedSettings);
+    setSettings(updatedSettings);
+    CloudSync.pushStoreSettings(updatedSettings).catch(() => {});
+  };
+
+  const handleDeleteGiftTier = async (id: string) => {
+    if (!settings || !settings.freeGiftTiers) return;
+    if (confirm('ยืนยันลบเกณฑ์ของสมนาคุณนี้หรือไม่?')) {
+      const updatedTiers = settings.freeGiftTiers.filter(t => t.id !== id);
+      const updatedSettings: StoreSettings = {
+        ...settings,
+        freeGiftTiers: updatedTiers,
+        updatedAt: new Date().toISOString()
+      };
+      await db.settings.put(updatedSettings);
+      setSettings(updatedSettings);
+      CloudSync.pushStoreSettings(updatedSettings).catch(() => {});
+    }
   };
 
   useEffect(() => {
@@ -175,6 +267,109 @@ export const PromotionsPage: React.FC = () => {
         ))}
       </div>
 
+      {/* 2. Free Gift With Purchase (GWP) Section */}
+      <div className="pt-8 border-t border-slate-200 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <Gift className="w-5 h-5 text-rose-500" />
+              <span>ของสมนาคุณตัดสต็อกฟรีตามยอดบิล (Gift With Purchase - GWP)</span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              กำหนดเกณฑ์ยอดซื้อขั้นต่ำ (เช่น ซื้อครบ ฿1,000 หรือ ฿2,000) รับของสมนาคุณฟรีในสต็อก โดยตัดสต็อกจริงแต่ไม่คิดเงินลูกค้า
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsGiftModalOpen(true)}
+            className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ เพิ่มเกณฑ์ของสมนาคุณ</span>
+          </button>
+        </div>
+
+        {/* Gift Tiers List */}
+        {(!settings?.freeGiftTiers || settings.freeGiftTiers.length === 0) ? (
+          <div className="p-8 text-center bg-rose-50/50 rounded-2xl border border-dashed border-rose-200">
+            <Gift className="w-10 h-10 text-rose-400 mx-auto mb-2 opacity-60" />
+            <h4 className="text-sm font-bold text-rose-900">ยังไม่มีการตั้งค่าของสมนาคุณ</h4>
+            <p className="text-xs text-rose-600 mt-1 max-w-sm mx-auto">
+              กดปุ่มด้านบนเพื่อเลือกสินค้าในสต็อก (เช่น ตุ๊กตาแมว, พวงกุญแจ) และกำหนดยอดซื้อขั้นต่ำเพื่อแจกลูกค้าหน้าร้าน
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {settings.freeGiftTiers.map((tier) => {
+              const matchedVar = variants.find(v => v.id === tier.giftVariantId);
+              const currentStock = matchedVar?.shopStock ?? matchedVar?.stockQuantity ?? 0;
+
+              return (
+                <div
+                  key={tier.id}
+                  className={`p-5 rounded-2xl border transition shadow-sm bg-white flex flex-col justify-between ${
+                    tier.isActive ? 'border-rose-300 ring-1 ring-rose-200' : 'border-slate-200 opacity-60'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="px-3 py-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white font-black text-xs rounded-full shadow-xs">
+                        🎁 ยอดซื้อครบ ฿{tier.minSpend.toLocaleString()} ขึ้นไป
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleGiftTier(tier.id, tier.isActive)}
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-lg ${
+                            tier.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {tier.isActive ? '✓ เปิดใช้งาน' : '✕ ปิดชั่วคราว'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGiftTier(tier.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-sm mt-2">{tier.giftProductName}</h3>
+                    <p className="text-xs text-slate-500 font-mono mt-0.5">SKU: {tier.giftSku}</p>
+
+                    <div className="mt-3 p-3 bg-rose-50/70 rounded-xl space-y-1.5 text-xs text-rose-950">
+                      <div className="flex justify-between">
+                        <span>จำนวนที่แจกต่อบิล:</span>
+                        <span className="font-bold font-mono text-rose-700">{tier.giftQty} ชิ้น (มูลค่า ฿0 ในบิล)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>สต็อกคงเหลือหน้าร้าน:</span>
+                        <span className={`font-bold font-mono ${currentStock > 5 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                          {currentStock} ชิ้น {currentStock <= 5 && '(ใกล้หมด)'}
+                        </span>
+                      </div>
+                      {tier.description && (
+                        <div className="text-[11px] text-slate-600 pt-1 border-t border-rose-200/60">
+                          {tier.description}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center text-[11px] text-rose-700 font-medium">
+                    <Sparkles className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                    <span>แจ้งเตือนบนหน้าจอแคชเชียร์และจอลูกค้า พร้อมปุ่มกดเพิ่มลงบิลและตัดสต็อกจริงอัตโนมัติ</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -300,6 +495,110 @@ export const PromotionsPage: React.FC = () => {
                   className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow"
                 >
                   บันทึกโปรโมชั่น
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      {/* Create Free Gift Tier Modal */}
+      {isGiftModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <Gift className="w-5 h-5 text-rose-500" />
+                <span>เพิ่มเกณฑ์ของสมนาคุณตัดสต็อกฟรี</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsGiftModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ยอดซื้อขั้นต่ำต่อบิล (บาท)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 font-bold text-slate-400">฿</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="50"
+                    value={giftMinSpend}
+                    onChange={e => setGiftMinSpend(parseInt(e.target.value, 10) || 0)}
+                    placeholder="เช่น 1000 หรือ 2000"
+                    className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-base text-rose-700 outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">เช่น เมื่อยอดซื้อสินค้าในบิลถึง 1,000 หรือ 2,000 บาท</p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">เลือกสินค้าของสมนาคุณจากสต็อกร้าน</label>
+                <select
+                  value={giftVariantId}
+                  onChange={e => setGiftVariantId(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-rose-500 text-xs"
+                >
+                  {variants.map(v => {
+                    const stock = v.shopStock ?? v.stockQuantity ?? 0;
+                    return (
+                      <option key={v.id} value={v.id}>
+                        {v.productName} (สต็อก: {stock} ชิ้น) - SKU: {v.sku}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">* ระบบจะนำสินค้านี้ไปใส่ในบิลในราคา ฿0 และตัดสต็อกจริงอัตโนมัติ</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">จำนวนที่แจก (ชิ้น/บิล)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={giftQty}
+                    onChange={e => setGiftQty(parseInt(e.target.value, 10) || 1)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">มูลค่าในบิล</label>
+                  <div className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl font-mono font-black text-rose-600 text-sm">
+                    ฿0 (ฟรี)
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">คำอธิบายโปรโมชั่นสำหรับแสดงบนหน้าจอ</label>
+                <input
+                  type="text"
+                  value={giftDesc}
+                  onChange={e => setGiftDesc(e.target.value)}
+                  placeholder="เช่น ซื้อครบ ฿1,000 รับฟรี ตุ๊กตาแมวโคราช 1 ชิ้น"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsGiftModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateGiftTier}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white rounded-xl font-bold shadow"
+                >
+                  บันทึกของสมนาคุณ
                 </button>
               </div>
             </div>

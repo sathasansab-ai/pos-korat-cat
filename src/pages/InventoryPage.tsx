@@ -16,7 +16,9 @@ import {
   X,
   Truck,
   Scissors,
-  RefreshCw
+  RefreshCw,
+  UploadCloud,
+  DownloadCloud
 } from 'lucide-react';
 import { db } from '../db';
 import type { ProductVariant, StoreSettings, ConsignmentVendor } from '../types';
@@ -46,6 +48,43 @@ export const InventoryPage: React.FC = () => {
   const [isProductionModalOpen, setIsProductionModalOpen] = useState(false);
   const [pendingTransferCount, setPendingTransferCount] = useState(0);
   const [isSyncingStock, setIsSyncingStock] = useState(false);
+  const [isPushingMaster, setIsPushingMaster] = useState(false);
+
+  const handlePushMasterStock = async () => {
+    const list = await db.variants.toArray();
+    if (list.length === 0) {
+      alert('ไม่มีรายการสินค้าในเครื่องนี้');
+      return;
+    }
+    if (!confirm(`ต้องการส่งสินค้าทั้งหมดในเครื่องนี้ (${list.length} รายการ) ขึ้นไปเป็นข้อมูลหลักบน Cloud หรือไม่?\n(แนะนำให้ทำเมื่อจัดสต็อกหรือแก้ไขสินค้าที่บ้านเสร็จเรียบร้อย)`)) {
+      return;
+    }
+    setIsPushingMaster(true);
+    try {
+      const res = await CloudSync.pushAllToCloud();
+      alert(`อัปโหลดขึ้น Cloud เรียบร้อย: ${res.message}\nสินค้าทั้ง ${list.length} รายการพร้อมให้เครื่องหน้าร้านดึงไปใช้งานแล้วครับ`);
+    } catch (e: any) {
+      alert(`อัปโหลดไม่สำเร็จ: ${e.message}`);
+    } finally {
+      setIsPushingMaster(false);
+    }
+  };
+
+  const handleMirrorStock = async () => {
+    if (!confirm('ยืนยันดึงแคตตาล็อกสินค้าจาก Cloud มาแทนที่ในเครื่องนี้ให้ตรงกัน 100% หรือไม่?\n\nคำเตือน: เหมาะสำหรับเปิดที่เครื่องหน้าร้าน เพื่อให้สินค้าและสต็อกตรงกับที่จัดไว้บน Cloud เป๊ะ 1:1 ล้างรายการตกค้างออกทั้งหมด')) {
+      return;
+    }
+    setIsSyncingStock(true);
+    try {
+      const res = await CloudSync.mirrorCatalogFromCloud();
+      await loadVariants();
+      alert(res.message);
+    } catch (e: any) {
+      alert(`เกิดข้อผิดพลาด: ${e.message}`);
+    } finally {
+      setIsSyncingStock(false);
+    }
+  };
 
   const handleSyncStock = async () => {
     setIsSyncingStock(true);
@@ -517,13 +556,35 @@ export const InventoryPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={handleSyncStock}
+            onClick={handlePushMasterStock}
+            disabled={isPushingMaster}
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0 disabled:opacity-50"
+            title="ส่งสินค้าและสต็อกทั้งหมดในเครื่องนี้ขึ้นไปเก็บเป็นข้อมูลหลักบน Cloud (ทำหลังจากจัดสต็อกที่บ้านเสร็จ)"
+          >
+            <UploadCloud className={`w-4 h-4 ${isPushingMaster ? 'animate-bounce' : ''}`} />
+            <span>{isPushingMaster ? 'กำลังส่งขึ้น Cloud...' : '🚀 ดันสต็อกขึ้น Cloud'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleMirrorStock}
             disabled={isSyncingStock}
-            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0 disabled:opacity-50"
-            title="ดึงสต็อกและรายการสินค้าล่าสุดจาก Cloud เพื่อให้ข้อมูลทุกเครื่องตรงกัน"
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0 disabled:opacity-50"
+            title="ดึงแคตตาล็อกสินค้าจาก Cloud มาแทนที่ในเครื่องนี้ให้ตรงกัน 100% (เหมาะสำหรับเครื่องหน้าร้าน)"
           >
             <RefreshCw className={`w-4 h-4 ${isSyncingStock ? 'animate-spin' : ''}`} />
-            <span>{isSyncingStock ? 'กำลังดึงสต็อก...' : '🔄 ดึงสต็อกล่าสุด (Cloud)'}</span>
+            <span>{isSyncingStock ? 'กำลังปรับสต็อก...' : '⚡ ดึงสต็อกตรงกับ Cloud 100%'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSyncStock}
+            disabled={isSyncingStock}
+            className="px-3 py-2 sm:px-3.5 sm:py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow transition flex-shrink-0 disabled:opacity-50 border border-slate-700"
+            title="ดึงสต็อกและรายการสินค้าล่าสุดจาก Cloud แบบ Safe Merge"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncingStock ? 'animate-spin' : ''}`} />
+            <span>{isSyncingStock ? 'กำลังดึง...' : '🔄 ซิงค์ปกติ'}</span>
           </button>
 
           <button

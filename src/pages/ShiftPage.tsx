@@ -29,6 +29,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   const [liveTxCount, setLiveTxCount] = useState(0);
   const [pastShifts, setPastShifts] = useState<Shift[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [liveSoldItems, setLiveSoldItems] = useState<{ productName: string; sku: string; qty: number; totalRevenue: number }[]>([]);
 
   const loadPastShifts = async () => {
     const list = await db.shifts.orderBy('startTime').reverse().limit(10).toArray();
@@ -56,6 +57,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
       let promptpay = 0;
       let count = 0;
 
+      const itemMap = new Map<string, { productName: string; sku: string; qty: number; totalRevenue: number }>();
       orders.forEach(o => {
         if (o.status === 'COMPLETED') {
           count++;
@@ -63,12 +65,22 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
             if (p.method === 'CASH') cash += p.amount;
             if (p.method === 'PROMPTPAY') promptpay += p.amount;
           });
+          o.items.forEach(it => {
+            const key = it.variantId || it.sku || it.productName;
+            const prev = itemMap.get(key) || { productName: it.productName, sku: it.sku, qty: 0, totalRevenue: 0 };
+            prev.qty += it.qty;
+            prev.totalRevenue += it.lineTotal;
+            itemMap.set(key, prev);
+          });
         }
       });
 
       setLiveCashSales(cash);
       setLivePromptPaySales(promptpay);
       setLiveTxCount(count);
+      setLiveSoldItems(Array.from(itemMap.values()));
+    } else {
+      setLiveSoldItems([]);
     }
   };
 
@@ -327,6 +339,63 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               <span className="text-[10px] text-slate-500 block">(*ไม่นับรวมยอดโอน PromptPay)</span>
             </div>
           </div>
+
+          {/* Detailed Itemized Sales in this Shift */}
+          <div className="mt-6 pt-5 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                <span>📦 รายการสินค้าที่ขายไปในกะนี้</span>
+                <span className="text-xs bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-bold">
+                  {liveSoldItems.reduce((s, i) => s + i.qty, 0)} ชิ้น
+                </span>
+              </h3>
+              <span className="text-xs text-slate-500 font-mono">
+                {liveSoldItems.length} รายการ
+              </span>
+            </div>
+
+            {liveSoldItems.length === 0 ? (
+              <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                ยังไม่มีการขายสินค้าในกะนี้
+              </div>
+            ) : (
+              <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3 text-left">ลำดับ</th>
+                      <th className="py-2.5 px-3 text-left">รายการสินค้า</th>
+                      <th className="py-2.5 px-3 text-left">SKU</th>
+                      <th className="py-2.5 px-3 text-right">จำนวน (ชิ้น)</th>
+                      <th className="py-2.5 px-3 text-right">ยอดรวม (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {liveSoldItems.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-amber-50/50 transition">
+                        <td className="py-2 px-3 text-slate-400 font-mono">{idx + 1}</td>
+                        <td className="py-2 px-3 font-semibold text-slate-800">{item.productName}</td>
+                        <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">{item.sku}</td>
+                        <td className="py-2 px-3 text-right font-black font-mono text-slate-900">{item.qty}</td>
+                        <td className="py-2 px-3 text-right font-black font-mono text-amber-700">฿{item.totalRevenue.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-200/60 font-bold border-t border-slate-300">
+                    <tr>
+                      <td colSpan={3} className="py-2.5 px-3 text-slate-700">รวมสินค้าที่ขายทั้งหมดในกะ</td>
+                      <td className="py-2.5 px-3 text-right font-black font-mono text-slate-900">
+                        {liveSoldItems.reduce((s, i) => s + i.qty, 0)} ชิ้น
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-black font-mono text-amber-900">
+                        ฿{liveSoldItems.reduce((s, i) => s + i.totalRevenue, 0).toLocaleString()}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 max-w-lg mx-auto no-print">
@@ -547,6 +616,20 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               <span>ยอดขายรวมกะนี้:</span>
               <span>฿{((printedShift.totalCashSales || 0) + (printedShift.totalPromptPaySales || 0)).toLocaleString()}</span>
             </div>
+
+            {liveSoldItems.length > 0 && (
+              <>
+                <div className="border-b border-dashed border-slate-400 my-2"></div>
+                <div className="font-bold text-[10.5px]">--- สินค้าที่ขายในกะ ({liveSoldItems.reduce((s, i) => s + i.qty, 0)} ชิ้น) ---</div>
+                {liveSoldItems.map((it, idx) => (
+                  <div key={idx} className="flex justify-between text-[10px]">
+                    <span className="truncate pr-1">{idx + 1}. {it.productName}</span>
+                    <span className="shrink-0 font-bold">x{it.qty} (฿{it.totalRevenue.toLocaleString()})</span>
+                  </div>
+                ))}
+              </>
+            )}
+
             <div className="border-b border-dashed border-slate-400 my-2"></div>
             <div className="flex justify-between font-bold">
               <span>รวมเงินสดที่ต้องมีในลิ้นชัก:</span>

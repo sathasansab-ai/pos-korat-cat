@@ -13,6 +13,7 @@ import { MembersPage } from './pages/MembersPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { GoogleSheetPage } from './pages/GoogleSheetPage';
 import { CustomerFacingPage } from './pages/CustomerFacingPage';
+import { MobilePassPage } from './pages/MobilePassPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CloudSync } from './services/cloudSync';
 
@@ -25,8 +26,9 @@ export function App() {
   const [isReady, setIsReady] = useState(false);
   const [storeSettings, setStoreSettings] = useState<any>(null);
 
-  // Check if current page is the dual screen monitor (/display)
+  // Check if current page is the dual screen monitor (/display) or mobile member pass (/pass)
   const isDisplayPath = window.location.pathname === '/display';
+  const isPassPath = window.location.pathname === '/pass';
 
   const refreshShift = async () => {
     const shift = await db.shifts.where({ status: 'OPEN' }).last();
@@ -77,6 +79,10 @@ export function App() {
 
   if (isDisplayPath) {
     return <CustomerFacingPage />;
+  }
+
+  if (isPassPath) {
+    return <MobilePassPage />;
   }
 
   if (!isReady) {

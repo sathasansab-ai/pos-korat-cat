@@ -264,7 +264,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               {order.items.map((item, idx) => (
                 <div key={idx} className="pt-1.5">
                   <div className="font-semibold text-slate-900 leading-tight">
-                    {item.productName}
+                    {item.productName} {item.isFreeGift && <span className="text-[10px] text-rose-700 font-bold">(ของสมนาคุณฟรี)</span>}
                   </div>
                   {item.attributes && (
                     <div className="text-[9px] text-slate-500 font-sans">
@@ -272,9 +272,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                     </div>
                   )}
                   <div className="flex justify-between text-[11px] text-slate-600 mt-0.5">
-                    <span className="w-1/2 text-slate-400">@{item.unitPrice.toLocaleString()}</span>
+                    <span className="w-1/2 text-slate-400">
+                      {item.isFreeGift ? 'ฟรี ฿0' : `@${item.unitPrice.toLocaleString()}`}
+                    </span>
                     <span className="w-1/6 text-center">{item.qty}</span>
-                    <span className="w-1/3 text-right font-bold">฿{item.lineTotal.toLocaleString()}</span>
+                    <span className="w-1/3 text-right font-bold">
+                      {item.isFreeGift ? '฿0' : `฿${item.lineTotal.toLocaleString()}`}
+                    </span>
                   </div>
                 </div>
               ))}
