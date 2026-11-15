@@ -500,6 +500,8 @@ export const PromotionsPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
       {/* Create Free Gift Tier Modal */}
       {isGiftModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
