@@ -96,12 +96,13 @@ export const MobilePassPage: React.FC = () => {
       }
 
       const drawRoundedRect = (x: number, y: number, w: number, h: number, r: number) => {
-        if ('roundRect' in ctx) {
-          ctx.beginPath();
-          ctx.roundRect(x, y, w, h, r);
+        const c = ctx as any;
+        if (typeof c.roundRect === 'function') {
+          c.beginPath();
+          c.roundRect(x, y, w, h, r);
         } else {
-          ctx.beginPath();
-          ctx.rect(x, y, w, h);
+          c.beginPath();
+          c.rect(x, y, w, h);
         }
       };
 
