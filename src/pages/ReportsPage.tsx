@@ -146,6 +146,20 @@ export const ReportsPage: React.FC = () => {
   const totalBills = filteredOrders.length;
   const avgBasket = totalBills > 0 ? totalRevenue / totalBills : 0;
 
+  // Real-Time Today's Live Sales (สรุปยอดขายเฉพาะวันนี้แบบสดๆ ไม่ขึ้นกับตัวกรอง)
+  const todayStr = new Date().toDateString();
+  const todayOrders = orders.filter(o => o.status === 'COMPLETED' && new Date(o.timestamp).toDateString() === todayStr);
+  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.netTotal, 0);
+  const todayBills = todayOrders.length;
+  const todayCash = todayOrders.reduce((sum, o) => {
+    const c = o.payments?.find(p => p.method === 'CASH')?.amount || 0;
+    return sum + c;
+  }, 0);
+  const todayPromptPay = todayOrders.reduce((sum, o) => {
+    const p = o.payments?.find(p => p.method === 'PROMPTPAY')?.amount || 0;
+    return sum + p;
+  }, 0);
+
   // Breakdown by Date (Daily summary)
   const dailyMap = new Map<string, { revenue: number; cogs: number; orders: number; cash: number; promptpay: number }>();
   filteredOrders.forEach(o => {
@@ -920,6 +934,48 @@ export const ReportsPage: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* TODAY'S LIVE SALES HIGHLIGHT BANNER */}
+      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-4 text-slate-950 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 bg-slate-950 text-amber-300 font-black text-[10px] rounded-full uppercase tracking-wider">
+              LIVE TODAY
+            </span>
+            <span className="text-xs font-bold text-slate-900">
+              ยอดขายสดประจำวันนี้ ({new Date().toLocaleDateString('th-TH')})
+            </span>
+          </div>
+          <div className="mt-1 flex items-baseline gap-3">
+            <span className="text-2xl sm:text-3xl font-black font-mono text-slate-950">
+              ฿{todayRevenue.toLocaleString()}
+            </span>
+            <span className="text-xs font-bold text-amber-950">
+              ({todayBills} บิลสำเร็จ)
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="px-3 py-1.5 bg-white/80 rounded-xl border border-white/60 text-xs">
+            <span className="text-slate-600 font-medium">💵 เงินสด:</span>{' '}
+            <span className="font-mono font-bold text-slate-900">฿{todayCash.toLocaleString()}</span>
+          </div>
+          <div className="px-3 py-1.5 bg-white/80 rounded-xl border border-white/60 text-xs">
+            <span className="text-slate-600 font-medium">📱 PromptPay:</span>{' '}
+            <span className="font-mono font-bold text-slate-900">฿{todayPromptPay.toLocaleString()}</span>
+          </div>
+          {dateFilterMode !== 'TODAY' && (
+            <button
+              type="button"
+              onClick={() => setDateFilterMode('TODAY')}
+              className="px-3 py-1.5 bg-slate-950 hover:bg-slate-900 text-amber-300 rounded-xl text-xs font-black shadow-xs transition"
+            >
+              ดูบิลเฉพาะวันนี้ ➔
+            </button>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards */}

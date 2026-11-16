@@ -12,7 +12,8 @@ import type {
   StockTransfer,
   CustomMadeOrder,
   ConsignmentVendor,
-  ConsignmentSettlement
+  ConsignmentSettlement,
+  ProductExchangeRecord
 } from '../types';
 
 export class PosDatabase extends Dexie {
@@ -28,6 +29,7 @@ export class PosDatabase extends Dexie {
   customOrders!: Table<CustomMadeOrder, string>;
   consignors!: Table<ConsignmentVendor, string>;
   settlements!: Table<ConsignmentSettlement, string>;
+  exchanges!: Table<ProductExchangeRecord, string>;
 
   constructor() {
     super('PosKoratCatDB');
@@ -44,6 +46,21 @@ export class PosDatabase extends Dexie {
       customOrders: 'id, orderNo, branch, status, createdAt, customerPhone',
       consignors: 'id, code, name, phone, isActive',
       settlements: 'id, settlementNo, vendorId, status, periodStart, periodEnd'
+    });
+    this.version(5).stores({
+      users: 'id, role, pin, isActive',
+      products: 'id, skuPrefix, category, isActive',
+      variants: 'id, productId, sku, barcode, category, isActive, isConsignment, vendorId',
+      promotions: 'id, type, isActive',
+      customers: 'id, phone, memberCode',
+      orders: 'id, localOrderId, shiftId, cashierId, status, timestamp, isSynced, branch',
+      shifts: 'id, cashierId, status, startTime, branch',
+      settings: 'id',
+      transfers: 'id, transferNo, fromBranch, toBranch, status, timestamp',
+      customOrders: 'id, orderNo, branch, status, createdAt, customerPhone',
+      consignors: 'id, code, name, phone, isActive',
+      settlements: 'id, settlementNo, vendorId, status, periodStart, periodEnd',
+      exchanges: 'id, exchangeNo, originalOrderId, cashierId, timestamp'
     });
   }
 }

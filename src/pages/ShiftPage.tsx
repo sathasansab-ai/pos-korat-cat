@@ -30,6 +30,37 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   const [pastShifts, setPastShifts] = useState<Shift[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [liveSoldItems, setLiveSoldItems] = useState<{ productName: string; sku: string; qty: number; totalRevenue: number }[]>([]);
+  const [printedShiftItems, setPrintedShiftItems] = useState<{ productName: string; sku: string; qty: number; totalRevenue: number }[]>([]);
+
+  // Automatically load all items sold in the selected shift for printing & inspection
+  useEffect(() => {
+    if (!printedShift) {
+      setPrintedShiftItems([]);
+      return;
+    }
+    db.orders.toArray().then(allOrders => {
+      const shiftOrders = allOrders.filter(o => {
+        if (o.status !== 'COMPLETED') return false;
+        if (o.shiftId && o.shiftId === printedShift.id) return true;
+        const t = new Date(o.timestamp).getTime();
+        const start = new Date(printedShift.startTime).getTime();
+        const end = printedShift.endTime ? new Date(printedShift.endTime).getTime() : Date.now();
+        return t >= start && t <= end;
+      });
+
+      const itemMap = new Map<string, { productName: string; sku: string; qty: number; totalRevenue: number }>();
+      shiftOrders.forEach(o => {
+        o.items.forEach(it => {
+          const key = it.variantId || it.sku || it.productName;
+          const prev = itemMap.get(key) || { productName: it.productName, sku: it.sku || '', qty: 0, totalRevenue: 0 };
+          prev.qty += it.qty;
+          prev.totalRevenue += it.lineTotal !== undefined ? it.lineTotal : (it.unitPrice * it.qty);
+          itemMap.set(key, prev);
+        });
+      });
+      setPrintedShiftItems(Array.from(itemMap.values()));
+    });
+  }, [printedShift]);
 
   const loadPastShifts = async () => {
     const list = await db.shifts.orderBy('startTime').reverse().limit(10).toArray();
@@ -226,6 +257,47 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
     } catch (e) {
       window.print();
     }
+  };
+
+  const handlePrintThermalSlip = () => {
+    const printEl = document.getElementById('printable-shift-handover');
+    if (!printEl) {
+      window.print();
+      return;
+    }
+    const printWindow = window.open('', '_blank', 'width=450,height=600');
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>สลิปสรุปส่งมอบกะ - ${printedShift?.cashierName || 'Shift'}</title>
+          <style>
+            @page { size: auto; margin: 0; }
+            body { font-family: monospace; width: 58mm; margin: 0 auto; padding: 6px 4px; font-size: 11px; color: #000; }
+            .center { text-align: center; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            .divider { border-top: 1px dashed #000; margin: 5px 0; }
+            .flex { display: flex; justify-content: space-between; }
+          </style>
+        </head>
+        <body>
+          ${printEl.innerHTML}
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+              setTimeout(function() { window.close(); }, 800);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   return (
@@ -570,7 +642,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
               <span>สรุปปิดกะสำเร็จแล้ว! ต้องการพิมพ์ใบส่งมอบกะหรือไม่?</span>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setPrintedShift(null)}
@@ -580,11 +652,21 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               </button>
               <button
                 type="button"
-                onClick={handlePrintSlip}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition"
+                onClick={handlePrintThermalSlip}
+                className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition"
+                title="พิมพ์สลิปส่งมอบกะสำหรับเครื่องพิมพ์ความร้อนใบเสร็จ (EasyPrint / Xprinter)"
               >
-                <Printer className="w-4 h-4" />
-                <span>พิมพ์ใบส่งมอบกะ (A4)</span>
+                <Printer className="w-3.5 h-3.5 text-amber-400" />
+                <span>🖨️ สลิปความร้อน (58/80mm)</span>
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintSlip}
+                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition"
+                title="พิมพ์รายงานสรุปส่งมอบกะขนาด A4 พร้อมช่องลงชื่อผู้ส่งและผู้รับกะ"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>📄 ใบส่งมอบกะ (A4)</span>
               </button>
             </div>
           </div>
@@ -617,16 +699,21 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               <span>฿{((printedShift.totalCashSales || 0) + (printedShift.totalPromptPaySales || 0)).toLocaleString()}</span>
             </div>
 
-            {liveSoldItems.length > 0 && (
+            {/* Itemized list of products sold in this shift */}
+            {(printedShiftItems.length > 0 ? printedShiftItems : liveSoldItems).length > 0 && (
               <>
                 <div className="border-b border-dashed border-slate-400 my-2"></div>
-                <div className="font-bold text-[10.5px]">--- สินค้าที่ขายในกะ ({liveSoldItems.reduce((s, i) => s + i.qty, 0)} ชิ้น) ---</div>
-                {liveSoldItems.map((it, idx) => (
-                  <div key={idx} className="flex justify-between text-[10px]">
-                    <span className="truncate pr-1">{idx + 1}. {it.productName}</span>
-                    <span className="shrink-0 font-bold">x{it.qty} (฿{it.totalRevenue.toLocaleString()})</span>
-                  </div>
-                ))}
+                <div className="font-bold text-[10.5px]">
+                  --- รายการสินค้าที่ขายไปในกะนี้ (รวม {(printedShiftItems.length > 0 ? printedShiftItems : liveSoldItems).reduce((s, i) => s + i.qty, 0)} ชิ้น) ---
+                </div>
+                <div className="space-y-1 my-1">
+                  {(printedShiftItems.length > 0 ? printedShiftItems : liveSoldItems).map((it, idx) => (
+                    <div key={idx} className="flex justify-between text-[10px]">
+                      <span className="truncate pr-2">{idx + 1}. {it.productName}</span>
+                      <span className="shrink-0 font-bold font-mono">x{it.qty} = ฿{it.totalRevenue.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
               </>
             )}
 

@@ -1,6 +1,6 @@
 // src/types/index.ts
 
-export type UserRole = 'OWNER' | 'CASHIER';
+export type UserRole = 'OWNER' | 'CASHIER' | 'INVENTORY';
 
 export interface UserAccount {
   id: string;
@@ -165,6 +165,39 @@ export interface ProductVariant {
   vendorName?: string;
   gpPercent?: number; // เปอร์เซ็นต์ที่ร้านหัก เช่น 20 หมายถึง ร้านได้ 20% ผู้ฝากได้ 80%
   vendorPayoutPrice?: number; // ยอดเงินคืนผู้ฝากต่อชิ้น (salePrice - (salePrice * gpPercent / 100))
+  lastModifiedBy?: string; // ผู้ที่ทำการแก้ไข/ลงสต็อกล่าสุด (สำหรับตรวจสอบย้อนหลัง)
+}
+
+export interface ProductExchangeRecord {
+  id: string;
+  exchangeNo: string;
+  timestamp: string;
+  originalOrderId?: string;
+  originalOrderLocalId?: string;
+  cashierId: string;
+  cashierName: string;
+  customerName?: string;
+  customerPhone?: string;
+  reason: string;
+  returnedItems: {
+    variantId: string;
+    productName: string;
+    sku: string;
+    barcode: string;
+    qty: number;
+    unitPrice: number;
+  }[];
+  newItems: {
+    variantId: string;
+    productName: string;
+    sku: string;
+    barcode: string;
+    qty: number;
+    unitPrice: number;
+  }[];
+  priceDifference: number; // >0: ลูกค้าจ่ายเพิ่ม, <0: ร้านคืนเงิน, 0: เปลี่ยนไซส์ราคาเท่ากัน
+  paymentMethod?: 'CASH' | 'PROMPTPAY';
+  notes?: string;
 }
 
 export interface StockTransferItem {

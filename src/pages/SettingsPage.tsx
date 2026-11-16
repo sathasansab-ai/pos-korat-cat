@@ -25,7 +25,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { db } from '../db';
-import type { StoreSettings, UserAccount, CustomerScreenTheme, CustomerSlideItem } from '../types';
+import type { StoreSettings, UserAccount, CustomerScreenTheme, CustomerSlideItem, UserRole } from '../types';
 import { AuthService } from '../services/auth';
 import { ImageOptimizer } from '../services/imageOptimizer';
 import { CloudSync } from '../services/cloudSync';
@@ -102,6 +102,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffPin, setNewStaffPin] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState<UserRole>('CASHIER');
 
   // Storage Stats
   const [dbStats, setDbStats] = useState({ orders: 0, customers: 0, variants: 0, shifts: 0, customOrders: 0, transfers: 0 });
@@ -361,7 +362,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     loadData();
   };
 
-  // Add Cashier
+  // Add Cashier or Inventory Staff
   const handleAddStaff = async () => {
     if (!newStaffName.trim() || !newStaffPin.trim()) {
       alert('กรุณากรอกชื่อและรหัส PIN ของพนักงาน');
@@ -369,9 +370,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
 
     const newStaff: UserAccount = {
-      id: `usr-cashier-${Date.now()}`,
+      id: `usr-${newStaffRole.toLowerCase()}-${Date.now()}`,
       name: newStaffName.trim(),
-      role: 'CASHIER',
+      role: newStaffRole,
       pin: newStaffPin.trim(),
       isActive: true
     };
@@ -389,6 +390,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
     setNewStaffName('');
     setNewStaffPin('');
+    setNewStaffRole('CASHIER');
     setIsStaffModalOpen(false);
     loadData();
   };
@@ -1479,17 +1481,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
       </form>
 
-      {/* Section 7: Staff & Cashier Management */}
+      {/* Section 7: Staff & Role Management */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center space-x-2">
             <UserCheck className="w-5 h-5 text-emerald-600" />
             <div>
               <h2 className="text-sm font-bold text-slate-800">
-                รายชื่อพนักงานกะ / แคชเชียร์ (Cashier Staff)
+                รายชื่อพนักงาน & การแบ่งหน้าที่รับผิดชอบ (Role-Based Access)
               </h2>
               <p className="text-[11px] text-slate-400">
-                เพิ่มพนักงานได้มากกว่า 1 คน พร้อมกำหนดรหัส PIN ประจำตัวสำหรับเปิด-ปิดกะ
+                เพิ่มพนักงาน กำหนดหน้าที่ (แคชเชียร์หน้าร้าน หรือ เจ้าหน้าที่ดูแลสต็อก) พร้อมรหัส PIN ประจำตัว
               </p>
             </div>
           </div>
@@ -1504,15 +1506,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {users
-            .filter(u => u.role === 'CASHIER')
+            .filter(u => u.pin !== ownerPin)
             .map(staff => (
               <div
                 key={staff.id}
                 className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between"
               >
                 <div>
-                  <div className="font-bold text-xs text-slate-800">{staff.name}</div>
-                  <div className="text-[11px] text-slate-400 font-mono">PIN: •••• ({staff.pin})</div>
+                  <div className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                    <span>{staff.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                      staff.role === 'INVENTORY'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                        : staff.role === 'OWNER'
+                        ? 'bg-purple-100 text-purple-900 border border-purple-300'
+                        : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                    }`}>
+                      {staff.role === 'INVENTORY' ? '📦 สต็อกสินค้า' : staff.role === 'OWNER' ? '👑 แอดมิน' : '🛒 แคชเชียร์'}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-mono mt-0.5">PIN: •••• ({staff.pin})</div>
                 </div>
                 <button
                   onClick={() => handleDeleteStaff(staff.id)}
@@ -1613,28 +1626,48 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
       </div>
 
-      {/* Modal: Add Staff */}
+      {/* Modal: Add Staff with Role */}
       {isStaffModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <h3 className="font-bold text-base text-slate-800 flex items-center gap-2">
               <UserCheck className="w-5 h-5 text-emerald-600" />
-              <span>เพิ่มพนักงานแคชเชียร์ใหม่</span>
+              <span>เพิ่มพนักงาน & กำหนดหน้าที่รับผิดชอบ</span>
             </h3>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อพนักงาน</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">หน้าที่รับผิดชอบ / สิทธิ์การใช้งาน *</label>
+              <select
+                value={newStaffRole}
+                onChange={e => setNewStaffRole(e.target.value as UserRole)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
+              >
+                <option value="CASHIER">🛒 พนักงานแคชเชียร์ / หน้าร้าน (POS + กะ)</option>
+                <option value="INVENTORY">📦 เจ้าหน้าที่สต็อกสินค้า (จัดการสต็อก + ฝากขาย + โอนย้าย)</option>
+                <option value="OWNER">👑 แอดมิน / ผู้ช่วยผู้จัดการ (เข้าได้ทุกเมนู)</option>
+              </select>
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                {newStaffRole === 'INVENTORY'
+                  ? '✓ ดูแลและลงข้อมูลเฉพาะคลังสินค้าและสต็อก ไม่สามารถคิดเงินขายหน้าร้านได้'
+                  : newStaffRole === 'CASHIER'
+                  ? '✓ คิดเงินหน้าร้าน POS และเปิด-ปิดกะพนักงาน'
+                  : '✓ มีสิทธิ์ดูแลทุกเมนูของร้าน'}
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อพนักงาน *</label>
               <input
                 type="text"
                 value={newStaffName}
                 onChange={e => setNewStaffName(e.target.value)}
-                placeholder="เช่น น้องมุก (แคชเชียร์ 3)"
+                placeholder="เช่น น้องสมชาย (สต็อก) หรือ น้องมุก (แคชเชียร์)"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">รหัส PIN ประจำตัว (4-12 ตัวอักษร/ตัวเลข)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">รหัส PIN ประจำตัว (4-12 ตัวเลข) *</label>
               <input
                 type="text"
                 maxLength={12}

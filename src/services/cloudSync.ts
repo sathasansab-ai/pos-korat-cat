@@ -8,7 +8,8 @@ import type {
   Shift, 
   StockTransfer, 
   CustomMadeOrder,
-  StoreSettings 
+  StoreSettings,
+  ProductExchangeRecord 
 } from '../types';
 
 const BASE_SUPABASE_URL = 'https://jfzfestdintwwsnoxiwv.supabase.co'.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
@@ -157,9 +158,7 @@ class CloudSyncService {
       });
       if (tRes.ok) {
         const cloudTransfers: any[] = await tRes.json();
-        if (cloudTransfers.length === 0) {
-          await db.transfers.clear();
-        } else {
+        if (cloudTransfers && cloudTransfers.length > 0) {
           for (const ct of cloudTransfers) {
             const localMatch = await db.transfers.where('transferNo').equals(ct.transfer_no).first()
               || await db.transfers.get(ct.id);
@@ -208,9 +207,7 @@ class CloudSyncService {
       });
       if (coRes.ok) {
         const cloudCO: any[] = await coRes.json();
-        if (cloudCO.length === 0) {
-          await db.customOrders.clear();
-        } else {
+        if (cloudCO && cloudCO.length > 0) {
           for (const co of cloudCO) {
             const localCO: CustomMadeOrder = {
               id: co.id,
@@ -246,9 +243,7 @@ class CloudSyncService {
       });
       if (sRes.ok) {
         const cloudShifts: any[] = await sRes.json();
-        if (cloudShifts.length === 0) {
-          await db.shifts.clear();
-        } else {
+        if (cloudShifts && cloudShifts.length > 0) {
           for (const cs of cloudShifts) {
             const localShift: Shift = {
               id: cs.id,
@@ -279,9 +274,7 @@ class CloudSyncService {
       });
       if (oRes.ok) {
         const cloudOrders: any[] = await oRes.json();
-        if (cloudOrders.length === 0) {
-          await db.orders.clear();
-        } else {
+        if (cloudOrders && cloudOrders.length > 0) {
           for (const co of cloudOrders) {
             const localOrder: Order = {
               id: co.id,
@@ -308,6 +301,18 @@ class CloudSyncService {
             await db.orders.put(localOrder);
           }
         }
+      }
+
+      // 7. Auto Push Local Unsynced Orders to Cloud (ป้องกันออเดอร์ที่สร้างในเครื่องไม่ยอมขึ้น Cloud)
+      try {
+        const allLocalOrders = await db.orders.toArray();
+        const unSyncedOrders = allLocalOrders.filter(o => o.isSynced === false);
+        for (const uo of unSyncedOrders) {
+          await this.pushOrder(uo);
+          await db.orders.update(uo.id, { isSynced: true });
+        }
+      } catch (syncErr) {
+        console.warn('Silent local order push warning:', syncErr);
       }
 
       return { success: true, summary: 'ดึงข้อมูลล่าสุดจาก Cloud อัปเดตลงเครื่องสำเร็จ (สต็อก, กะ, บิล, ใบโอน, สั่งผลิต, สไลด์ภาพจอ 2)' };
@@ -711,6 +716,21 @@ class CloudSyncService {
       });
     } catch (e) {
       console.warn('Failed to push order to cloud, cached locally in IndexedDB', e);
+    }
+  }
+
+  /**
+   * ส่งข้อมูลการเปลี่ยน/คืนสินค้าขึ้น Cloud
+   */
+  public async pushExchange(record: ProductExchangeRecord): Promise<void> {
+    try {
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/exchanges?on_conflict=id`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify([record])
+      });
+    } catch (e) {
+      console.warn('Failed to push exchange to cloud, cached locally', e);
     }
   }
 

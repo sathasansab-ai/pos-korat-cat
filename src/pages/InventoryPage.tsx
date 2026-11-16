@@ -21,7 +21,7 @@ import {
   DownloadCloud
 } from 'lucide-react';
 import { db } from '../db';
-import type { ProductVariant, StoreSettings, ConsignmentVendor } from '../types';
+import type { ProductVariant, StoreSettings, ConsignmentVendor, UserAccount } from '../types';
 import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
 import { MatrixBuilder, type AttributeGroup } from '../services/matrixBuilder';
 import { BarcodePrintModal } from '../components/BarcodePrintModal';
@@ -35,7 +35,11 @@ interface SizeStockEntry {
   qty: number;
 }
 
-export const InventoryPage: React.FC = () => {
+interface InventoryPageProps {
+  currentUser?: UserAccount | null;
+}
+
+export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => {
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -354,10 +358,12 @@ export const InventoryPage: React.FC = () => {
     };
 
     const nowIso = new Date().toISOString();
+    const modifierName = currentUser?.name || 'แอดมินสต็อก';
     const withImages = generated.map(v => ({ 
       ...v, 
       ...getCalculatedStocks(v.stockQuantity || 10),
       imageUrl: matrixImagePreview || v.imageUrl,
+      lastModifiedBy: modifierName,
       updatedAt: nowIso
     }));
 
@@ -392,6 +398,7 @@ export const InventoryPage: React.FC = () => {
 
     const variantsToAdd: ProductVariant[] = [];
     const nowIso = new Date().toISOString();
+    const modifierName = currentUser?.name || 'แอดมินสต็อก';
 
     if (hasSizes) {
       // Create a variant for each size entry that has stock > 0
@@ -434,6 +441,7 @@ export const InventoryPage: React.FC = () => {
           minStockAlert: 3,
           imageUrl: singleImagePreview || undefined,
           isActive: true,
+          lastModifiedBy: modifierName,
           updatedAt: nowIso,
           isConsignment: isConsignment,
           vendorId: isConsignment ? selectedVendorId : undefined,
@@ -475,6 +483,7 @@ export const InventoryPage: React.FC = () => {
         minStockAlert: 3,
         imageUrl: singleImagePreview || undefined,
         isActive: true,
+        lastModifiedBy: modifierName,
         updatedAt: nowIso,
         isConsignment: isConsignment,
         vendorId: isConsignment ? selectedVendorId : undefined,
@@ -509,6 +518,7 @@ export const InventoryPage: React.FC = () => {
         ...v, 
         stockQuantity: safeNewStock,
         shopStock: newShop,
+        lastModifiedBy: currentUser?.name || 'แอดมินสต็อก',
         updatedAt: new Date().toISOString()
       };
       await db.variants.put(updated);
@@ -546,7 +556,18 @@ export const InventoryPage: React.FC = () => {
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Boxes className="w-6 h-6 text-amber-500" />
-            <span>คลังสินค้า & สติ๊กเกอร์บาร์โค้ด (แอดมินเจ้าของร้าน)</span>
+            <span>
+              คลังสินค้า & สติ๊กเกอร์บาร์โค้ด
+              {currentUser?.role === 'INVENTORY' ? (
+                <span className="ml-2 text-xs font-bold text-amber-950 bg-amber-400 px-2.5 py-0.5 rounded-full shadow-xs">
+                  📦 ผู้ดูแลสต็อก: {currentUser.name}
+                </span>
+              ) : (
+                <span className="ml-2 text-xs font-bold text-slate-500 font-normal">
+                  (ระดับผู้ดูแลระบบ)
+                </span>
+              )}
+            </span>
           </h1>
           <p className="text-xs text-slate-500">
             จัดการสินค้าและสต็อกแยกตามไซส์ (S, M, L, XL...) อัปโหลดภาพ และสั่งพิมพ์สติ๊กเกอร์บาร์โค้ด
@@ -750,6 +771,14 @@ export const InventoryPage: React.FC = () => {
                             </span>
                           ))}
                       </div>
+                      {item.lastModifiedBy && (
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-1 font-medium">
+                          <span>✏️ ปรับปรุงโดย:</span>
+                          <span className="text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded font-semibold border border-amber-200/60">
+                            {item.lastModifiedBy}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="p-3.5">
                       <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold">

@@ -28,7 +28,8 @@ import {
   Eye,
   EyeOff,
   Scissors,
-  Gift
+  Gift,
+  RefreshCw
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
@@ -51,6 +52,7 @@ import { ReceiptModal } from '../components/ReceiptModal';
 import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 import { DigitalPassModal } from '../components/DigitalPassModal';
 import { CustomOrderModal } from '../components/CustomOrderModal';
+import { ProductExchangeModal } from '../components/ProductExchangeModal';
 import { CloudSync } from '../services/cloudSync';
 import { BarcodeScannerHelper } from '../services/barcodeScannerHelper';
 
@@ -97,6 +99,7 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [regAddress, setRegAddress] = useState('');
   const [newlyRegisteredCustomer, setNewlyRegisteredCustomer] = useState<Customer | null>(null);
   const [isDigitalPassOpen, setIsDigitalPassOpen] = useState(false);
+  const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false);
 
   // Custom Discount Modal State
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -307,8 +310,14 @@ export const PosPage: React.FC<PosPageProps> = ({
 
   const addToCart = async (variant: ProductVariant) => {
     // 1. Fetch fresh stock quantity from database to avoid stale data
-    const fresh = await db.variants.get(variant.id);
-    const availableStock = fresh ? fresh.stockQuantity : variant.stockQuantity;
+    let fresh = await db.variants.get(variant.id);
+    if (!fresh && variant.barcode) {
+      fresh = await db.variants.where({ barcode: variant.barcode }).first();
+    }
+    if (!fresh && variant.sku) {
+      fresh = await db.variants.where({ sku: variant.sku }).first();
+    }
+    const availableStock = fresh ? (fresh.stockQuantity ?? 0) : (variant.stockQuantity ?? 0);
 
     // 2. Out of Stock check
     if (availableStock <= 0) {
@@ -809,19 +818,43 @@ export const PosPage: React.FC<PosPageProps> = ({
       // Async Sync to Supabase Cloud
       CloudSync.pushOrder(order);
 
-      // 2. Cut Inventory Stock (Deduct from Shop Stock directly & push to Cloud)
+      // 2. Cut Inventory Stock Strictly (Deduct from Total Stock and Shop/Warehouse Stock)
       for (const item of cart) {
-        const v = await db.variants.get(item.variantId);
+        if (item.variantId.startsWith('custom-')) continue;
+
+        let v = await db.variants.get(item.variantId);
+        if (!v && item.barcode) {
+          v = await db.variants.where({ barcode: item.barcode }).first();
+        }
+        if (!v && item.sku) {
+          v = await db.variants.where({ sku: item.sku }).first();
+        }
+
         if (v) {
-          const currentShop = v.shopStock !== undefined ? v.shopStock : v.stockQuantity;
-          const currentWh = v.warehouseStock ?? 0;
-          const newShop = Math.max(0, currentShop - item.qty);
-          const newTotal = currentWh + newShop;
+          const currentTotal = Number(v.stockQuantity || 0);
+          const currentShop = v.shopStock !== undefined ? Number(v.shopStock) : currentTotal;
+          const currentWh = Number(v.warehouseStock || 0);
+
+          // Deduct from total stock strictly
+          const newTotal = Math.max(0, currentTotal - item.qty);
+
+          // Deduct from shop stock first, overflow from warehouse stock
+          let newShop = currentShop;
+          let newWh = currentWh;
+          if (newShop >= item.qty) {
+            newShop = newShop - item.qty;
+          } else {
+            const remainder = item.qty - newShop;
+            newShop = 0;
+            newWh = Math.max(0, newWh - remainder);
+          }
 
           const updatedVariant: ProductVariant = {
             ...v,
-            shopStock: newShop,
             stockQuantity: newTotal,
+            shopStock: newShop,
+            warehouseStock: newWh,
+            lastModifiedBy: `ขายบิล ${order.localOrderId} (${currentUser?.name || 'แคชเชียร์'})`,
             updatedAt: new Date().toISOString()
           };
 
@@ -829,9 +862,9 @@ export const PosPage: React.FC<PosPageProps> = ({
           CloudSync.pushVariant(updatedVariant).catch(() => {});
         }
       }
-      // Refresh Quick Items in real-time immediately after cutting stock (Safe in-memory filter)
-      const updatedQuick = await db.variants.filter(v => v.isActive !== false).limit(16).toArray();
-      setQuickItems(updatedQuick);
+      // Immediately reload all active variants to re-render POS grid & search in real-time
+      const freshAll = await db.variants.filter(v => v.isActive !== false).toArray();
+      setAllVariants(freshAll);
 
       // 3. Update Shift Totals (Separating Cash vs Transfer accurately!)
       const cashPortion = finalPayments.find(p => p.method === 'CASH')?.amount || 0;
@@ -995,6 +1028,16 @@ export const PosPage: React.FC<PosPageProps> = ({
             >
               <Scissors className="w-3.5 h-3.5 text-amber-200" />
               <span>✂️ สั่งผลิต/มัดจำ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsExchangeModalOpen(true)}
+              className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-bold flex items-center gap-1 shadow-xs transition text-xs whitespace-nowrap"
+              title="เปลี่ยนหรือคืนสินค้าตามเงื่อนไขภายใน 7 วัน (สลับไซส์/แบบ พร้อมตัดและเพิ่มสต็อกอัตโนมัติ)"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-indigo-200" />
+              <span>🔄 เปลี่ยน/คืนสินค้า (7 วัน)</span>
             </button>
 
             <button
@@ -2361,6 +2404,18 @@ export const PosPage: React.FC<PosPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* PRODUCT EXCHANGE & RETURN MODAL */}
+      <ProductExchangeModal
+        isOpen={isExchangeModalOpen}
+        onClose={() => setIsExchangeModalOpen(false)}
+        currentUser={currentUser}
+        activeShift={activeShift}
+        settings={settings}
+        onExchangeSuccess={() => {
+          loadQuickData();
+        }}
+      />
     </div>
   );
 };

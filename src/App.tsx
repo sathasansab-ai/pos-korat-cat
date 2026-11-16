@@ -107,6 +107,10 @@ export function App() {
           setCurrentUser(user);
           AuthService.setCurrentUser(user);
           setIsAuthenticated(true);
+          // หากเป็นเจ้าหน้าที่สต็อก ให้เปิดหน้าระบบคลังสินค้าทันที
+          if (user.role === 'INVENTORY') {
+            setActiveTab('inventory');
+          }
           // Sync latest data from cloud automatically when online
           if (navigator.onLine) {
             CloudSync.pullFromCloud().catch(err => console.warn('Background pull error:', err));
@@ -119,11 +123,17 @@ export function App() {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
       <Navbar
-        currentUser={currentUser}
+        currentUser={currentUser?.role === 'INVENTORY' ? { ...currentUser, role: 'OWNER' } : currentUser}
         activeShift={activeShift}
         activeTab={activeTab}
         settingsVer={settingsVer}
-        onSelectTab={setActiveTab}
+        onSelectTab={(tab) => {
+          if (currentUser?.role === 'INVENTORY' && ['pos', 'shift', 'reports', 'settings', 'promotions', 'members'].includes(tab)) {
+            alert(`⚠️ บัญชี "${currentUser.name}" เป็นระดับเจ้าหน้าที่สต็อก (INVENTORY)\nมีสิทธิ์เข้าถึงเฉพาะระบบคลังสินค้า โอนสต็อก และแคตตาล็อกสินค้าเท่านั้นครับ`);
+            return;
+          }
+          setActiveTab(tab);
+        }}
         onLockScreen={() => {
           AuthService.logout();
           setCurrentUser(null);
@@ -131,42 +141,63 @@ export function App() {
         }}
         onUserChanged={(user) => {
           setCurrentUser(user);
-          // If switched to Cashier and active tab is an owner-only tab, redirect to POS
-          if (user.role === 'CASHIER' && ['inventory', 'promotions', 'members', 'reports', 'sheets', 'settings'].includes(activeTab)) {
+          if (user.role === 'INVENTORY') {
+            setActiveTab('inventory');
+          } else if (user.role === 'CASHIER' && ['inventory', 'promotions', 'members', 'reports', 'sheets', 'settings'].includes(activeTab)) {
             setActiveTab('pos');
           }
         }}
       />
 
       <main className="flex-1 overflow-auto">
-        {activeTab === 'pos' && (
-          <PosPage
-            currentUser={currentUser}
-            activeShift={activeShift}
-            onOpenShiftRequired={() => setActiveTab('shift')}
-            onShiftUpdated={refreshShift}
-          />
-        )}
-        {activeTab === 'shift' && (
-          <ShiftPage
-            currentUser={currentUser}
-            activeShift={activeShift}
-            onShiftUpdated={refreshShift}
-          />
-        )}
-        {activeTab === 'inventory' && <InventoryPage />}
-        {activeTab === 'promotions' && <PromotionsPage />}
-        {activeTab === 'members' && <MembersPage />}
-        {activeTab === 'reports' && <ReportsPage />}
-        {activeTab === 'sheets' && <GoogleSheetPage />}
-        {activeTab === 'settings' && (
-          <SettingsPage
-            currentUser={currentUser}
-            onSettingsUpdated={() => {
-              refreshUser();
-              setSettingsVer(v => v + 1);
-            }}
-          />
+        {currentUser?.role === 'INVENTORY' && activeTab !== 'inventory' ? (
+          <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-16 h-16 bg-amber-100 text-amber-700 rounded-3xl flex items-center justify-center text-3xl mb-4 shadow-sm border border-amber-300">
+              📦
+            </div>
+            <h2 className="text-lg font-bold text-slate-800">พื้นที่สงวนสิทธิ์เฉพาะฝ่ายสต็อกสินค้า</h2>
+            <p className="text-xs text-slate-500 max-w-md mt-1 mb-4">
+              บัญชี <strong>{currentUser.name}</strong> เป็นระดับ <strong>เจ้าหน้าที่สต็อก (INVENTORY)</strong> ได้รับสิทธิ์จัดการเฉพาะระบบคลังสินค้าและการจัดสต็อกเท่านั้น
+            </p>
+            <button
+              onClick={() => setActiveTab('inventory')}
+              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition shadow"
+            >
+              กลับสู่หน้าระบบคลังสินค้า
+            </button>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'pos' && (
+              <PosPage
+                currentUser={currentUser}
+                activeShift={activeShift}
+                onOpenShiftRequired={() => setActiveTab('shift')}
+                onShiftUpdated={refreshShift}
+              />
+            )}
+            {activeTab === 'shift' && (
+              <ShiftPage
+                currentUser={currentUser}
+                activeShift={activeShift}
+                onShiftUpdated={refreshShift}
+              />
+            )}
+            {activeTab === 'inventory' && <InventoryPage currentUser={currentUser} />}
+            {activeTab === 'promotions' && <PromotionsPage />}
+            {activeTab === 'members' && <MembersPage />}
+            {activeTab === 'reports' && <ReportsPage />}
+            {activeTab === 'sheets' && <GoogleSheetPage />}
+            {activeTab === 'settings' && (
+              <SettingsPage
+                currentUser={currentUser}
+                onSettingsUpdated={() => {
+                  refreshUser();
+                  setSettingsVer(v => v + 1);
+                }}
+              />
+            )}
+          </>
         )}
       </main>
     </div>
