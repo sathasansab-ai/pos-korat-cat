@@ -172,6 +172,7 @@ export interface ProductExchangeRecord {
   id: string;
   exchangeNo: string;
   timestamp: string;
+  shiftId?: string; // รหัสกะที่ทำรายการเปลี่ยนสินค้า เพื่อสรุปยอดเงินและสต็อกส่งมอบกะ
   originalOrderId?: string;
   originalOrderLocalId?: string;
   cashierId: string;

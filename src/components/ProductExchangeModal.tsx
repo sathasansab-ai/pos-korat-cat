@@ -189,6 +189,7 @@ export const ProductExchangeModal: React.FC<ProductExchangeModalProps> = ({
         id: `ex-${Date.now()}`,
         exchangeNo: `EX-${Date.now().toString().slice(-6)}`,
         timestamp: nowIso,
+        shiftId: activeShift?.id,
         originalOrderId: selectedOrder?.id,
         originalOrderLocalId: selectedOrder?.localOrderId,
         cashierId: currentUser?.id || 'cashier',
@@ -220,15 +221,23 @@ export const ProductExchangeModal: React.FC<ProductExchangeModalProps> = ({
       await db.exchanges.add(exRecord);
       CloudSync.pushExchange(exRecord).catch(() => {});
 
-      // 4. หากลูกค้าต้องจ่ายเงินส่วนต่างเพิ่ม ให้บันทึกยอดเงินเข้ากะปัจจุบัน
-      if (priceDifference > 0 && activeShift) {
-        if (paymentMethod === 'CASH') {
-          await db.shifts.update(activeShift.id, {
-            totalCashSales: (activeShift.totalCashSales || 0) + priceDifference
-          });
+      // 4. บันทึกปรับยอดเงินเข้า/ออกจากกะปัจจุบันตามส่วนต่างจริง
+      if (priceDifference !== 0 && activeShift) {
+        if (priceDifference > 0) {
+          // ลูกค้าจ่ายเงินส่วนต่างเพิ่ม
+          if (paymentMethod === 'CASH') {
+            await db.shifts.update(activeShift.id, {
+              totalCashSales: (activeShift.totalCashSales || 0) + priceDifference
+            });
+          } else {
+            await db.shifts.update(activeShift.id, {
+              totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + priceDifference
+            });
+          }
         } else {
+          // ร้านคืนเงินส่วนต่างให้ลูกค้าเป็นเงินสด (priceDifference เป็นลบ) หักออกจากยอดเงินสดในลิ้นชักเพื่อให้ยอดเงินส่งมอบกะตรงกัน 100%
           await db.shifts.update(activeShift.id, {
-            totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + priceDifference
+            totalCashSales: Math.max(0, (activeShift.totalCashSales || 0) + priceDifference)
           });
         }
       }

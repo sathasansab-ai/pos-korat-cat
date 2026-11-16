@@ -127,6 +127,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         warehouseStock: newWarehouse,
         shopStock: newShop,
         stockQuantity: newWarehouse + newShop,
+        lastModifiedBy: `โอนสต็อกไป${targetBranchName} (${transferNo}) โดย ${newTransfer.senderName}`,
         updatedAt: new Date().toISOString()
       };
       await db.variants.put(updatedVariant);
@@ -169,6 +170,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
             shopStock: currentShop,
             warehouseStock: currentWh,
             stockQuantity: currentWh + currentShop,
+            lastModifiedBy: `ตรวจรับโอนสต็อก (${transfer.transferNo}) โดย ${person.trim()}`,
             updatedAt: new Date().toISOString()
           };
           await db.variants.put(updatedV);

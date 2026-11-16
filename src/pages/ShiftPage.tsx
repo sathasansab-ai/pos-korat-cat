@@ -38,13 +38,23 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
       setPrintedShiftItems([]);
       return;
     }
-    db.orders.toArray().then(allOrders => {
+    Promise.all([
+      db.orders.toArray(),
+      db.exchanges.toArray()
+    ]).then(([allOrders, allExchanges]) => {
+      const start = new Date(printedShift.startTime).getTime();
+      const end = printedShift.endTime ? new Date(printedShift.endTime).getTime() : Date.now();
+
       const shiftOrders = allOrders.filter(o => {
         if (o.status !== 'COMPLETED') return false;
         if (o.shiftId && o.shiftId === printedShift.id) return true;
         const t = new Date(o.timestamp).getTime();
-        const start = new Date(printedShift.startTime).getTime();
-        const end = printedShift.endTime ? new Date(printedShift.endTime).getTime() : Date.now();
+        return t >= start && t <= end;
+      });
+
+      const shiftExchanges = allExchanges.filter(ex => {
+        if (ex.shiftId && ex.shiftId === printedShift.id) return true;
+        const t = new Date(ex.timestamp).getTime();
         return t >= start && t <= end;
       });
 
@@ -58,7 +68,26 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
           itemMap.set(key, prev);
         });
       });
-      setPrintedShiftItems(Array.from(itemMap.values()));
+
+      // ปรับปรุงผลกระทบจากการเปลี่ยนสินค้า (หักสินค้าที่รับคืน และเพิ่มสินค้าที่เปลี่ยนไป)
+      shiftExchanges.forEach(ex => {
+        ex.returnedItems?.forEach(ret => {
+          const key = ret.variantId || ret.sku || ret.productName;
+          const prev = itemMap.get(key) || { productName: ret.productName, sku: ret.sku || '', qty: 0, totalRevenue: 0 };
+          prev.qty = Math.max(0, prev.qty - ret.qty);
+          prev.totalRevenue = Math.max(0, prev.totalRevenue - (ret.unitPrice * ret.qty));
+          itemMap.set(key, prev);
+        });
+        ex.newItems?.forEach(newItem => {
+          const key = newItem.variantId || newItem.sku || newItem.productName;
+          const prev = itemMap.get(key) || { productName: newItem.productName, sku: newItem.sku || '', qty: 0, totalRevenue: 0 };
+          prev.qty += newItem.qty;
+          prev.totalRevenue += newItem.unitPrice * newItem.qty;
+          itemMap.set(key, prev);
+        });
+      });
+
+      setPrintedShiftItems(Array.from(itemMap.values()).filter(it => it.qty > 0));
     });
   }, [printedShift]);
 
@@ -106,10 +135,44 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
         }
       });
 
-      setLiveCashSales(cash);
-      setLivePromptPaySales(promptpay);
-      setLiveTxCount(count);
-      setLiveSoldItems(Array.from(itemMap.values()));
+      // รวมผลลัพธ์จากการเปลี่ยนคืนสินค้า (Product Exchanges)
+      const allEx = await db.exchanges.toArray();
+      const shiftStart = new Date(shift.startTime).getTime();
+      const shiftExchanges = allEx.filter(ex => {
+        if (ex.shiftId && ex.shiftId === shift.id) return true;
+        const t = new Date(ex.timestamp).getTime();
+        return t >= shiftStart;
+      });
+
+      shiftExchanges.forEach(ex => {
+        if (ex.priceDifference > 0) {
+          if (ex.paymentMethod === 'CASH') cash += ex.priceDifference;
+          if (ex.paymentMethod === 'PROMPTPAY') promptpay += ex.priceDifference;
+        } else if (ex.priceDifference < 0) {
+          cash += ex.priceDifference; // negative: คืนเงินสดให้ลูกค้า ยอดเงินสดในลิ้นชักลดลง
+        }
+
+        ex.returnedItems?.forEach(ret => {
+          const key = ret.variantId || ret.sku || ret.productName;
+          const prev = itemMap.get(key) || { productName: ret.productName, sku: ret.sku, qty: 0, totalRevenue: 0 };
+          prev.qty = Math.max(0, prev.qty - ret.qty);
+          prev.totalRevenue = Math.max(0, prev.totalRevenue - (ret.unitPrice * ret.qty));
+          itemMap.set(key, prev);
+        });
+
+        ex.newItems?.forEach(newItem => {
+          const key = newItem.variantId || newItem.sku || newItem.productName;
+          const prev = itemMap.get(key) || { productName: newItem.productName, sku: newItem.sku, qty: 0, totalRevenue: 0 };
+          prev.qty += newItem.qty;
+          prev.totalRevenue += newItem.unitPrice * newItem.qty;
+          itemMap.set(key, prev);
+        });
+      });
+
+      setLiveCashSales(Math.max(0, cash));
+      setLivePromptPaySales(Math.max(0, promptpay));
+      setLiveTxCount(count + shiftExchanges.length);
+      setLiveSoldItems(Array.from(itemMap.values()).filter(it => it.qty > 0));
     } else {
       setLiveSoldItems([]);
     }

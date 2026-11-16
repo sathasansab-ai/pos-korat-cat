@@ -62,6 +62,9 @@ export class PosDatabase extends Dexie {
       settlements: 'id, settlementNo, vendorId, status, periodStart, periodEnd',
       exchanges: 'id, exchangeNo, originalOrderId, cashierId, timestamp'
     });
+    this.version(6).stores({
+      exchanges: 'id, exchangeNo, shiftId, originalOrderId, cashierId, timestamp'
+    });
   }
 }
 

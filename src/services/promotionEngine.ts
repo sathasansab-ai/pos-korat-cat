@@ -42,6 +42,9 @@ export class PromotionEngine {
 
     const unassignedUnits: SingleUnit[] = [];
     cart.forEach(item => {
+      // ข้ามของสมนาคุณหรือสินค้าแถมฟรี (0 บาท) ไม่นำมาคิดโปรโมชั่นลดราคาซ้ำซ้อน
+      if (item.isFreeGift || item.unitPrice <= 0) return;
+
       for (let i = 0; i < item.qty; i++) {
         unassignedUnits.push({
           variantId: item.variantId,
