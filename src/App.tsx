@@ -123,12 +123,12 @@ export function App() {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
       <Navbar
-        currentUser={currentUser?.role === 'INVENTORY' ? { ...currentUser, role: 'OWNER' } : currentUser}
+        currentUser={currentUser}
         activeShift={activeShift}
         activeTab={activeTab}
         settingsVer={settingsVer}
         onSelectTab={(tab) => {
-          if (currentUser?.role === 'INVENTORY' && ['pos', 'shift', 'reports', 'settings', 'promotions', 'members'].includes(tab)) {
+          if (currentUser?.role === 'INVENTORY' && tab !== 'inventory') {
             alert(`⚠️ บัญชี "${currentUser.name}" เป็นระดับเจ้าหน้าที่สต็อก (INVENTORY)\nมีสิทธิ์เข้าถึงเฉพาะระบบคลังสินค้า โอนสต็อก และแคตตาล็อกสินค้าเท่านั้นครับ`);
             return;
           }

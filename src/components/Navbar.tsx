@@ -118,6 +118,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const isOwner = currentUser?.role === 'OWNER';
+  const isInventory = currentUser?.role === 'INVENTORY';
   const isSecondaryActive = ['promotions', 'members', 'sheets', 'settings'].includes(activeTab);
 
   const getSecondaryTabName = () => {
@@ -163,46 +164,54 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Navigation Menus (Clean, No Horizontal Scrollbar, Responsive) */}
           <nav className="flex items-center space-x-1 flex-shrink-0">
-            <button
-              onClick={() => onSelectTab('pos')}
-              className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
-                activeTab === 'pos' 
-                  ? 'bg-amber-600 text-white shadow' 
-                  : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>หน้าร้าน (POS)</span>
-            </button>
-
-            <button
-              onClick={() => onSelectTab('shift')}
-              className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
-                activeTab === 'shift' 
-                  ? 'bg-amber-600 text-white shadow' 
-                  : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>กะ</span>
-              <span className={`w-2 h-2 rounded-full ml-0.5 ${activeShift ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-            </button>
-
-            {/* Owner Only Menus */}
-            {isOwner ? (
+            {/* If NOT inventory staff, show POS & Shift */}
+            {!isInventory && (
               <>
                 <button
-                  onClick={() => onSelectTab('inventory')}
+                  onClick={() => onSelectTab('pos')}
                   className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
-                    activeTab === 'inventory' 
+                    activeTab === 'pos' 
                       ? 'bg-amber-600 text-white shadow' 
                       : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
-                  <Boxes className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span>คลังสินค้า</span>
+                  <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span>หน้าร้าน (POS)</span>
                 </button>
 
+                <button
+                  onClick={() => onSelectTab('shift')}
+                  className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
+                    activeTab === 'shift' 
+                      ? 'bg-amber-600 text-white shadow' 
+                      : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span>กะ</span>
+                  <span className={`w-2 h-2 rounded-full ml-0.5 ${activeShift ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                </button>
+              </>
+            )}
+
+            {/* Inventory tab: Accessible by OWNER and INVENTORY staff */}
+            {(isOwner || isInventory) && (
+              <button
+                onClick={() => onSelectTab('inventory')}
+                className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
+                  activeTab === 'inventory' 
+                    ? 'bg-amber-600 text-white shadow' 
+                    : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <Boxes className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span>คลังสินค้า</span>
+              </button>
+            )}
+
+            {/* Owner Only Menus */}
+            {isOwner && (
+              <>
                 <button
                   onClick={() => onSelectTab('reports')}
                   className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
@@ -325,8 +334,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   )}
                 </div>
               </>
-            ) : (
-              <div className="px-2 py-1 text-xs text-slate-500 italic flex items-center gap-1">
+            )}
+
+            {isInventory && (
+              <div className="px-2 py-1 text-xs text-amber-400/80 italic flex items-center gap-1 font-semibold">
+                <Boxes className="w-3.5 h-3.5 text-amber-400" /> สต็อกสินค้า
+              </div>
+            )}
+            {!isOwner && !isInventory && (
+              <div className="px-2 py-1 text-xs text-slate-500 italic flex items-center gap-1 font-semibold">
                 <ShieldCheck className="w-3.5 h-3.5" /> แคชเชียร์
               </div>
             )}
@@ -388,8 +404,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span className="text-amber-400 flex items-center gap-0.5 font-bold">
                       <ShieldCheck className="w-3 h-3 text-amber-400" /> เจ้าของร้าน
                     </span>
+                  ) : isInventory ? (
+                    <span className="text-amber-300 flex items-center gap-0.5 font-bold">
+                      <Boxes className="w-3 h-3 text-amber-400" /> ผู้ดูแลสต็อก
+                    </span>
                   ) : (
-                    <span className="text-emerald-400 flex items-center gap-0.5"><UserCheck className="w-3 h-3" /> แคชเชียร์</span>
+                    <span className="text-emerald-400 flex items-center gap-0.5">
+                      <UserCheck className="w-3 h-3 text-emerald-400" /> แคชเชียร์
+                    </span>
                   )}
                 </div>
                 <div className="text-[10px] text-slate-400 max-w-[85px] truncate">

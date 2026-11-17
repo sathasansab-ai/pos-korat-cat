@@ -86,7 +86,7 @@ export const LoginLockScreen: React.FC<LoginLockScreenProps> = ({
         )}
 
         <div className="w-full mb-4 text-center">
-          <p className="text-xs text-slate-400 mb-2">ใส่รหัส PIN แคชเชียร์หรือแอดมิน เพื่อเข้าสู่ระบบ</p>
+          <p className="text-xs text-slate-400 mb-2">ใส่รหัส PIN แคชเชียร์, สต็อก หรือเจ้าของร้าน เพื่อเข้าสู่ระบบ</p>
           
           {/* PIN Dots Preview - Dynamically adjusts to any PIN length */}
           <div className="flex justify-center items-center gap-2 py-2 flex-wrap max-w-xs mx-auto">
@@ -166,7 +166,7 @@ export const LoginLockScreen: React.FC<LoginLockScreenProps> = ({
         </form>
 
         <p className="text-[10px] text-slate-500 text-center mt-4">
-          ระบบความปลอดภัยร้านค้า KORAT CAT • สิทธิ์แอดมิน / แคชเชียร์
+          ระบบความปลอดภัยร้านค้า KORAT CAT • สิทธิ์เจ้าของร้าน / แคชเชียร์ / ผู้ดูแลสต็อก
         </p>
       </div>
     </div>
