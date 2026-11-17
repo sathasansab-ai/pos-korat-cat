@@ -213,37 +213,43 @@ export class ThermalPrinterService {
                 color: #000000 !important;
               }
 
-              /* ป้องกันการเกิดกรอบสี่เหลี่ยมดำ (Solid Box): ตัดเส้นขอบซ้ายและขวาทั้งหมด */
-              div, p, span, table, th, td, section, header, footer, article {
-                border-left: none !important;
-                border-right: none !important;
+              /* ลบเส้นขอบข้างซ้าย-ขวา ป้องกันการเกิดกรอบสี่เหลี่ยมดำ (Solid Box) */
+              div, p, span, table, th, td {
+                border-left-width: 0 !important;
+                border-right-width: 0 !important;
               }
 
-              /* เส้นประและเส้นคั่นสไตล์สลิปความร้อน */
-              .border-dashed, hr, .divider, .receipt-divider {
-                border: none !important;
-                border-top: 1px dashed #000000 !important;
-                border-bottom: none !important;
-                border-left: none !important;
-                border-right: none !important;
-                margin: 5px 0 !important;
-                height: 0 !important;
-                width: 100% !important;
-              }
-
-              /* กำหนดให้มีเฉพาะเส้นบนหรือล่างแบบเส้นประคมกริบ */
+              /* กำหนดเส้นคั่นบน-ล่างแบบเส้นประคมกริบสำหรับสลิปความร้อน */
               .border-b {
                 border-top: none !important;
                 border-left: none !important;
                 border-right: none !important;
-                border-bottom: 1px dashed #000000 !important;
+                border-bottom-width: 1px !important;
+                border-bottom-color: #000000 !important;
+                border-bottom-style: dashed !important;
               }
 
               .border-t {
                 border-bottom: none !important;
                 border-left: none !important;
                 border-right: none !important;
+                border-top-width: 1px !important;
+                border-top-color: #000000 !important;
+                border-top-style: dashed !important;
+              }
+
+              .border-dashed {
+                border-style: dashed !important;
+              }
+
+              /* เส้นแบ่งเดี่ยวแบบ hr หรือ receipt-divider */
+              hr, .divider, .receipt-divider {
+                border: none !important;
                 border-top: 1px dashed #000000 !important;
+                margin: 6px 0 !important;
+                height: 0 !important;
+                width: 100% !important;
+                display: block !important;
               }
 
               /* รูปภาพโลโก้และบาร์โค้ด */
@@ -295,7 +301,8 @@ export class ThermalPrinterService {
               /* ปลดล็อคความสูงและ overflow ทั้งหมด ไม่ให้บาร์โค้ดและข้อความท้ายสลิปโดนตัด */
               #printable-thermal-receipt,
               #printable-shift-handover,
-              #printable-exchange-slip {
+              #printable-exchange-slip,
+              #printable-test-thermal-slip {
                 max-height: none !important;
                 height: auto !important;
                 overflow: visible !important;
