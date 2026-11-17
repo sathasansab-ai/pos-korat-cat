@@ -1,8 +1,9 @@
 // src/components/ReceiptModal.tsx
-import React, { useRef } from 'react';
-import { Printer, X, CheckCircle2, QrCode, FileText } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Printer, X, FileText, Settings2, Sliders, AlertCircle } from 'lucide-react';
 import type { Order, StoreSettings } from '../types';
 import { BarcodeGenerator } from '../services/barcodeGenerator';
+import { ThermalPrinterService } from '../services/thermalPrinter';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -20,263 +21,267 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   onOpenTaxInvoice
 }) => {
   const receiptRef = useRef<HTMLDivElement>(null);
-  const [paperWidth, setPaperWidth] = React.useState<'58mm' | '80mm'>(() => {
-    const saved = localStorage.getItem('pos_thermal_paper_width');
-    if (saved === '58mm' || saved === '80mm') return saved;
-    return settings.printerPaperWidth || '80mm';
+
+  // Settings State: Paper Width, Scale %, Font Size
+  const [paperWidth, setPaperWidth] = useState<'58mm' | '80mm'>(() => {
+    return ThermalPrinterService.getStoredPaperWidth(settings.printerPaperWidth || '80mm');
   });
+
+  const [scale, setScale] = useState<number>(() => {
+    return ThermalPrinterService.getStoredScale(100);
+  });
+
+  const [fontSize, setFontSize] = useState<'compact' | 'normal' | 'large'>(() => {
+    return ThermalPrinterService.getStoredFontSize('normal');
+  });
+
+  const [isCalibratorOpen, setIsCalibratorOpen] = useState(false);
 
   const handleSelectPaperWidth = (w: '58mm' | '80mm') => {
     setPaperWidth(w);
-    localStorage.setItem('pos_thermal_paper_width', w);
+    ThermalPrinterService.setStoredPaperWidth(w);
+  };
+
+  const handleAdjustScale = (delta: number) => {
+    const next = Math.max(75, Math.min(115, scale + delta));
+    setScale(next);
+    ThermalPrinterService.setStoredScale(next);
+  };
+
+  const handleSelectFontSize = (size: 'compact' | 'normal' | 'large') => {
+    setFontSize(size);
+    ThermalPrinterService.setStoredFontSize(size);
   };
 
   if (!isOpen || !order) return null;
 
   const handlePrint = () => {
-    const printEl = document.getElementById('printable-thermal-receipt');
-    if (!printEl) {
-      window.print();
-      return;
-    }
-
-    try {
-      const existingFrame = document.getElementById('print-thermal-receipt-iframe');
-      if (existingFrame) existingFrame.remove();
-
-      const printFrame = document.createElement('iframe');
-      printFrame.id = 'print-thermal-receipt-iframe';
-      printFrame.style.position = 'fixed';
-      printFrame.style.right = '0';
-      printFrame.style.bottom = '0';
-      printFrame.style.width = '0';
-      printFrame.style.height = '0';
-      printFrame.style.border = '0';
-      document.body.appendChild(printFrame);
-
-      const frameDoc = printFrame.contentWindow?.document;
-      if (!frameDoc) {
-        window.print();
-        return;
-      }
-
-      const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-        .map(el => el.outerHTML)
-        .join('\n');
-
-      frameDoc.open();
-      frameDoc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>สลิปใบเสร็จ - ${order.localOrderId}</title>
-            ${styles}
-            <style>
-              @page { 
-                size: ${paperWidth === '80mm' ? '80mm' : '58mm'} auto; 
-                margin: 0 !important; 
-              }
-              * { 
-                box-sizing: border-box !important; 
-                -webkit-print-color-adjust: exact !important; 
-                print-color-adjust: exact !important; 
-                color: #000000 !important;
-                -webkit-text-fill-color: #000000 !important;
-                text-shadow: none !important;
-              }
-              html, body { 
-                background: #ffffff !important; 
-                color: #000000 !important; 
-                padding: 1mm 2mm 2mm 2mm !important; 
-                margin: 0 auto !important; 
-                width: 100% !important;
-                max-width: ${paperWidth === '80mm' ? '72mm' : '48mm'} !important;
-                min-width: ${paperWidth === '80mm' ? '72mm' : '48mm'} !important;
-                font-family: 'Tahoma', 'Segoe UI', 'Prompt', 'Arial', sans-serif !important;
-                font-size: ${paperWidth === '80mm' ? '12px' : '10px'} !important;
-                font-weight: 700 !important;
-                line-height: 1.3 !important;
-                overflow: hidden !important;
-                height: auto !important;
-                min-height: 0 !important;
-                page-break-after: avoid !important;
-                break-after: avoid !important;
-              }
-              #printable-thermal-receipt { 
-                width: 100% !important; 
-                max-width: ${paperWidth === '80mm' ? '72mm' : '48mm'} !important;
-                border: none !important; 
-                padding: 0 0 2mm 0 !important; 
-                margin: 0 auto !important; 
-                background: #ffffff !important; 
-                box-shadow: none !important; 
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-              }
-              .font-bold, .font-extrabold, .font-black {
-                font-weight: 900 !important;
-              }
-              .border-dashed {
-                border-bottom: 1.5px dashed #000000 !important;
-              }
-              .border-b {
-                border-bottom: 1.5px solid #000000 !important;
-              }
-              .border-t {
-                border-top: 1.5px solid #000000 !important;
-              }
-              img {
-                max-width: ${paperWidth === '80mm' ? '50mm' : '38mm'} !important;
-                height: auto !important;
-                display: block !important;
-                margin-left: auto !important;
-                margin-right: auto !important;
-                image-rendering: -webkit-optimize-contrast !important;
-                shape-rendering: crispEdges !important;
-              }
-              .no-print { display: none !important; }
-            </style>
-          </head>
-          <body>
-            ${printEl.outerHTML}
-          </body>
-        </html>
-      `);
-      frameDoc.close();
-
-      setTimeout(() => {
-        printFrame.contentWindow?.focus();
-        printFrame.contentWindow?.print();
-      }, 300);
-    } catch (e) {
-      window.print();
-    }
+    ThermalPrinterService.printElement('printable-thermal-receipt', {
+      paperWidth,
+      scale,
+      fontSize,
+      title: `สลิปใบเสร็จ-${order.localOrderId}`
+    });
   };
 
   const barcodeSvg = BarcodeGenerator.generateSvg(order.localOrderId, {
-    height: 42,
+    height: 38,
     showText: true
   });
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-      {/* Container */}
-      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden flex flex-col my-auto border border-slate-200">
-        {/* Action Header (Hidden in Print) */}
-        <div className="bg-slate-900 text-white p-4 flex items-center justify-between no-print">
-          <div className="flex items-center space-x-2">
-            <Printer className="w-5 h-5 text-amber-400" />
-            <h3 className="font-bold text-sm">ใบเสร็จรับเงิน</h3>
-          </div>
+  // Calculate live preview container max-width to simulate physical paper
+  const previewMaxWidth = paperWidth === '80mm' ? 'max-w-[340px]' : 'max-w-[270px]';
 
-          <div className="flex items-center gap-2">
-            {/* 58mm vs 80mm Switcher with clear Brand model hints */}
-            <div className="flex rounded-lg bg-slate-800 p-0.5 text-[11px] font-bold border border-slate-700">
-              <button
-                type="button"
-                onClick={() => handleSelectPaperWidth('80mm')}
-                className={`px-2.5 py-1 rounded transition flex items-center gap-1 ${
-                  paperWidth === '80mm' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                }`}
-                title="EasyPrint ES-9910UB, Epson TM, หรือเครื่องความร้อนหน้ากว้าง 80 มม."
-              >
-                <span>🖨️ EasyPrint (80 มม.)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectPaperWidth('58mm')}
-                className={`px-2.5 py-1 rounded transition flex items-center gap-1 ${
-                  paperWidth === '58mm' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                }`}
-                title="Xprinter XP-58IIH หรือเครื่องสลิปขนาดกะทัดรัด 58 มม."
-              >
-                <span>🖨️ Xprinter (58 มม.)</span>
-              </button>
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+      {/* Modal Card */}
+      <div className={`bg-white rounded-3xl shadow-2xl ${previewMaxWidth} w-full overflow-hidden flex flex-col my-auto border border-slate-200 transition-all duration-300`}>
+        
+        {/* ACTION HEADER (Hidden in Print) */}
+        <div className="bg-slate-950 text-white p-3.5 flex flex-col gap-2 no-print border-b border-slate-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Printer className="w-4 h-4 text-amber-400" />
+              <h3 className="font-bold text-xs">พิมพ์สลิปใบเสร็จ</h3>
             </div>
 
-            <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
-              <X className="w-5 h-5" />
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setIsCalibratorOpen(prev => !prev)}
+                className={`p-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-1 ${
+                  isCalibratorOpen
+                    ? 'bg-amber-500 text-slate-950 border-amber-400'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                }`}
+                title="ปรับจูนขนาด/สเกลและตัวอักษรให้พอดีกับกระดาษ"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span className="text-[10px]">ปรับจูนสลิป</span>
+              </button>
+
+              <button
+                onClick={onClose}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Paper Switcher */}
+          <div className="grid grid-cols-2 gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => handleSelectPaperWidth('80mm')}
+              className={`py-1 rounded-lg transition flex items-center justify-center gap-1 ${
+                paperWidth === '80mm'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>🖨️ 80 มม. (เครื่องใหญ่)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectPaperWidth('58mm')}
+              className={`py-1 rounded-lg transition flex items-center justify-center gap-1 ${
+                paperWidth === '58mm'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>🖨️ 58 มม. (Xprinter/เล็ก)</span>
             </button>
           </div>
+
+          {/* Calibrator Drawer (Scale & Font Size) */}
+          {isCalibratorOpen && (
+            <div className="bg-slate-900/90 rounded-2xl p-3 border border-amber-500/30 text-xs space-y-2.5 animate-in slide-in-from-top-2">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-[11px] font-semibold">🔍 สเกลย่อ/ขยาย ({scale}%):</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustScale(-5)}
+                    className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center text-xs"
+                    title="ย่อลง 5%"
+                  >
+                    -
+                  </button>
+                  <span className="font-mono font-bold text-amber-400 px-2 text-xs">
+                    {scale}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustScale(5)}
+                    className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center text-xs"
+                    title="ขยายขึ้น 5%"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-[11px] font-semibold">🔤 ขนาดตัวอักษร:</span>
+                <div className="flex gap-1 text-[10px]">
+                  {(['compact', 'normal', 'large'] as const).map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => handleSelectFontSize(s)}
+                      className={`px-2 py-0.5 rounded-md font-bold transition ${
+                        fontSize === s
+                          ? 'bg-amber-500 text-slate-950 font-black'
+                          : 'bg-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {s === 'compact' ? 'กะทัดรัด' : s === 'normal' ? 'ปกติ' : 'ใหญ่'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Crucial Printer Driver Advice */}
+              <div className="p-2 bg-amber-500/15 border border-amber-500/30 rounded-xl text-[10px] text-amber-200 leading-relaxed flex gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <strong>เคล็ดลับให้สลิปออกพอดีเป๊ะ 100%:</strong>
+                  <br />ในหน้าต่างสั่งพิมพ์ (Ctrl+P) ของคอมพิวเตอร์ ให้เลือก <strong>ระยะขอบ (Margins) ➔ "ไม่มี" (None)</strong> และนำติ๊ก <strong>"ส่วนหัวและส่วนท้าย" ออก</strong>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* RECEIPT CONTENT (Optimized for 80mm / 58mm Thermal Printers) */}
+        {/* PRINTABLE THERMAL RECEIPT CONTAINER */}
         <div
           ref={receiptRef}
-          className="p-6 text-slate-800 font-mono text-xs bg-white select-text print:p-2 print:m-0 print:w-full"
           id="printable-thermal-receipt"
+          className="p-4 sm:p-5 text-slate-950 font-mono text-xs bg-white select-text max-h-[68vh] overflow-y-auto"
         >
-          {/* Store Brand & Logo */}
-          <div className="text-center pb-3 border-b border-dashed border-slate-400">
+          {/* Store Brand Header */}
+          <div className="text-center pb-2.5 border-b border-dashed border-slate-900">
             {settings.logoUrl && (
               <img
                 src={settings.logoUrl}
                 alt="Store Logo"
-                className="max-h-16 max-w-[140px] w-auto h-auto mx-auto mb-2 object-contain select-none"
+                className="max-h-12 max-w-[120px] w-auto h-auto mx-auto mb-1.5 object-contain select-none"
               />
             )}
-            <h2 className="font-extrabold text-sm text-slate-900 uppercase tracking-tight">
+            <h2 className="font-black text-sm text-slate-950 uppercase tracking-tight">
               {settings.storeName}
             </h2>
-            <div className="text-[10px] text-slate-600 font-sans mt-0.5">{settings.subTitle}</div>
-            <div className="text-[9px] text-slate-500 mt-1 font-sans">{settings.address}</div>
-            <div className="text-[9px] text-slate-500 font-sans">
+            <div className="text-[10px] text-slate-700 font-sans font-medium mt-0.5">
+              {settings.subTitle}
+            </div>
+            <div className="text-[9px] text-slate-600 font-sans mt-0.5 leading-tight">
+              {settings.address}
+            </div>
+            <div className="text-[9px] text-slate-600 font-sans mt-0.5">
               โทร: {settings.phone} | เลขผู้เสียภาษี: {settings.taxId}
             </div>
             {settings.receiptHeader && (
-              <div className="text-[9px] text-amber-800 font-sans mt-1.5 whitespace-pre-line italic">
+              <div className="text-[9.5px] text-slate-800 font-sans mt-1 whitespace-pre-line italic font-semibold">
                 {settings.receiptHeader}
               </div>
             )}
           </div>
 
-          {/* Bill Meta */}
-          <div className="py-2.5 border-b border-dashed border-slate-300 text-[11px] space-y-0.5">
-            <div className="flex justify-between font-bold">
+          {/* Bill Metadata */}
+          <div className="py-2 border-b border-dashed border-slate-900 text-[10.5px] space-y-0.5 font-medium">
+            <div className="flex justify-between">
               <span>เลขที่บิล:</span>
-              <span>{order.localOrderId}</span>
+              <span className="font-bold">{order.localOrderId}</span>
             </div>
-            <div className="flex justify-between text-slate-500">
-              <span>วันที่/เวลา:</span>
+            <div className="flex justify-between text-slate-700">
+              <span>วันที่:</span>
               <span>{new Date(order.timestamp).toLocaleString('th-TH')}</span>
             </div>
-            <div className="flex justify-between text-slate-500">
-              <span>แคชเชียร์:</span>
+            <div className="flex justify-between text-slate-700">
+              <span>พนักงาน:</span>
               <span>{order.cashierName}</span>
             </div>
             {order.customerName && (
-              <div className="flex justify-between text-slate-700 font-medium">
-                <span>ลูกค้าสมาชิก:</span>
+              <div className="flex justify-between text-slate-900 font-bold">
+                <span>สมาชิก:</span>
                 <span>{order.customerName}</span>
               </div>
             )}
           </div>
 
-          {/* Items Table */}
-          <div className="py-2 border-b border-dashed border-slate-400">
-            <div className="flex justify-between font-bold pb-1 text-[10px] uppercase text-slate-500 border-b border-slate-200">
-              <span className="w-1/2">รายการ</span>
-              <span className="w-1/6 text-center">จำนวน</span>
-              <span className="w-1/3 text-right">จำนวนเงิน</span>
+          {/* Items List (Two-row rock-solid layout: Never overflows or breaks lines) */}
+          <div className="py-2 border-b border-dashed border-slate-900">
+            <div className="text-[10px] font-black uppercase text-slate-700 pb-1 flex justify-between border-b border-slate-300">
+              <span>รายการสินค้า</span>
+              <span>จำนวนเงิน</span>
             </div>
 
-            <div className="divide-y divide-slate-100 py-1 space-y-1.5">
+            <div className="divide-y divide-slate-100 py-0.5">
               {order.items.map((item, idx) => (
-                <div key={idx} className="pt-1.5">
-                  <div className="font-semibold text-slate-900 leading-tight">
-                    {item.productName} {item.isFreeGift && <span className="text-[10px] text-rose-700 font-bold">(ของสมนาคุณฟรี)</span>}
+                <div key={idx} className="py-1">
+                  {/* Row 1: Full Item Name + Variant Attributes */}
+                  <div className="font-bold text-slate-950 leading-tight break-words">
+                    {item.productName}
+                    {item.isFreeGift && (
+                      <span className="text-[9.5px] text-rose-700 font-extrabold ml-1">
+                        (ของสมนาคุณฟรี)
+                      </span>
+                    )}
                   </div>
                   {item.attributes && (
-                    <div className="text-[9px] text-slate-500 font-sans">
+                    <div className="text-[8.5px] text-slate-600 font-sans">
                       {Object.values(item.attributes).join(' / ')}
                     </div>
                   )}
-                  <div className="flex justify-between text-[11px] text-slate-600 mt-0.5">
-                    <span className="w-1/2 text-slate-400">
-                      {item.isFreeGift ? 'ฟรี ฿0' : `@${item.unitPrice.toLocaleString()}`}
+
+                  {/* Row 2: Quantity x Unit Price on Left, Line Total on Right */}
+                  <div className="flex justify-between items-baseline text-[10.5px] mt-0.5">
+                    <span className="text-slate-600 font-sans">
+                      {item.qty} ชิ้น x {item.isFreeGift ? 'ฟรี ฿0' : `@${item.unitPrice.toLocaleString()}`}
                     </span>
-                    <span className="w-1/6 text-center">{item.qty}</span>
-                    <span className="w-1/3 text-right font-bold">
+                    <span className="font-black font-mono text-slate-950 whitespace-nowrap ml-2">
                       {item.isFreeGift ? '฿0' : `฿${item.lineTotal.toLocaleString()}`}
                     </span>
                   </div>
@@ -286,83 +291,89 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
 
           {/* Financial Calculation */}
-          <div className="py-2.5 border-b border-dashed border-slate-400 space-y-1 text-xs">
-            <div className="flex justify-between text-slate-600">
+          <div className="py-2 border-b border-dashed border-slate-900 space-y-1 text-xs">
+            <div className="flex justify-between text-slate-700 font-medium">
               <span>ยอดรวมสินค้า:</span>
-              <span>฿{order.subtotal.toLocaleString()}</span>
+              <span className="font-mono whitespace-nowrap font-bold">฿{order.subtotal.toLocaleString()}</span>
             </div>
 
             {order.promoDiscount > 0 && (
-              <div className="flex justify-between text-emerald-700 font-semibold">
+              <div className="flex justify-between text-emerald-800 font-bold">
                 <span>ส่วนลดโปรโมชั่น:</span>
-                <span>-฿{order.promoDiscount.toLocaleString()}</span>
+                <span className="font-mono whitespace-nowrap">-฿{order.promoDiscount.toLocaleString()}</span>
               </div>
             )}
 
             {order.memberDiscountAmount && order.memberDiscountAmount > 0 && (
-              <div className="flex justify-between text-amber-800 font-semibold">
-                <span>ส่วนลดบัตรสมาชิก ({order.memberTier === 'BLACK_WISDOM' ? `${settings.blackWisdomDiscountPercent ?? 10}%` : `${settings.goldDiscountPercent ?? 5}%`}):</span>
-                <span>-฿{order.memberDiscountAmount.toLocaleString()}</span>
+              <div className="flex justify-between text-amber-900 font-bold">
+                <span>ส่วนลดบัตรสมาชิก:</span>
+                <span className="font-mono whitespace-nowrap">-฿{order.memberDiscountAmount.toLocaleString()}</span>
               </div>
             )}
 
             {order.customDiscountAmount && order.customDiscountAmount > 0 && (
-              <div className="flex justify-between text-rose-700 font-semibold">
-                <span>ส่วนลดพิเศษ ({order.customDiscountReason || 'ส่วนลดหน้าร้าน'}):</span>
-                <span>-฿{order.customDiscountAmount.toLocaleString()}</span>
+              <div className="flex justify-between text-rose-800 font-bold">
+                <span>ส่วนลดพิเศษ:</span>
+                <span className="font-mono whitespace-nowrap">-฿{order.customDiscountAmount.toLocaleString()}</span>
               </div>
             )}
 
-            <div className="flex justify-between text-sm font-black text-slate-900 pt-1 border-t border-slate-200">
+            {/* NET TOTAL */}
+            <div className="flex justify-between items-baseline text-sm font-black text-slate-950 pt-1 border-t border-slate-900 mt-1">
               <span>ยอดสุทธิ (NET):</span>
-              <span>฿{order.netTotal.toLocaleString()}</span>
+              <span className="text-base font-black font-mono whitespace-nowrap">฿{order.netTotal.toLocaleString()}</span>
             </div>
 
-            {/* Payments breakdown */}
-            <div className="pt-1 text-[11px] text-slate-600 space-y-0.5">
+            {/* Payments Breakdown */}
+            <div className="pt-1 text-[10.5px] text-slate-700 space-y-0.5 font-medium">
               {order.payments.map((p, i) => (
                 <div key={i} className="flex justify-between">
-                  <span>ชำระด้วย {p.method === 'CASH' ? 'เงินสด' : p.method === 'PROMPTPAY' ? 'สแกน QR PromptPay' : p.method}:</span>
-                  <span>฿{p.amount.toLocaleString()}</span>
+                  <span>ชำระด้วย {p.method === 'CASH' ? 'เงินสด' : p.method === 'PROMPTPAY' ? 'PromptPay' : p.method}:</span>
+                  <span className="font-mono whitespace-nowrap font-bold">฿{p.amount.toLocaleString()}</span>
                 </div>
               ))}
               {order.cashReceived !== undefined && order.cashReceived > 0 && (
                 <>
-                  <div className="flex justify-between text-slate-500">
+                  <div className="flex justify-between text-slate-600">
                     <span>รับเงินสด:</span>
-                    <span>฿{order.cashReceived.toLocaleString()}</span>
+                    <span className="font-mono whitespace-nowrap">฿{order.cashReceived.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between font-bold text-slate-900">
+                  <div className="flex justify-between font-bold text-slate-950">
                     <span>เงินทอน:</span>
-                    <span>฿{(order.changeGiven || 0).toLocaleString()}</span>
+                    <span className="font-mono whitespace-nowrap font-black">฿{(order.changeGiven || 0).toLocaleString()}</span>
                   </div>
                 </>
               )}
             </div>
           </div>
 
-          {/* Barcode & Footer (Vector SVG for Razor-Sharp Thermal Printing) */}
-          <div className="text-center pt-3 space-y-2">
+          {/* Barcode & Footer */}
+          <div className="text-center pt-2.5 space-y-1.5">
             <div 
               className="flex justify-center items-center [&_svg]:max-w-[85%] [&_svg]:h-auto [&_svg]:mx-auto"
               dangerouslySetInnerHTML={{ __html: barcodeSvg }}
             />
-            <div className="text-[10px] text-slate-600 font-sans whitespace-pre-line leading-relaxed">
-              {settings.receiptFooter}
+            {settings.receiptFooter && (
+              <div className="text-[9.5px] text-slate-700 font-sans whitespace-pre-line leading-relaxed font-medium">
+                {settings.receiptFooter}
+              </div>
+            )}
+            <div className="text-[8.5px] text-slate-500 font-sans">
+              ขอบคุณที่มาอุดหนุน • ยินดีให้บริการอีกครั้ง
             </div>
-            <div className="text-[9px] text-slate-400">ขอบคุณที่มาอุดหนุน • ยินดีให้บริการอีกครั้ง</div>
           </div>
         </div>
 
-        {/* Bottom Actions (Hidden in Print) */}
-        <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap gap-2 no-print">
+        {/* BOTTOM ACTIONS (Hidden in Print) */}
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap gap-2 no-print">
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition"
+            className="px-3.5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-2xl text-xs transition"
           >
             ปิด
           </button>
+
           {onOpenTaxInvoice && (
             <button
               type="button"
@@ -370,19 +381,20 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 onClose();
                 onOpenTaxInvoice();
               }}
-              className="flex-1 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
+              className="flex-1 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition"
             >
-              <FileText className="w-4 h-4 text-indigo-600" />
-              <span>ออกใบกำกับภาษี (A4)</span>
+              <FileText className="w-3.5 h-3.5 text-indigo-600" />
+              <span>ใบกำกับภาษี (A4)</span>
             </button>
           )}
+
           <button
             type="button"
             onClick={handlePrint}
-            className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow transition"
+            className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-lg transition active:scale-95"
           >
             <Printer className="w-4 h-4" />
-            <span>พิมพ์สลิป (Thermal)</span>
+            <span>พิมพ์สลิป ({paperWidth})</span>
           </button>
         </div>
       </div>

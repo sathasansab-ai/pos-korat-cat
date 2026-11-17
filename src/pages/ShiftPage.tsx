@@ -4,6 +4,7 @@ import { Clock, Banknote, ShieldAlert, CheckCircle2, History, AlertTriangle, QrC
 import { db } from '../db';
 import type { Shift, UserAccount } from '../types';
 import { CloudSync } from '../services/cloudSync';
+import { ThermalPrinterService } from '../services/thermalPrinter';
 
 interface ShiftPageProps {
   currentUser: UserAccount;
@@ -323,44 +324,9 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   };
 
   const handlePrintThermalSlip = () => {
-    const printEl = document.getElementById('printable-shift-handover');
-    if (!printEl) {
-      window.print();
-      return;
-    }
-    const printWindow = window.open('', '_blank', 'width=450,height=600');
-    if (!printWindow) {
-      window.print();
-      return;
-    }
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>สลิปสรุปส่งมอบกะ - ${printedShift?.cashierName || 'Shift'}</title>
-          <style>
-            @page { size: auto; margin: 0; }
-            body { font-family: monospace; width: 58mm; margin: 0 auto; padding: 6px 4px; font-size: 11px; color: #000; }
-            .center { text-align: center; }
-            .right { text-align: right; }
-            .bold { font-weight: bold; }
-            .divider { border-top: 1px dashed #000; margin: 5px 0; }
-            .flex { display: flex; justify-content: space-between; }
-          </style>
-        </head>
-        <body>
-          ${printEl.innerHTML}
-          <script>
-            window.onload = function() {
-              window.focus();
-              window.print();
-              setTimeout(function() { window.close(); }, 800);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    ThermalPrinterService.printElement('printable-shift-handover', {
+      title: `ใบสรุปส่งมอบกะ-${printedShift?.cashierName || 'Shift'}`
+    });
   };
 
   return (

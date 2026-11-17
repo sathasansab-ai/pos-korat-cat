@@ -17,6 +17,7 @@ import { db } from '../db';
 import type { Order, ProductVariant, ProductExchangeRecord, UserAccount, Shift, StoreSettings } from '../types';
 import { CloudSync } from '../services/cloudSync';
 import { SoundEffects } from '../services/soundEffects';
+import { ThermalPrinterService } from '../services/thermalPrinter';
 
 interface ProductExchangeModalProps {
   isOpen: boolean;
@@ -254,45 +255,10 @@ export const ProductExchangeModal: React.FC<ProductExchangeModalProps> = ({
 
   // Direct Thermal Printing for Exchange Slip
   const handlePrintExchangeSlip = () => {
-    const el = document.getElementById('printable-exchange-slip');
-    if (!el) {
-      window.print();
-      return;
-    }
-    const printWindow = window.open('', '_blank', 'width=450,height=600');
-    if (!printWindow) {
-      window.print();
-      return;
-    }
-    const paperWidth = settings?.printerPaperWidth === '80mm' ? '72mm' : '48mm';
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>ใบเปลี่ยนสินค้า - ${completedRecord?.exchangeNo}</title>
-          <style>
-            @page { size: auto; margin: 0; }
-            body { font-family: monospace; width: ${paperWidth}; margin: 0 auto; padding: 8px 4px; font-size: 11px; color: #000; }
-            .center { text-align: center; }
-            .right { text-align: right; }
-            .bold { font-weight: bold; }
-            .divider { border-top: 1px dashed #000; margin: 6px 0; }
-            .row { display: flex; justify-content: space-between; }
-          </style>
-        </head>
-        <body>
-          ${el.innerHTML}
-          <script>
-            window.onload = function() {
-              window.focus();
-              window.print();
-              setTimeout(function() { window.close(); }, 800);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    ThermalPrinterService.printElement('printable-exchange-slip', {
+      paperWidth: settings?.printerPaperWidth || '80mm',
+      title: `ใบเปลี่ยนสินค้า-${completedRecord?.exchangeNo || 'EX'}`
+    });
   };
 
   return (

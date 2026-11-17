@@ -22,7 +22,8 @@ import {
   RotateCcw,
   Eye,
   EyeOff,
-  ExternalLink
+  ExternalLink,
+  Printer
 } from 'lucide-react';
 import { db } from '../db';
 import type { StoreSettings, UserAccount, CustomerScreenTheme, CustomerSlideItem, UserRole } from '../types';
@@ -30,6 +31,7 @@ import { AuthService } from '../services/auth';
 import { ImageOptimizer } from '../services/imageOptimizer';
 import { CloudSync } from '../services/cloudSync';
 import { DualMonitorSync } from '../services/dualMonitorSync';
+import { ThermalPrinterService } from '../services/thermalPrinter';
 
 const DEFAULT_PROMO_SLIDES: CustomerSlideItem[] = [
   {
@@ -536,6 +538,46 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     } catch (err: any) {
       setResetError('เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);
     }
+  };
+
+  const handleTestPrintSlip = () => {
+    if (!settings) return;
+    const dummyEl = document.createElement('div');
+    dummyEl.id = 'printable-test-thermal-slip';
+    dummyEl.style.padding = '0';
+    dummyEl.style.fontFamily = 'monospace';
+    dummyEl.innerHTML = `
+      <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
+        <div style="font-weight: 900; font-size: 14px; text-transform: uppercase;">${settings.storeName || 'KORAT CAT'}</div>
+        <div style="font-size: 10px;">${settings.subTitle || 'เรือนโคราชเฉลิมวัฒนา'}</div>
+        <div style="font-size: 9px; margin-top: 2px;">โทร: ${settings.phone || '-'} | Tax: ${settings.taxId || '-'}</div>
+        <div style="font-size: 10px; font-weight: bold; margin-top: 4px; background: #eee; padding: 2px;">=== สลิปทดสอบเครื่องพิมพ์ (TEST) ===</div>
+      </div>
+      <div style="font-size: 10.5px; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
+        <div style="display: flex; justify-content: space-between;"><span>เลขที่บิล:</span><b>TEST-9999</b></div>
+        <div style="display: flex; justify-content: space-between;"><span>วันที่:</span><span>${new Date().toLocaleString('th-TH')}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>ขนาดกระดาษ:</span><b>${settings.printerPaperWidth || '80mm'}</b></div>
+      </div>
+      <div style="font-size: 10.5px; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
+        <div style="font-weight: bold; margin-bottom: 2px;">เสื้อยืดลิมิเต็ด KORAT CAT (L)</div>
+        <div style="display: flex; justify-content: space-between;"><span>1 ชิ้น x @490</span><b>฿490</b></div>
+        <div style="font-weight: bold; margin-top: 4px; margin-bottom: 2px;">หมวกแก๊ปปักลายฉลุทอง (F)</div>
+        <div style="display: flex; justify-content: space-between;"><span>1 ชิ้น x @350</span><b>฿350</b></div>
+      </div>
+      <div style="font-size: 11px; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
+        <div style="display: flex; justify-content: space-between;"><span>ยอดรวม:</span><b>฿840</b></div>
+        <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 900; margin-top: 4px;"><span>ยอดสุทธิ (NET):</span><b>฿840</b></div>
+      </div>
+      <div style="text-align: center; font-size: 9px; padding-top: 4px;">
+        ✓ ทดสอบความกว้างและการตัดกระดาษสำเร็จ<br/>หากขอบซ้าย/ขวาพอดี ถือว่าพร้อมใช้งาน 100%
+      </div>
+    `;
+    document.body.appendChild(dummyEl);
+    ThermalPrinterService.printElement(dummyEl, {
+      paperWidth: settings.printerPaperWidth || '80mm',
+      title: 'ทดสอบพิมพ์สลิป'
+    });
+    setTimeout(() => dummyEl.remove(), 2500);
   };
 
   if (!settings) return null;
@@ -1367,15 +1409,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">ขนาดกระดาษเครื่องพิมพ์สลิป</label>
-              <select
-                value={settings.printerPaperWidth}
-                onChange={e => setSettings({ ...settings, printerPaperWidth: e.target.value as any })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-              >
-                <option value="80mm">80 มม. (มาตรฐานเครื่องพิมพ์สลิปความร้อนหน้ากว้าง)</option>
-                <option value="58mm">58 มม. (เครื่องพิมพ์สลิปพกพา/ขนาดกะทัดรัด)</option>
-              </select>
+              <label className="block font-bold text-slate-700 mb-1">ขนาดกระดาษเครื่องพิมพ์สลิปความร้อน</label>
+              <div className="flex gap-2">
+                <select
+                  value={settings.printerPaperWidth}
+                  onChange={e => {
+                    const w = e.target.value as any;
+                    setSettings({ ...settings, printerPaperWidth: w });
+                    ThermalPrinterService.setStoredPaperWidth(w);
+                  }}
+                  className="flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
+                >
+                  <option value="80mm">80 มม. (มาตรฐานเครื่องพิมพ์สลิปความร้อนหน้ากว้าง - EasyPrint / Epson / POS-80)</option>
+                  <option value="58mm">58 มม. (เครื่องพิมพ์สลิปพกพา/ขนาดกะทัดรัด - Xprinter / POS-58)</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleTestPrintSlip}
+                  className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition flex-shrink-0"
+                  title="ทดสอบสั่งพิมพ์สลิปจริงไปยังเครื่องพิมพ์ เพื่อตรวจเช็คความกว้างและการตัดกระดาษ"
+                >
+                  <Printer className="w-4 h-4 text-amber-400" />
+                  <span>🖨️ พิมพ์สลิปทดสอบ</span>
+                </button>
+              </div>
+              <div className="p-2.5 bg-amber-500/10 border border-amber-300/50 rounded-xl text-[11px] text-amber-900 mt-2 leading-relaxed">
+                <strong>💡 คำแนะนำแก้ปัญหาสลิปตกขอบ/ไม่พอดี (ทำเพียงครั้งเดียว):</strong>
+                <br />ในหน้าต่างสั่งพิมพ์ของเครื่องคอมพิวเตอร์ (หน้าต่าง Print Preview ที่เด้งขึ้นมา):
+                <ul className="list-disc list-inside mt-0.5 space-y-0.5 font-medium">
+                  <li><strong>ระยะขอบ (Margins):</strong> ให้เลือกเป็น <strong>"ไม่มี" (None)</strong> เสมอ (ห้ามเลือก Default เพราะคอมจะเพิ่มขอบ 10mm ทำให้สลิปตกขอบ)</li>
+                  <li><strong>ส่วนหัวและส่วนท้าย (Headers and footers):</strong> ให้ <strong>เอาติ๊กถูกออก</strong> เพื่อไม่ให้พิมพ์วันที่หรือลิงก์เว็บไซต์ติดมา</li>
+                  <li><strong>มาตราส่วน (Scale):</strong> เลือกเป็น <strong>"100%" (หรือพอดีหน้ากระดาษ)</strong></li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
