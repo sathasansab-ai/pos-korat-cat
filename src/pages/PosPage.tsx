@@ -55,6 +55,7 @@ import { CustomOrderModal } from '../components/CustomOrderModal';
 import { ProductExchangeModal } from '../components/ProductExchangeModal';
 import { CloudSync } from '../services/cloudSync';
 import { BarcodeScannerHelper } from '../services/barcodeScannerHelper';
+import { ThermalPrinterService } from '../services/thermalPrinter';
 
 interface PosPageProps {
   currentUser: UserAccount;
@@ -934,6 +935,17 @@ export const PosPage: React.FC<PosPageProps> = ({
       SoundEffects.playSuccess();
       // Always open the Thermal Receipt modal directly by default
       setIsReceiptModalOpen(true);
+
+      // Auto-Print: ถ้าผู้ใช้เปิดใช้งานตัวเลือก "พิมพ์อัตโนมัติ" ในการตั้งค่า
+      if (settings?.autoPrintReceiptOnComplete) {
+        setTimeout(() => {
+          ThermalPrinterService.printElement('printable-thermal-receipt', {
+            paperWidth: settings.printerPaperWidth || '58mm',
+            title: `สลิปใบเสร็จ-${order.localOrderId}`
+          });
+        }, 350);
+      }
+
       setCart([]);
       setSelectedCustomer(null);
       setDiscountValue(0);

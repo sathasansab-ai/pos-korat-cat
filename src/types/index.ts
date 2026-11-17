@@ -40,6 +40,7 @@ export interface StoreSettings {
   receiptFooter: string;
   logoUrl?: string;
   printerPaperWidth: '58mm' | '80mm';
+  autoPrintReceiptOnComplete?: boolean; // สั่งพิมพ์สลิปความร้อนอัตโนมัติทันทีเมื่อชำระเงินเสร็จสิ้น
   
   // Tax / VAT Settings
   vatType: 'NONE' | 'INCLUSIVE' | 'EXCLUSIVE'; // ไม่คิด VAT, รวม VAT ในราคาแล้ว, หรือ คิด VAT เพิ่ม 7%

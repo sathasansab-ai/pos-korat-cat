@@ -177,21 +177,22 @@ export class ThermalPrinterService {
                 padding: 0 !important;
                 background: #ffffff !important;
                 width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
               }
 
               body {
                 background: #ffffff !important;
                 color: #000000 !important;
                 margin: 0 auto !important;
-                padding: 2mm 1.5mm 4mm 1.5mm !important;
-                width: ${printableWidth} !important;
+                padding: 1.5mm 1mm 6mm 1mm !important;
+                width: 100% !important;
                 max-width: ${printableWidth} !important;
-                min-width: ${printableWidth} !important;
                 font-family: 'Tahoma', 'Segoe UI', 'Prompt', 'Cordia New', sans-serif !important;
                 font-size: ${baseFontSize} !important;
                 font-weight: 600 !important;
-                line-height: 1.3 !important;
-                overflow: hidden !important;
+                line-height: 1.35 !important;
+                overflow: visible !important;
                 height: auto !important;
                 min-height: 0 !important;
                 transform-origin: top center;
@@ -212,34 +213,56 @@ export class ThermalPrinterService {
                 color: #000000 !important;
               }
 
-              /* เส้นประและเส้นคั่นสีดำชัดเจน คมกริบ */
-              .border-dashed, hr, .divider {
+              /* ป้องกันการเกิดกรอบสี่เหลี่ยมดำ (Solid Box): ตัดเส้นขอบซ้ายและขวาทั้งหมด */
+              div, p, span, table, th, td, section, header, footer, article {
+                border-left: none !important;
+                border-right: none !important;
+              }
+
+              /* เส้นประและเส้นคั่นสไตล์สลิปความร้อน */
+              .border-dashed, hr, .divider, .receipt-divider {
                 border: none !important;
                 border-top: 1px dashed #000000 !important;
-                margin: 4px 0 !important;
+                border-bottom: none !important;
+                border-left: none !important;
+                border-right: none !important;
+                margin: 5px 0 !important;
+                height: 0 !important;
                 width: 100% !important;
               }
 
-              .border-b, .border-t {
-                border-color: #000000 !important;
-                border-width: 1px !important;
+              /* กำหนดให้มีเฉพาะเส้นบนหรือล่างแบบเส้นประคมกริบ */
+              .border-b {
+                border-top: none !important;
+                border-left: none !important;
+                border-right: none !important;
+                border-bottom: 1px dashed #000000 !important;
+              }
+
+              .border-t {
+                border-bottom: none !important;
+                border-left: none !important;
+                border-right: none !important;
+                border-top: 1px dashed #000000 !important;
               }
 
               /* รูปภาพโลโก้และบาร์โค้ด */
               img {
-                max-width: ${paperWidth === '80mm' ? '50mm' : '36mm'} !important;
+                max-width: ${paperWidth === '80mm' ? '46mm' : '32mm'} !important;
                 height: auto !important;
                 display: block !important;
                 margin: 0 auto 4px auto !important;
+                image-rendering: -webkit-optimize-contrast !important;
                 image-rendering: pixelated !important;
                 filter: grayscale(100%) contrast(150%) !important;
               }
 
               svg {
-                max-width: 90% !important;
+                max-width: 92% !important;
                 height: auto !important;
-                margin: 0 auto !important;
+                margin: 2px auto !important;
                 display: block !important;
+                overflow: visible !important;
               }
 
               /* การจัดแถวรายการสินค้าแบบ Flex */
@@ -269,10 +292,14 @@ export class ThermalPrinterService {
                 flex-shrink: 0 !important;
               }
 
-              /* ป้องกัน Padding ซ้อนทับจาก UI */
+              /* ปลดล็อคความสูงและ overflow ทั้งหมด ไม่ให้บาร์โค้ดและข้อความท้ายสลิปโดนตัด */
               #printable-thermal-receipt,
               #printable-shift-handover,
               #printable-exchange-slip {
+                max-height: none !important;
+                height: auto !important;
+                overflow: visible !important;
+                overflow-y: visible !important;
                 padding: 0 !important;
                 margin: 0 auto !important;
                 width: 100% !important;

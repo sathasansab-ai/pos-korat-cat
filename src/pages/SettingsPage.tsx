@@ -1443,6 +1443,33 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </ul>
               </div>
             </div>
+
+            {/* Auto Print Receipt Option */}
+            <div className="md:col-span-2 p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+              <div>
+                <div className="font-bold text-slate-800 text-xs flex items-center gap-2">
+                  <span>⚡ พิมพ์สลิปใบเสร็จอัตโนมัติทันทีเมื่อยืนยันชำระเงิน (Auto-Print)</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                    settings.autoPrintReceiptOnComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {settings.autoPrintReceiptOnComplete ? 'เปิดใช้งานอยู่' : 'ปิด (พิมพ์ทีละขั้นตอน)'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                  • <b>หากปิด (ค่าเริ่มต้น):</b> เมื่อคิดเงินเสร็จ ระบบจะเปิดหน้าต่างสลิปให้ตรวจสอบและกดปุ่มพิมพ์ทีละขั้นตอน เหมาะสำหรับช่วงที่กำลังทดสอบปรับจูนเครื่องพิมพ์<br />
+                  • <b>หากเปิด (อัตโนมัติ & โปร):</b> เมื่อแคชเชียร์กดยืนยันชำระเงิน ระบบจะสั่งพิมพ์สลิปไปยังเครื่องพิมพ์ความร้อนทันทีโดยไม่ต้องกดปุ่มพิมพ์สลิปซ้ำ
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
+                <input
+                  type="checkbox"
+                  checked={settings.autoPrintReceiptOnComplete ?? false}
+                  onChange={e => setSettings({ ...settings, autoPrintReceiptOnComplete: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+              </label>
+            </div>
           </div>
         </div>
 
