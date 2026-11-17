@@ -315,7 +315,7 @@ export const ProductExchangeModal: React.FC<ProductExchangeModalProps> = ({
               >
                 <div className="text-center font-bold text-sm">=== ใบเปลี่ยนสินค้า (EXCHANGE SLIP) ===</div>
                 <div className="text-center text-[10px] text-slate-500">{settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}</div>
-                <div className="border-t border-dashed border-slate-400 my-2" />
+                <div className="receipt-line my-2 border-t border-dashed border-slate-400" />
                 <div className="flex justify-between">
                   <span>เลขที่เปลี่ยน:</span>
                   <span className="font-bold">{completedRecord.exchangeNo}</span>
@@ -336,7 +336,7 @@ export const ProductExchangeModal: React.FC<ProductExchangeModalProps> = ({
                   <span>สาเหตุ:</span>
                   <span className="font-sans">{completedRecord.reason}</span>
                 </div>
-                <div className="border-t border-dashed border-slate-400 my-2" />
+                <div className="receipt-line my-2 border-t border-dashed border-slate-400" />
 
                 {/* Returned Item */}
                 <div className="text-[11px] font-bold text-rose-700">(-) สินค้าที่ลูกค้านำมาคืน (+1 คืนสต็อก):</div>
@@ -356,7 +356,7 @@ export const ProductExchangeModal: React.FC<ProductExchangeModalProps> = ({
                   </div>
                 ))}
 
-                <div className="border-t border-dashed border-slate-400 my-2" />
+                <div className="receipt-line my-2 border-t border-dashed border-slate-400" />
                 <div className="flex justify-between font-bold text-sm">
                   <span>ส่วนต่างราคา:</span>
                   <span>
@@ -373,7 +373,7 @@ export const ProductExchangeModal: React.FC<ProductExchangeModalProps> = ({
                     <span>{completedRecord.paymentMethod === 'CASH' ? 'เงินสด' : 'PromptPay'}</span>
                   </div>
                 )}
-                <div className="border-t border-dashed border-slate-400 my-3" />
+                <div className="receipt-line my-3 border-t border-dashed border-slate-400" />
                 <div className="text-center text-[10px] text-slate-400 font-sans">
                   ขอบคุณที่ไว้วางใจ KORAT CAT<br />
                   สินค้ารับเปลี่ยนคืนเฉพาะกรณีไม่ผ่านการซัก/ใช้งานภายใน 7 วัน

@@ -231,7 +231,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             className="p-4 sm:p-5 text-slate-950 font-mono text-xs bg-white select-text w-full rounded-2xl shadow-xs mx-auto"
           >
             {/* Store Brand Header */}
-            <div className="text-center pb-2.5 border-b border-dashed border-slate-900">
+            <div className="text-center pb-1">
               {settings.logoUrl && (
                 <img
                   src={settings.logoUrl}
@@ -258,8 +258,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               )}
             </div>
 
+            {/* DIVIDER 1 */}
+            <div className="receipt-line my-2 border-t border-dashed border-slate-900" />
+
             {/* Bill Metadata */}
-            <div className="py-2 border-b border-dashed border-slate-900 text-[10.5px] space-y-0.5 font-medium">
+            <div className="py-1 text-[10.5px] space-y-0.5 font-medium">
               <div className="flex justify-between">
                 <span>เลขที่บิล:</span>
                 <span className="font-bold">{order.localOrderId}</span>
@@ -280,16 +283,19 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               )}
             </div>
 
+            {/* DIVIDER 2 */}
+            <div className="receipt-line my-2 border-t border-dashed border-slate-900" />
+
             {/* Items List (Two-row rock-solid layout: Never overflows or breaks lines) */}
-            <div className="py-2 border-b border-dashed border-slate-900">
+            <div className="py-1">
               <div className="text-[10px] font-black uppercase text-slate-800 pb-1.5 flex justify-between">
                 <span>รายการสินค้า</span>
                 <span>จำนวนเงิน</span>
               </div>
 
-              <div className="divide-y divide-slate-100 py-0.5">
+              <div className="space-y-1.5 py-0.5">
                 {order.items.map((item, idx) => (
-                  <div key={idx} className="py-1">
+                  <div key={idx} className="py-0.5">
                     {/* Row 1: Full Item Name + Variant Attributes */}
                     <div className="font-bold text-slate-950 leading-tight break-words">
                       {item.productName}
@@ -319,8 +325,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               </div>
             </div>
 
+            {/* DIVIDER 3 */}
+            <div className="receipt-line my-2 border-t border-dashed border-slate-900" />
+
             {/* Financial Calculation */}
-            <div className="py-2 border-b border-dashed border-slate-900 space-y-1 text-xs">
+            <div className="py-1 space-y-1 text-xs">
               <div className="flex justify-between text-slate-700 font-medium">
                 <span>ยอดรวมสินค้า:</span>
                 <span className="font-mono whitespace-nowrap font-bold">฿{order.subtotal.toLocaleString()}</span>
@@ -347,14 +356,17 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 </div>
               ) : null}
 
+              {/* DIVIDER 4 */}
+              <div className="receipt-line my-1.5 border-t border-dashed border-slate-900" />
+
               {/* NET TOTAL */}
-              <div className="flex justify-between items-baseline text-sm font-black text-slate-950 pt-1.5 border-t border-dashed border-slate-900 mt-1">
+              <div className="flex justify-between items-baseline text-sm font-black text-slate-950 py-0.5">
                 <span>ยอดสุทธิ (NET):</span>
                 <span className="text-base font-black font-mono whitespace-nowrap">฿{order.netTotal.toLocaleString()}</span>
               </div>
 
               {/* Payments Breakdown */}
-              <div className="pt-1 text-[10.5px] text-slate-700 space-y-0.5 font-medium">
+              <div className="pt-0.5 text-[10.5px] text-slate-700 space-y-0.5 font-medium">
                 {order.payments.map((p, i) => (
                   <div key={i} className="flex justify-between">
                     <span>ชำระด้วย {p.method === 'CASH' ? 'เงินสด' : p.method === 'PROMPTPAY' ? 'PromptPay' : p.method}:</span>
@@ -376,8 +388,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               </div>
             </div>
 
+            {/* DIVIDER 5 */}
+            <div className="receipt-line my-2 border-t border-dashed border-slate-900" />
+
             {/* Barcode & Footer */}
-            <div className="text-center pt-2.5 space-y-2">
+            <div className="text-center pt-1 space-y-2">
               <div 
                 className="flex justify-center items-center [&_svg]:max-w-[88%] [&_svg]:h-auto [&_svg]:mx-auto"
                 dangerouslySetInnerHTML={{ __html: barcodeSvg }}

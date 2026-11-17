@@ -706,11 +706,11 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
           >
             <div className="text-center font-bold text-sm uppercase tracking-wide">=== ใบสรุปส่งมอบกะแคชเชียร์ ===</div>
             <div className="text-center text-[10px] text-slate-500 font-sans">KORAT CAT x เรือนโคราชเฉลิมวัฒนา</div>
-            <div className="border-b border-dashed border-slate-400 my-2"></div>
+            <div className="receipt-line my-2 border-t border-dashed border-slate-400" />
             <div>แคชเชียร์: {printedShift.cashierName}</div>
             <div>เปิดกะ: {new Date(printedShift.startTime).toLocaleString('th-TH')}</div>
             <div>ปิดกะ: {printedShift.endTime ? new Date(printedShift.endTime).toLocaleString('th-TH') : '-'}</div>
-            <div className="border-b border-dashed border-slate-400 my-2"></div>
+            <div className="receipt-line my-2 border-t border-dashed border-slate-400" />
             <div className="flex justify-between">
               <span>เงินทอนตั้งต้น (Float):</span>
               <span>฿{printedShift.startingCash.toLocaleString()}</span>
@@ -731,7 +731,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
             {/* Itemized list of products sold in this shift */}
             {(printedShiftItems.length > 0 ? printedShiftItems : liveSoldItems).length > 0 && (
               <>
-                <div className="border-b border-dashed border-slate-400 my-2"></div>
+                <div className="receipt-line my-2 border-t border-dashed border-slate-400" />
                 <div className="font-bold text-[10.5px]">
                   --- รายการสินค้าที่ขายไปในกะนี้ (รวม {(printedShiftItems.length > 0 ? printedShiftItems : liveSoldItems).reduce((s, i) => s + i.qty, 0)} ชิ้น) ---
                 </div>
@@ -746,7 +746,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               </>
             )}
 
-            <div className="border-b border-dashed border-slate-400 my-2"></div>
+            <div className="receipt-line my-2 border-t border-dashed border-slate-400" />
             <div className="flex justify-between font-bold">
               <span>รวมเงินสดที่ต้องมีในลิ้นชัก:</span>
               <span>฿{(printedShift.closingCashExpected || 0).toLocaleString()}</span>

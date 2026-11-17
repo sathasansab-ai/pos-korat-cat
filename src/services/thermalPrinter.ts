@@ -213,40 +213,19 @@ export class ThermalPrinterService {
                 color: #000000 !important;
               }
 
-              /* ลบเส้นขอบข้างซ้าย-ขวา ป้องกันการเกิดกรอบสี่เหลี่ยมดำ (Solid Box) */
-              div, p, span, table, th, td {
-                border-left-width: 0 !important;
-                border-right-width: 0 !important;
+              /* รีเซ็ตขอบทั้งหมดเป็น 0 100% ป้องกันการเกิดกรอบสี่เหลี่ยมดำ (Solid/Dashed Boxes) โดยเด็ดขาด */
+              *, *::before, *::after {
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
               }
 
-              /* กำหนดเส้นคั่นบน-ล่างแบบเส้นประคมกริบสำหรับสลิปความร้อน */
-              .border-b {
-                border-top: none !important;
-                border-left: none !important;
-                border-right: none !important;
-                border-bottom-width: 1px !important;
-                border-bottom-color: #000000 !important;
-                border-bottom-style: dashed !important;
-              }
-
-              .border-t {
-                border-bottom: none !important;
-                border-left: none !important;
-                border-right: none !important;
-                border-top-width: 1px !important;
-                border-top-color: #000000 !important;
-                border-top-style: dashed !important;
-              }
-
-              .border-dashed {
-                border-style: dashed !important;
-              }
-
-              /* เส้นแบ่งเดี่ยวแบบ hr หรือ receipt-divider */
-              hr, .divider, .receipt-divider {
+              /* มีเฉพาะเส้นคั่นเดี่ยว .receipt-line, .receipt-divider, hr เท่านั้นที่มีเส้นประด้านบน */
+              .receipt-line, .receipt-divider, hr, .divider {
                 border: none !important;
                 border-top: 1px dashed #000000 !important;
-                margin: 6px 0 !important;
+                margin: 5px 0 !important;
+                padding: 0 !important;
                 height: 0 !important;
                 width: 100% !important;
                 display: block !important;
