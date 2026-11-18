@@ -21,7 +21,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { db } from '../db';
-import type { Order, Shift, StoreSettings, ConsignmentVendor } from '../types';
+import type { Order, Shift, StoreSettings, ConsignmentVendor, SalesChannel } from '../types';
+import { SALES_CHANNEL_CONFIG } from '../types';
 import { GoogleSheetsBridge } from '../services/googleSheets';
 import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -49,10 +50,11 @@ export const ReportsPage: React.FC = () => {
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<Order | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
 
-  // Date Range Filters
+  // Date Range & Sales Channel Filters
   const [dateFilterMode, setDateFilterMode] = useState<'TODAY' | '7DAYS' | 'THIS_MONTH' | 'LAST_MONTH' | 'ALL' | 'CUSTOM'>('THIS_MONTH');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedChannelFilter, setSelectedChannelFilter] = useState<string>('ALL');
   
   // Active Report Sub-Tab
   const [reportTab, setReportTab] = useState<'OVERVIEW' | 'SHIFTS' | 'DAILY' | 'ACCOUNTING' | 'ORDERS' | 'CONSIGNMENT'>('OVERVIEW');
@@ -98,9 +100,15 @@ export const ReportsPage: React.FC = () => {
     }
   }, []);
 
-  // Filter Orders based on selected Date Range
+  // Filter Orders based on selected Date Range and Sales Channel
   const filteredOrders = orders.filter(o => {
     if (o.status !== 'COMPLETED') return false;
+
+    if (selectedChannelFilter !== 'ALL') {
+      const ch = o.salesChannel || 'STORE_FRONT';
+      if (ch !== selectedChannelFilter) return false;
+    }
+
     const orderDate = new Date(o.timestamp);
     const now = new Date();
 
@@ -222,6 +230,8 @@ export const ReportsPage: React.FC = () => {
       'วันที่ขาย',
       'เวลาขาย',
       'แคชเชียร์',
+      'ช่องทางการขาย',
+      'เลขออเดอร์ออนไลน์ / พัสดุ',
       'ลูกค้าสมาชิก',
       'จำนวนชิ้นรวม',
       'รายการสินค้าที่ขาย',
@@ -249,6 +259,8 @@ export const ReportsPage: React.FC = () => {
         `"${new Date(o.timestamp).toLocaleDateString('th-TH')}"`,
         `"${new Date(o.timestamp).toLocaleTimeString('th-TH')}"`,
         `"${o.cashierName}"`,
+        `"${SALES_CHANNEL_CONFIG[o.salesChannel || 'STORE_FRONT']?.label || 'หน้าร้าน'}"`,
+        `"${o.onlineOrderRef || '-'}"`,
         `"${o.customerName || '-'}"`,
         o.items.reduce((s, i) => s + i.qty, 0),
         `"${itemsSummary.replace(/"/g, '""')}"`,
@@ -934,6 +946,45 @@ export const ReportsPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Sales Channel Filter Pills */}
+        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="font-bold text-slate-700 flex items-center gap-1">
+            <span>🌐 ช่องทางขาย:</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedChannelFilter('ALL')}
+            className={`px-2.5 py-1 rounded-xl text-xs font-bold transition ${
+              selectedChannelFilter === 'ALL'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            ทุกช่องทาง ({orders.filter(o => o.status === 'COMPLETED').length})
+          </button>
+          {(['STORE_FRONT', 'TIKTOK', 'LINE', 'SHOPEE', 'LAZADA', 'OTHER_ONLINE'] as const).map(ch => {
+            const cfg = SALES_CHANNEL_CONFIG[ch];
+            const isSel = selectedChannelFilter === ch;
+            const cnt = orders.filter(o => o.status === 'COMPLETED' && (o.salesChannel || 'STORE_FRONT') === ch).length;
+            return (
+              <button
+                key={ch}
+                type="button"
+                onClick={() => setSelectedChannelFilter(ch)}
+                className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 border ${
+                  isSel
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span>{cfg.icon}</span>
+                <span>{cfg.label.split(' ')[0]}</span>
+                <span className="text-[10px] opacity-80">({cnt})</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* TODAY'S LIVE SALES HIGHLIGHT BANNER */}
@@ -1128,6 +1179,35 @@ export const ReportsPage: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              {/* Multi-Channel Sales Breakdown Card */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs md:col-span-2">
+                <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <span>🌐</span>
+                  <span>ยอดขายและจำนวนบิลแยกตามช่องทางการขาย (หน้าร้าน vs แพลตฟอร์มออนไลน์)</span>
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
+                  {(['STORE_FRONT', 'TIKTOK', 'LINE', 'SHOPEE', 'LAZADA', 'OTHER_ONLINE'] as const).map(ch => {
+                    const cfg = SALES_CHANNEL_CONFIG[ch];
+                    const chOrders = filteredOrders.filter(o => (o.salesChannel || 'STORE_FRONT') === ch);
+                    const chRev = chOrders.reduce((sum, o) => sum + o.netTotal, 0);
+                    return (
+                      <div key={ch} className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                        <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700">
+                          <span>{cfg.icon}</span>
+                          <span className="truncate">{cfg.label.split(' ')[0]}</span>
+                        </div>
+                        <div className="text-sm font-black font-mono text-slate-900 mt-1">
+                          ฿{chRev.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-medium">
+                          {chOrders.length} บิล
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1253,7 +1333,26 @@ export const ReportsPage: React.FC = () => {
                           minute: '2-digit' 
                         })}
                       </td>
-                      <td className="p-3 font-mono font-bold text-slate-800">{order.localOrderId}</td>
+                      <td className="p-3 font-mono">
+                        <div className="font-bold text-slate-800">{order.localOrderId}</div>
+                        {(() => {
+                          const ch = order.salesChannel || 'STORE_FRONT';
+                          const cfg = SALES_CHANNEL_CONFIG[ch];
+                          return (
+                            <div className="mt-0.5">
+                              <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${cfg.badgeClass}`}>
+                                <span>{cfg.icon}</span>
+                                <span>{cfg.label.split(' ')[0]}</span>
+                              </span>
+                              {order.onlineOrderRef && (
+                                <div className="text-[9px] text-slate-500 font-mono mt-0.5 truncate max-w-[110px]" title={order.onlineOrderRef}>
+                                  #{order.onlineOrderRef}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="p-3 text-slate-700 whitespace-nowrap">{order.cashierName}</td>
                       <td className="p-3 text-slate-700 whitespace-nowrap">{order.customerName || '-'}</td>
                       <td className="p-3 text-slate-700">
@@ -1359,7 +1458,26 @@ export const ReportsPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {filteredOrders.slice().reverse().map(order => (
                   <tr key={order.id} className="hover:bg-slate-50">
-                    <td className="p-3 font-mono font-bold text-slate-800">{order.localOrderId}</td>
+                    <td className="p-3 font-mono">
+                      <div className="font-bold text-slate-800">{order.localOrderId}</div>
+                      {(() => {
+                        const ch = order.salesChannel || 'STORE_FRONT';
+                        const cfg = SALES_CHANNEL_CONFIG[ch];
+                        return (
+                          <div className="mt-0.5">
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${cfg.badgeClass}`}>
+                              <span>{cfg.icon}</span>
+                              <span>{cfg.label.split(' ')[0]}</span>
+                            </span>
+                            {order.onlineOrderRef && (
+                              <div className="text-[9px] text-slate-500 font-mono mt-0.5 truncate max-w-[110px]" title={order.onlineOrderRef}>
+                                #{order.onlineOrderRef}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td className="p-3 text-slate-500">{new Date(order.timestamp).toLocaleTimeString('th-TH')}</td>
                     <td className="p-3 text-slate-700">{order.cashierName}</td>
                     <td className="p-3 text-slate-700">{order.customerName || '-'}</td>

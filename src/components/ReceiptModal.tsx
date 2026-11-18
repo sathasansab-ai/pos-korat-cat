@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { Printer, X, FileText, Settings2, Sliders, AlertCircle } from 'lucide-react';
 import type { Order, StoreSettings } from '../types';
+import { SALES_CHANNEL_CONFIG } from '../types';
 import { db } from '../db';
 import { BarcodeGenerator } from '../services/barcodeGenerator';
 import { ThermalPrinterService } from '../services/thermalPrinter';
@@ -275,6 +276,18 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 <span>พนักงาน:</span>
                 <span>{order.cashierName}</span>
               </div>
+              {order.salesChannel && order.salesChannel !== 'STORE_FRONT' && (
+                <div className="flex justify-between text-slate-900 font-bold">
+                  <span>ช่องทางขาย:</span>
+                  <span>{SALES_CHANNEL_CONFIG[order.salesChannel]?.icon} {SALES_CHANNEL_CONFIG[order.salesChannel]?.label}</span>
+                </div>
+              )}
+              {order.onlineOrderRef && (
+                <div className="flex justify-between text-slate-600 font-mono text-[10px]">
+                  <span>เลขออเดอร์/พัสดุ:</span>
+                  <span>{order.onlineOrderRef}</span>
+                </div>
+              )}
               {order.customerName && (
                 <div className="flex justify-between text-slate-900 font-bold">
                   <span>สมาชิก:</span>

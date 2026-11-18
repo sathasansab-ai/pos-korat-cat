@@ -157,6 +157,9 @@ export const ProductExchangeModal: React.FC<ProductExchangeModalProps> = ({
 
       // 2. ตัดสต็อกสินค้าชิ้นใหม่ที่ลูกค้าเปลี่ยนไป (-1 ชิ้น)
       let newVar = await db.variants.get(selectedNewItem.id);
+      if (!newVar && selectedNewItem.sku) {
+        newVar = await db.variants.where({ sku: selectedNewItem.sku }).first();
+      }
       if (newVar) {
         const curTotal = newVar.stockQuantity || 0;
         const curShop = newVar.shopStock !== undefined ? newVar.shopStock : curTotal;

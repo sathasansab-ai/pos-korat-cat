@@ -1,5 +1,5 @@
 // src/components/BarcodePrintModal.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Printer, 
   X, 
@@ -17,6 +17,7 @@ interface BarcodePrintModalProps {
   isOpen: boolean;
   variant: ProductVariant | null;
   settings: StoreSettings;
+  initialPrintCount?: number;
   onClose: () => void;
 }
 
@@ -96,12 +97,19 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   isOpen,
   variant,
   settings,
+  initialPrintCount,
   onClose
 }) => {
   if (!isOpen || !variant) return null;
 
-  // Defaults to the current in-stock quantity (e.g. 25 copies for 25 items in stock)
-  const [printCount, setPrintCount] = useState<number>(variant.stockQuantity || 1);
+  // Defaults to initialPrintCount or current in-stock quantity (e.g. 20 copies for 20 restocked items)
+  const [printCount, setPrintCount] = useState<number>(initialPrintCount ?? variant.stockQuantity ?? 1);
+
+  useEffect(() => {
+    if (variant) {
+      setPrintCount(initialPrintCount ?? variant.stockQuantity ?? 1);
+    }
+  }, [variant?.id, initialPrintCount]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('tag_45_70');
   const [widthMm, setWidthMm] = useState<number>(45);
   const [heightMm, setHeightMm] = useState<number>(70);

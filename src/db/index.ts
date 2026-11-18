@@ -13,7 +13,8 @@ import type {
   CustomMadeOrder,
   ConsignmentVendor,
   ConsignmentSettlement,
-  ProductExchangeRecord
+  ProductExchangeRecord,
+  Quotation
 } from '../types';
 
 export class PosDatabase extends Dexie {
@@ -30,6 +31,7 @@ export class PosDatabase extends Dexie {
   consignors!: Table<ConsignmentVendor, string>;
   settlements!: Table<ConsignmentSettlement, string>;
   exchanges!: Table<ProductExchangeRecord, string>;
+  quotations!: Table<Quotation, string>;
 
   constructor() {
     super('PosKoratCatDB');
@@ -64,6 +66,9 @@ export class PosDatabase extends Dexie {
     });
     this.version(6).stores({
       exchanges: 'id, exchangeNo, shiftId, originalOrderId, cashierId, timestamp'
+    });
+    this.version(7).stores({
+      quotations: 'id, quotationNo, date, status, createdAt'
     });
   }
 }

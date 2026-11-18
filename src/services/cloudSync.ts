@@ -72,6 +72,13 @@ class CloudSyncService {
         }
       }
 
+      // 0.1 Delete variants marked as deleted on Cloud (Tombstone synchronization)
+      if (cloudSettings && cloudSettings.deletedVariantIds && cloudSettings.deletedVariantIds.length > 0) {
+        for (const delId of cloudSettings.deletedVariantIds) {
+          await db.variants.delete(delId);
+        }
+      }
+
       // 1. Pull Variants
       const vRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?select=*`, {
         headers: this.getHeaders()
@@ -846,7 +853,7 @@ class CloudSyncService {
   }
 
   /**
-   * ลบสินค้าออกจาก Cloud
+   * ลบสินค้าออกจาก Cloud และส่งสัญญาณลบข้ามเครื่อง (Tombstone)
    */
   public async deleteVariant(id: string): Promise<void> {
     try {
@@ -854,6 +861,17 @@ class CloudSyncService {
         method: 'DELETE',
         headers: this.getHeaders()
       });
+
+      // บันทึก ID สินค้าที่ลบลงในการตั้งค่าร้านค้า เพื่อให้เครื่องสาขา/เครื่องอื่นลบรายการนี้ออกตรงกันอัตโนมัติ
+      const settings = await db.settings.get('current_store_settings');
+      if (settings) {
+        const currentList = settings.deletedVariantIds || [];
+        if (!currentList.includes(id)) {
+          const updatedDeleted = [...currentList, id].slice(-100);
+          await db.settings.update('current_store_settings', { deletedVariantIds: updatedDeleted });
+          await this.pushStoreSettings({ ...settings, deletedVariantIds: updatedDeleted });
+        }
+      }
     } catch (e) {
       console.warn('Failed to delete variant from cloud', e);
     }
@@ -1071,6 +1089,17 @@ class CloudSyncService {
    */
   public async mirrorCatalogFromCloud(): Promise<{ success: boolean; count: number; message: string }> {
     try {
+      // 0. ซิงค์ออเดอร์ที่ค้างอยู่ในเครื่องนี้ขึ้น Cloud ก่อนเสมอ เพื่อไม่ให้ยอดขายออฟไลน์สูญหาย
+      try {
+        const unsyncedOrders = await db.orders.filter(o => o.isSynced === false).toArray();
+        for (const uo of unsyncedOrders) {
+          await this.pushOrder(uo);
+          await db.orders.update(uo.id, { isSynced: true });
+        }
+      } catch (e) {
+        console.warn('Pre-mirror orders push check warning', e);
+      }
+
       const vRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?select=*`, {
         headers: this.getHeaders()
       });

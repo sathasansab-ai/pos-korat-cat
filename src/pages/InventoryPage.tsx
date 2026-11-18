@@ -18,7 +18,10 @@ import {
   Scissors,
   RefreshCw,
   UploadCloud,
-  DownloadCloud
+  DownloadCloud,
+  PackagePlus,
+  ArrowDownToLine,
+  CheckCircle2
 } from 'lucide-react';
 import { db } from '../db';
 import type { ProductVariant, StoreSettings, ConsignmentVendor, UserAccount } from '../types';
@@ -108,7 +111,16 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
   
   // Barcode Label Print Modal
   const [selectedVariantForPrint, setSelectedVariantForPrint] = useState<ProductVariant | null>(null);
+  const [selectedPrintCount, setSelectedPrintCount] = useState<number | undefined>(undefined);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  // Restock Existing Item Modal State (เติมสต็อกสินค้าเดิมที่ลงไว้แล้ว)
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+  const [targetRestockVariant, setTargetRestockVariant] = useState<ProductVariant | null>(null);
+  const [restockSearchTerm, setRestockSearchTerm] = useState('');
+  const [restockQty, setRestockQty] = useState<number>(10);
+  const [restockDestination, setRestockDestination] = useState<'SHOP' | 'WAREHOUSE'>('SHOP');
+  const [restockAutoPrint, setRestockAutoPrint] = useState<boolean>(true);
 
   // Matrix Generator Form State
   const [baseProductName, setBaseProductName] = useState('เสื้อยืดลิมิเต็ด KORAT CAT x เรือนโคราช');
@@ -535,6 +547,77 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
     }
   };
 
+  // Restock Handlers (นำสต็อกมาเติมในรายการเดิม และสั่งพิมพ์สติ๊กเกอร์เฉพาะจำนวนที่เติม)
+  const handleOpenRestock = (variant?: ProductVariant) => {
+    if (variant) {
+      setTargetRestockVariant(variant);
+      setRestockSearchTerm(variant.productName);
+    } else {
+      setTargetRestockVariant(null);
+      setRestockSearchTerm('');
+    }
+    setRestockQty(10);
+    setRestockDestination('SHOP');
+    setRestockAutoPrint(true);
+    setIsRestockModalOpen(true);
+  };
+
+  const handleConfirmRestock = async () => {
+    if (!targetRestockVariant) {
+      alert('กรุณาเลือกรายการสินค้าที่ต้องการเติมสต็อก');
+      return;
+    }
+    if (restockQty <= 0) {
+      alert('กรุณาระบุจำนวนสินค้าที่นำมาเติมให้มากกว่า 0');
+      return;
+    }
+
+    const currentV = await db.variants.get(targetRestockVariant.id);
+    if (!currentV) {
+      alert('ไม่พบรายการสินค้านี้ในฐานข้อมูล');
+      return;
+    }
+
+    const currentWarehouse = currentV.warehouseStock ?? 0;
+    const currentShop = currentV.shopStock ?? (currentV.stockQuantity - currentWarehouse);
+
+    let updatedWarehouse = currentWarehouse;
+    let updatedShop = currentShop;
+
+    if (restockDestination === 'SHOP') {
+      updatedShop += restockQty;
+    } else {
+      updatedWarehouse += restockQty;
+    }
+
+    const updatedTotalStock = updatedShop + updatedWarehouse;
+    const modifierName = currentUser?.name || 'แอดมินสต็อก';
+    const destLabel = restockDestination === 'SHOP' ? 'เข้าหน้าร้าน' : 'เข้าโกดัง';
+
+    const updatedVariant: ProductVariant = {
+      ...currentV,
+      stockQuantity: updatedTotalStock,
+      shopStock: updatedShop,
+      warehouseStock: updatedWarehouse,
+      lastModifiedBy: `เติมสต็อก +${restockQty} (${destLabel}) โดย ${modifierName}`,
+      updatedAt: new Date().toISOString()
+    };
+
+    await db.variants.put(updatedVariant);
+    await CloudSync.pushVariant(updatedVariant);
+    await loadVariants();
+    setIsRestockModalOpen(false);
+
+    alert(`✅ เติมสต็อก "${updatedVariant.productName}" สำเร็จ!\n+${restockQty} ชิ้น (${destLabel})\nยอดสต็อกใหม่รวม: ${updatedTotalStock} ชิ้น (หน้าร้าน: ${updatedShop}, โกดัง: ${updatedWarehouse})\nซิงค์ข้อมูลขึ้น Cloud เรียบร้อยครับ`);
+
+    // Auto-launch Barcode Print Modal if checked
+    if (restockAutoPrint) {
+      setSelectedPrintCount(restockQty);
+      setSelectedVariantForPrint(updatedVariant);
+      setIsPrintModalOpen(true);
+    }
+  };
+
   const allCategories = Array.from(new Set(variants.map(v => v.category).filter(Boolean)));
 
   const filteredVariants = variants.filter(v => {
@@ -631,6 +714,16 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                 รอรับ {pendingTransferCount}
               </span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOpenRestock()}
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0 border border-emerald-400/40"
+            title="นำสต็อกมาเติมต่อในสินค้าเดิมที่มีอยู่แล้ว (เช่น กางเกงแมว XL เพิ่ม 20 ตัว) และสั่งพิมพ์สติ๊กเกอร์เฉพาะส่วนที่เติม"
+          >
+            <ArrowDownToLine className="w-4 h-4 text-emerald-200" />
+            <span>📥 เติมสต็อกสินค้าเดิม (+พิมพ์แท็ก)</span>
           </button>
 
           <button
@@ -821,16 +914,30 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                     </td>
 
                     <td className="p-3.5 text-center">
-                      <button
-                        onClick={() => {
-                          setSelectedVariantForPrint(item);
-                          setIsPrintModalOpen(true);
-                        }}
-                        className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold text-xs inline-flex items-center gap-1 shadow-xs transition"
-                      >
-                        <Printer className="w-3.5 h-3.5 text-amber-600" />
-                        <span>พิมพ์สติ๊กเกอร์ ({item.stockQuantity})</span>
-                      </button>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRestock(item)}
+                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl font-bold text-xs inline-flex items-center gap-1 shadow-2xs transition w-full justify-center"
+                          title="นำสต็อกมาเติมต่อในรายการเดิม และพิมพ์สติ๊กเกอร์เฉพาะจำนวนที่เติม"
+                        >
+                          <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>+ เติมสต็อก</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPrintCount(item.stockQuantity);
+                            setSelectedVariantForPrint(item);
+                            setIsPrintModalOpen(true);
+                          }}
+                          className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold text-[11px] inline-flex items-center gap-1 shadow-2xs transition w-full justify-center"
+                          title="พิมพ์สติ๊กเกอร์บาร์โค้ดตามสต็อกปัจจุบันทั้งหมด"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-amber-600" />
+                          <span>พิมพ์แท็ก ({item.stockQuantity})</span>
+                        </button>
+                      </div>
                     </td>
 
                     <td className="p-3.5 text-center">
@@ -1552,15 +1659,320 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
         </div>
       )}
 
+      {/* RESTOCK EXISTING ITEM MODAL (เติมสต็อกสินค้าเดิมที่ลงไว้แล้ว) */}
+      {isRestockModalOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-emerald-300 max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-xs">
+                  <ArrowDownToLine className="w-5 h-5 text-emerald-700" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    📥 เติมสต็อกสินค้าเดิมที่มีอยู่แล้ว
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    เพิ่มสต็อกต่อจากรายการเดิม และสั่งพิมพ์สติ๊กเกอร์เฉพาะล็อตที่เติมใหม่
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRestockModalOpen(false)}
+                className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* If no target variant is selected, allow live search / scan */}
+            {!targetRestockVariant ? (
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-slate-700">
+                  ค้นหาสินค้าที่ต้องการเติมสต็อก (พิมพ์ชื่อ, ไซส์, SKU หรือยิงบาร์โค้ด)
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    value={restockSearchTerm}
+                    onChange={e => setRestockSearchTerm(e.target.value)}
+                    placeholder="เช่น กางเกงแมว XL, KCAT-..., หรือ 885..."
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-2xl">
+                  {variants
+                    .filter(v => 
+                      !restockSearchTerm.trim() ||
+                      v.productName.toLowerCase().includes(restockSearchTerm.toLowerCase()) ||
+                      v.sku.toLowerCase().includes(restockSearchTerm.toLowerCase()) ||
+                      v.barcode.includes(restockSearchTerm)
+                    )
+                    .slice(0, 15)
+                    .map(v => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => {
+                          setTargetRestockVariant(v);
+                          setRestockSearchTerm(v.productName);
+                        }}
+                        className="w-full p-2.5 hover:bg-emerald-50/70 text-left flex items-center justify-between gap-2 transition"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {v.imageUrl ? (
+                            <img src={v.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-slate-200 flex-shrink-0" />
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                              <Tag className="w-4 h-4 text-slate-400" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-xs text-slate-900 truncate">{v.productName}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">
+                              SKU: {v.sku} | บาร์โค้ด: {v.barcode}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <span className="text-xs font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg">
+                            คงเหลือ {v.stockQuantity}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            ) : (
+              /* Target Variant is Selected */
+              <div className="space-y-4">
+                {/* Item Details Card */}
+                <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 rounded-2xl border border-emerald-200 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {targetRestockVariant.imageUrl ? (
+                      <img
+                        src={targetRestockVariant.imageUrl}
+                        alt=""
+                        className="w-12 h-12 rounded-xl object-cover border border-emerald-300 shadow-2xs flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                        <Tag className="w-6 h-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-extrabold text-sm text-slate-900 truncate">
+                        {targetRestockVariant.productName}
+                      </div>
+                      <div className="text-[11px] text-emerald-800 font-mono font-semibold">
+                        SKU: {targetRestockVariant.sku} | Barcode: {targetRestockVariant.barcode}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        หมวดหมู่: {targetRestockVariant.category} | ราคาขาย: ฿{targetRestockVariant.salePrice.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTargetRestockVariant(null)}
+                    className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition flex-shrink-0"
+                  >
+                    เปลี่ยนสินค้า
+                  </button>
+                </div>
+
+                {/* Current Stock Breakdown Badges */}
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="text-[10px] text-slate-500 font-semibold">🏢 หน้าร้านปัจจุบัน</div>
+                    <div className="text-base font-black font-mono text-emerald-700">
+                      {targetRestockVariant.shopStock ?? (targetRestockVariant.stockQuantity - (targetRestockVariant.warehouseStock ?? 0))}
+                    </div>
+                    <div className="text-[9px] text-slate-400">ชิ้น</div>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="text-[10px] text-slate-500 font-semibold">🏭 โกดังปัจจุบัน</div>
+                    <div className="text-base font-black font-mono text-amber-700">
+                      {targetRestockVariant.warehouseStock ?? 0}
+                    </div>
+                    <div className="text-[9px] text-slate-400">ชิ้น</div>
+                  </div>
+                  <div className="p-2 bg-slate-900 text-white rounded-xl shadow-xs">
+                    <div className="text-[10px] text-amber-300 font-semibold">📦 ยอดรวมปัจจุบัน</div>
+                    <div className="text-base font-black font-mono text-white">
+                      {targetRestockVariant.stockQuantity}
+                    </div>
+                    <div className="text-[9px] text-slate-300">ชิ้น</div>
+                  </div>
+                </div>
+
+                {/* Restock Quantity Input */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-800">
+                    จำนวนที่นำมาเติมเพิ่ม (ชิ้น) *
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRestockQty(prev => Math.max(1, prev - 1))}
+                      className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-black text-slate-700 text-base flex items-center justify-center transition"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      value={restockQty}
+                      onChange={e => setRestockQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="flex-1 py-2 px-3 text-center text-lg font-black font-mono text-emerald-800 bg-emerald-50/50 border-2 border-emerald-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setRestockQty(prev => prev + 1)}
+                      className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-black text-slate-700 text-base flex items-center justify-center transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {/* Quick Pills */}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-slate-400 font-semibold">ปุ่มลัด:</span>
+                    {[5, 10, 20, 50, 100].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setRestockQty(amt)}
+                        className={`px-2 py-0.5 rounded-lg text-xs font-bold border transition ${
+                          restockQty === amt 
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs' 
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        +{amt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Destination Choice */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-800">
+                    ปลายทางที่นำสต็อกไปวางจัดเก็บ *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setRestockDestination('SHOP')}
+                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                        restockDestination === 'SHOP'
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/30'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <div className="font-bold flex items-center gap-1.5">
+                        <span>🏢</span>
+                        <span>หน้าร้านเรือนโคราช</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1">พร้อมขายที่หน้าร้านทันที</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRestockDestination('WAREHOUSE')}
+                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                        restockDestination === 'WAREHOUSE'
+                          ? 'bg-amber-50 border-amber-500 text-amber-950 ring-2 ring-amber-500/30'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <div className="font-bold flex items-center gap-1.5">
+                        <span>🏭</span>
+                        <span>โกดัง / สต็อกสำรอง</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1">เก็บสำรองไว้รอโอนย้าย</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Important Barcode Clarification Box */}
+                <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-xs text-amber-950 space-y-1">
+                  <div className="font-black flex items-center gap-1.5 text-amber-900">
+                    <span>💡</span>
+                    <span>หลักการสำคัญเรื่องสติ๊กเกอร์บาร์โค้ด:</span>
+                  </div>
+                  <ul className="text-[11px] list-disc list-inside space-y-0.5 text-amber-900/90 leading-relaxed">
+                    <li>
+                      เลขบาร์โค้ดและรหัส SKU <b>เป็นเลขเดิมเสมอ ไม่เปลี่ยนแปลง</b>
+                    </li>
+                    <li>
+                      สินค้าเดิมที่มีอยู่แล้ว (มีป้ายเดิมติดอยู่) <b>ไม่ต้องแกะป้ายออก ไม่ต้องพิมพ์ใหม่</b>
+                    </li>
+                    <li>
+                      ระบบจะสั่งพิมพ์สติ๊กเกอร์บาร์โค้ด <b>เฉพาะจำนวน {restockQty} ดวง</b> สำหรับติดล็อตใหม่ที่เพิ่งนำมาเติมนี้เท่านั้น
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Auto Print Checkbox */}
+                <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition">
+                  <input
+                    type="checkbox"
+                    checked={restockAutoPrint}
+                    onChange={e => setRestockAutoPrint(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 accent-emerald-600"
+                  />
+                  <span className="text-xs font-bold text-slate-800">
+                    🏷️ สั่งพิมพ์สติ๊กเกอร์บาร์โค้ดทันทีหลังบันทึก (เตรียมพิมพ์ {restockQty} ดวง)
+                  </span>
+                </label>
+
+                {/* Stock Result Preview */}
+                <div className="p-2.5 bg-slate-900 text-white rounded-xl text-xs flex items-center justify-between font-mono">
+                  <span className="text-slate-300">สต็อกคงเหลือใหม่หลังเติม:</span>
+                  <span className="font-bold text-amber-400">
+                    {targetRestockVariant.stockQuantity} + {restockQty} = {targetRestockVariant.stockQuantity + restockQty} ชิ้น
+                  </span>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsRestockModalOpen(false)}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmRestock}
+                    className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-bold shadow-lg transition flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>ยืนยันเติมสต็อก (+{restockQty} ชิ้น)</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Barcode Sticker Print Modal */}
       {settings && (
         <BarcodePrintModal
           isOpen={isPrintModalOpen}
           variant={selectedVariantForPrint}
           settings={settings}
+          initialPrintCount={selectedPrintCount}
           onClose={() => {
             setIsPrintModalOpen(false);
             setSelectedVariantForPrint(null);
+            setSelectedPrintCount(undefined);
           }}
         />
       )}

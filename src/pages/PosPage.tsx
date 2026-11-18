@@ -40,7 +40,9 @@ import type {
   Order, 
   Customer,
   StoreSettings,
-  FreeGiftTier 
+  FreeGiftTier,
+  SalesChannel,
+  SALES_CHANNEL_CONFIG 
 } from '../types';
 import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
 import { PromotionEngine } from '../services/promotionEngine';
@@ -53,6 +55,7 @@ import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 import { DigitalPassModal } from '../components/DigitalPassModal';
 import { CustomOrderModal } from '../components/CustomOrderModal';
 import { ProductExchangeModal } from '../components/ProductExchangeModal';
+import { QuotationModal } from '../components/QuotationModal';
 import { CloudSync } from '../services/cloudSync';
 import { BarcodeScannerHelper } from '../services/barcodeScannerHelper';
 import { ThermalPrinterService } from '../services/thermalPrinter';
@@ -101,6 +104,11 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [newlyRegisteredCustomer, setNewlyRegisteredCustomer] = useState<Customer | null>(null);
   const [isDigitalPassOpen, setIsDigitalPassOpen] = useState(false);
   const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false);
+  const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
+
+  // Sales Channel State (Default: หน้าร้าน STORE_FRONT)
+  const [salesChannel, setSalesChannel] = useState<SalesChannel>('STORE_FRONT');
+  const [onlineOrderRef, setOnlineOrderRef] = useState<string>('');
 
   // Custom Discount Modal State
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -318,30 +326,39 @@ export const PosPage: React.FC<PosPageProps> = ({
     if (!fresh && variant.sku) {
       fresh = await db.variants.where({ sku: variant.sku }).first();
     }
-    const availableStock = fresh ? (fresh.stockQuantity ?? 0) : (variant.stockQuantity ?? 0);
+    const target = fresh || variant;
+    const targetId = target.id;
+    const targetSku = (target.sku || '').trim().toLowerCase();
+    const availableStock = target.stockQuantity ?? 0;
 
     // 2. Out of Stock check
     if (availableStock <= 0) {
       SoundEffects.playWarning();
-      setStockNotice(`สินค้า "${variant.productName}" หมดสต็อกแล้ว (คงเหลือ 0 ชิ้น) ไม่สามารถเพิ่มลงบิลได้`);
+      setStockNotice(`สินค้า "${target.productName}" หมดสต็อกแล้ว (คงเหลือ 0 ชิ้น) ไม่สามารถเพิ่มลงบิลได้`);
       setTimeout(() => setStockNotice(null), 4000);
       return;
     }
 
     // 3. Exceeds Stock check
-    const existing = cart.find(item => item.variantId === variant.id);
+    const existing = cart.find(item => 
+      item.variantId === targetId || 
+      (targetSku && (item.sku || '').trim().toLowerCase() === targetSku)
+    );
     const currentQtyInCart = existing ? existing.qty : 0;
 
     if (currentQtyInCart + 1 > availableStock) {
       SoundEffects.playWarning();
-      setStockNotice(`สินค้า "${variant.productName}" มีในสต็อกเพียง ${availableStock} ชิ้น (ในบิลมีครบ ${currentQtyInCart} ชิ้นแล้ว ไม่สามารถเพิ่มเกินได้)`);
+      setStockNotice(`สินค้า "${target.productName}" มีในสต็อกเพียง ${availableStock} ชิ้น (ในบิลมีครบ ${currentQtyInCart} ชิ้นแล้ว ไม่สามารถเพิ่มเกินได้)`);
       setTimeout(() => setStockNotice(null), 4000);
       return;
     }
 
     SoundEffects.playBeep();
     setCart(prev => {
-      const idx = prev.findIndex(item => item.variantId === variant.id);
+      const idx = prev.findIndex(item => 
+        item.variantId === targetId || 
+        (targetSku && (item.sku || '').trim().toLowerCase() === targetSku)
+      );
       if (idx >= 0) {
         const copy = [...prev];
         copy[idx].qty += 1;
@@ -350,21 +367,21 @@ export const PosPage: React.FC<PosPageProps> = ({
       return [
         ...prev,
         {
-          variantId: variant.id,
-          productName: variant.productName,
-          sku: variant.sku,
-          barcode: variant.barcode,
-          imageUrl: variant.imageUrl,
-          attributes: variant.attributes,
-          category: variant.category,
-          costPrice: variant.costPrice,
-          unitPrice: variant.salePrice,
+          variantId: targetId,
+          productName: target.productName,
+          sku: target.sku,
+          barcode: target.barcode,
+          imageUrl: target.imageUrl,
+          attributes: target.attributes,
+          category: target.category,
+          costPrice: target.costPrice,
+          unitPrice: target.salePrice,
           qty: 1,
-          isConsignment: variant.isConsignment,
-          vendorId: variant.vendorId,
-          vendorName: variant.vendorName,
-          gpPercent: variant.gpPercent,
-          vendorPayoutPrice: variant.vendorPayoutPrice
+          isConsignment: target.isConsignment,
+          vendorId: target.vendorId,
+          vendorName: target.vendorName,
+          gpPercent: target.gpPercent,
+          vendorPayoutPrice: target.vendorPayoutPrice
         }
       ];
     });
@@ -372,12 +389,21 @@ export const PosPage: React.FC<PosPageProps> = ({
 
   const updateQty = async (variantId: string, delta: number) => {
     if (delta > 0) {
-      const fresh = await db.variants.get(variantId);
+      let fresh = await db.variants.get(variantId);
       const existing = cart.find(item => item.variantId === variantId);
-      const availableStock = fresh ? fresh.stockQuantity : 999;
+      if (!fresh && existing?.sku) {
+        fresh = await db.variants.where({ sku: existing.sku }).first();
+      }
+      const availableStock = fresh ? (fresh.stockQuantity ?? 0) : (existing ? 0 : 999);
       const currentQty = existing ? existing.qty : 0;
 
       if (currentQty + delta > availableStock) {
+        SoundEffects.playWarning();
+        setStockNotice(`สินค้า "${existing?.productName || ''}" ในคลังมีเพียง ${availableStock} ชิ้น ไม่สามารถเพิ่มเกินจำนวนนี้ได้`);
+        setTimeout(() => setStockNotice(null), 4000);
+        return;
+      }
+    }
         SoundEffects.playWarning();
         setStockNotice(`สินค้า "${existing?.productName || ''}" ในคลังมีเพียง ${availableStock} ชิ้น ไม่สามารถเพิ่มเกินจำนวนนี้ได้`);
         setTimeout(() => setStockNotice(null), 4000);
@@ -809,6 +835,8 @@ export const PosPage: React.FC<PosPageProps> = ({
         payments: finalPayments,
         cashReceived: cashRcv,
         changeGiven: change,
+        salesChannel: salesChannel,
+        onlineOrderRef: salesChannel !== 'STORE_FRONT' && onlineOrderRef.trim() ? onlineOrderRef.trim() : undefined,
         status: 'COMPLETED',
         isSynced: false
       };
@@ -950,6 +978,8 @@ export const PosPage: React.FC<PosPageProps> = ({
       setSelectedCustomer(null);
       setDiscountValue(0);
       setDiscountReason('');
+      setSalesChannel('STORE_FRONT');
+      setOnlineOrderRef('');
       loadQuickData();
     } catch (err) {
       console.error('Checkout error:', err);
@@ -1050,6 +1080,16 @@ export const PosPage: React.FC<PosPageProps> = ({
             >
               <RefreshCw className="w-3.5 h-3.5 text-indigo-200" />
               <span>🔄 เปลี่ยน/คืนสินค้า (7 วัน)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsQuotationModalOpen(true)}
+              className="px-3 py-1.5 bg-gradient-to-r from-blue-700 to-cyan-700 hover:from-blue-800 hover:to-cyan-800 text-white rounded-xl font-bold flex items-center gap-1 shadow-xs transition text-xs whitespace-nowrap"
+              title="ออกใบเสนอราคาขนาด A4 พิมพ์เอกสาร บันทึก PDF หรือส่งอีเมลให้ลูกค้า"
+            >
+              <FileText className="w-3.5 h-3.5 text-cyan-200" />
+              <span>📄 ใบเสนอราคา (A4)</span>
             </button>
 
             <button
@@ -1301,9 +1341,17 @@ export const PosPage: React.FC<PosPageProps> = ({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => addToCart(item)}
+                    onClick={() => {
+                      if (isOut) {
+                        SoundEffects.playWarning();
+                        setStockNotice(`สินค้า "${item.productName}" หมดสต็อกแล้ว (คงเหลือ 0 ชิ้น) ไม่สามารถเพิ่มลงบิลได้`);
+                        setTimeout(() => setStockNotice(null), 3500);
+                        return;
+                      }
+                      addToCart(item);
+                    }}
                     className={`bg-white hover:border-amber-500 active:scale-95 border rounded-2xl p-2.5 flex flex-col justify-between text-left shadow-xs transition group h-36 relative overflow-hidden ${
-                      isOut ? 'border-rose-300 opacity-60' : 'border-slate-200'
+                      isOut ? 'border-rose-300 opacity-60 cursor-not-allowed' : 'border-slate-200'
                     }`}
                   >
                     {isOut && (
@@ -1613,6 +1661,57 @@ export const PosPage: React.FC<PosPageProps> = ({
                 </div>
               </div>
             ))
+          )}
+        </div>
+
+        {/* Sales Channel Selector (ช่องทางการขาย: หน้าร้าน vs ออเดอร์ออนไลน์ TikTok, Shopee, LINE) */}
+        <div className="px-3 py-2 bg-slate-50 border-t border-slate-200">
+          <div className="flex items-center justify-between gap-1 mb-1.5">
+            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <span>ช่องทางการขาย:</span>
+            </span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${SALES_CHANNEL_CONFIG[salesChannel].badgeClass}`}>
+              {SALES_CHANNEL_CONFIG[salesChannel].icon} {SALES_CHANNEL_CONFIG[salesChannel].label}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1 text-[11px] font-bold">
+            {(['STORE_FRONT', 'TIKTOK', 'LINE', 'SHOPEE', 'LAZADA', 'OTHER_ONLINE'] as const).map(ch => {
+              const cfg = SALES_CHANNEL_CONFIG[ch];
+              const isSelected = salesChannel === ch;
+              return (
+                <button
+                  key={ch}
+                  type="button"
+                  onClick={() => setSalesChannel(ch)}
+                  className={`px-1.5 py-1 rounded-lg border text-center transition flex items-center justify-center gap-1 text-[10.5px] ${
+                    isSelected 
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs' 
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                  title={cfg.label}
+                >
+                  <span>{cfg.icon}</span>
+                  <span className="truncate">{cfg.label.split(' ')[0]}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Optional Online Order Reference Input if online channel is active */}
+          {salesChannel !== 'STORE_FRONT' && (
+            <div className="mt-1.5 flex items-center gap-1.5 animate-in fade-in">
+              <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded flex-shrink-0">
+                เลขออเดอร์/พัสดุ:
+              </span>
+              <input
+                type="text"
+                value={onlineOrderRef}
+                onChange={e => setOnlineOrderRef(e.target.value)}
+                placeholder="เช่น #TK-98214, Shopee Order ID..."
+                className="w-full text-xs px-2 py-1 bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+              />
+            </div>
           )}
         </div>
 
@@ -2426,6 +2525,19 @@ export const PosPage: React.FC<PosPageProps> = ({
         settings={settings}
         onExchangeSuccess={() => {
           loadQuickData();
+        }}
+      />
+
+      {/* A4 PRICE QUOTATION MODAL */}
+      <QuotationModal
+        isOpen={isQuotationModalOpen}
+        onClose={() => setIsQuotationModalOpen(false)}
+        currentUser={currentUser}
+        settings={settings}
+        initialCart={cart}
+        onLoadToCart={(items) => {
+          setCart(items);
+          SoundEffects.playSuccess();
         }}
       />
     </div>

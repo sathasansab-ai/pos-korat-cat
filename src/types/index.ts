@@ -33,6 +33,7 @@ export interface StoreSettings {
   tagline: string;
   address: string;
   phone: string;
+  storeEmail?: string;
   taxId: string;
   promptPayId: string;
   promptPayType: 'MOBILE' | 'TAX_ID';
@@ -83,6 +84,9 @@ export interface StoreSettings {
 
   // Free Gifts with Purchase (โปรโมชั่นแจกของสมนาคุณตัดสต็อกฟรี)
   freeGiftTiers?: FreeGiftTier[];
+
+  // Tombstone tracking for deleted variants across devices
+  deletedVariantIds?: string[];
 }
 
 export interface FreeGiftTier {
@@ -371,11 +375,74 @@ export interface Order {
   status: 'COMPLETED' | 'HOLD' | 'VOIDED';
   isSynced: boolean;
 
+  // Sales Channel (ช่องทางการขาย)
+  salesChannel?: SalesChannel;
+  onlineOrderRef?: string; // เลขที่ออเดอร์ออนไลน์ / เลขพัสดุ (เช่น TikTok Order ID)
+
   // Tax Invoice Info
   isTaxInvoiceIssued?: boolean;
   taxInvoiceNo?: string;
   taxInvoiceDate?: string;
   customerTaxInfo?: CustomerTaxInfo;
+}
+
+export type SalesChannel = 'STORE_FRONT' | 'TIKTOK' | 'LINE' | 'SHOPEE' | 'LAZADA' | 'FACEBOOK' | 'OTHER_ONLINE';
+
+export const SALES_CHANNEL_CONFIG: Record<SalesChannel, { label: string; icon: string; badgeClass: string }> = {
+  STORE_FRONT: { label: 'หน้าร้านเรือนโคราช', icon: '🏪', badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+  TIKTOK: { label: 'TikTok Shop', icon: '🎵', badgeClass: 'bg-slate-900 text-white border-slate-700' },
+  LINE: { label: 'LINE Shopping / แชท', icon: '💬', badgeClass: 'bg-green-100 text-green-800 border-green-300' },
+  SHOPEE: { label: 'Shopee', icon: '🛒', badgeClass: 'bg-orange-100 text-orange-800 border-orange-300' },
+  LAZADA: { label: 'Lazada', icon: '🛍️', badgeClass: 'bg-blue-100 text-blue-800 border-blue-300' },
+  FACEBOOK: { label: 'Facebook / Inbox', icon: '📘', badgeClass: 'bg-sky-100 text-sky-800 border-sky-300' },
+  OTHER_ONLINE: { label: 'ออนไลน์อื่นๆ', icon: '🌐', badgeClass: 'bg-purple-100 text-purple-800 border-purple-300' }
+};
+
+export type QuotationStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+
+export interface QuotationItem {
+  variantId: string;
+  productName: string;
+  sku: string;
+  barcode?: string;
+  attributes?: Record<string, string>;
+  qty: number;
+  unitPrice: number;
+  discount?: number;
+  lineTotal: number;
+}
+
+export interface QuotationCustomerInfo {
+  name: string;
+  companyName?: string;
+  branch?: string;
+  address?: string;
+  phone?: string;
+  taxId?: string;
+  email?: string;
+  contactPerson?: string;
+}
+
+export interface Quotation {
+  id: string;
+  quotationNo: string;
+  date: string;
+  validUntil: string;
+  staffName: string;
+  customer: QuotationCustomerInfo;
+  items: QuotationItem[];
+  subtotal: number;
+  discount: number;
+  vatType: 'NONE' | 'INCLUSIVE' | 'EXCLUSIVE';
+  vatRate: number;
+  preTaxAmount: number;
+  vatAmount: number;
+  netTotal: number;
+  notes?: string;
+  paymentTerms?: string;
+  status: QuotationStatus;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Shift {
