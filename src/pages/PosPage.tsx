@@ -41,10 +41,9 @@ import type {
   Customer,
   StoreSettings,
   FreeGiftTier,
-  SalesChannel,
-  SALES_CHANNEL_CONFIG 
+  SalesChannel
 } from '../types';
-import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
+import { DEFAULT_PRODUCT_CATEGORIES, SALES_CHANNEL_CONFIG } from '../types';
 import { PromotionEngine } from '../services/promotionEngine';
 import { DualMonitorSync } from '../services/dualMonitorSync';
 import { AuthService } from '../services/auth';
