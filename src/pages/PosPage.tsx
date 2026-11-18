@@ -404,12 +404,6 @@ export const PosPage: React.FC<PosPageProps> = ({
         return;
       }
     }
-        SoundEffects.playWarning();
-        setStockNotice(`สินค้า "${existing?.productName || ''}" ในคลังมีเพียง ${availableStock} ชิ้น ไม่สามารถเพิ่มเกินจำนวนนี้ได้`);
-        setTimeout(() => setStockNotice(null), 4000);
-        return;
-      }
-    }
 
     SoundEffects.playBeep();
     setCart(prev => {
