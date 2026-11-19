@@ -34,7 +34,7 @@ import type {
 import { GENDER_CONFIG } from '../types';
 import { CloudSync } from '../services/cloudSync';
 import { ImageOptimizer } from '../services/imageOptimizer';
-import { MannequinFigure } from './MannequinFigure';
+import { MannequinFigure, renderMannequinSvgHtml } from './MannequinFigure';
 
 interface CustomOrderModalProps {
   isOpen: boolean;
@@ -366,7 +366,9 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
             .measurement-table th { background: #f1f5f9; font-weight: 700; color: #334155; }
             .bold { font-weight: bold; color: #b45309; }
 
-            .mannequin-container { width: 180px; text-align: center; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; }
+            .mannequin-container { width: 100%; text-align: center; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+            .media-photo { max-height: 230px; width: 100%; object-fit: contain; border-radius: 6px; display: block; margin: 0 auto; }
+            .media-caption { font-size: 10px; font-weight: 700; color: #475569; margin-top: 6px; border-top: 1px dashed #e2e8f0; padding-top: 4px; }
             
             table.items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
             table.items-table th, table.items-table td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
@@ -451,26 +453,32 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
               </td>
 
               <!-- Mockup Image / Silhouette (Right) -->
-              <td style="width: 45%; text-align: center;">
-                <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 5px; color: #0f172a;">
-                  🎨 ภาพตัวอย่าง &amp; หุ่นสัดส่วน (${isFem ? 'สตรี' : 'บุรุษ'}):
+              <td style="width: 45%; text-align: center; vertical-align: top;">
+                <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 6px; color: #0f172a; text-align: left;">
+                  ${order.referenceImageUrl 
+                    ? '🎨 ภาพตัวอย่างลายผ้า / แบบชุดสั่งผลิต (Reference Photo):' 
+                    : `📐 หุ่นจำลองสัดส่วนวัดตัว (${isFem ? 'สตรี' : 'บุรุษ'}):`}
                 </div>
-                <div style="display: flex; gap: 8px; justify-content: center; align-items: center;">
-                  ${order.referenceImageUrl ? `
-                    <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 4px; background: #ffffff; max-width: 140px;">
-                      <img src="${order.referenceImageUrl}" alt="Mockup" style="max-height: 140px; max-width: 100%; object-fit: contain; border-radius: 4px;" />
-                      <div style="font-size: 9px; color: #64748b; margin-top: 2px;">ลายผ้า / แบบอ้างอิง</div>
-                    </div>
-                  ` : ''}
+
+                ${order.referenceImageUrl ? `
+                  <!-- ขยายภาพตัวอย่างลายผ้า/แบบชุด ให้ใหญ่เต็มพื้นที่ ช่างเห็นชัดเจน 100% -->
                   <div class="mannequin-container">
-                    <div style="font-size: 10px; font-weight: bold; color: #475569; margin-bottom: 4px;">
-                      ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'}
-                    </div>
-                    <div style="font-size: 10px; color: #64748b;">
-                      ${order.categoryType === 'PANTS' ? 'เน้นสัดส่วนช่วงล่าง (กางเกง)' : 'เน้นสัดส่วนช่วงบน (เสื้อ/แจ็กเก็ต)'}
+                    <img src="${order.referenceImageUrl}" alt="Mockup" class="media-photo" />
+                    <div class="media-caption">
+                      ภาพตัวอย่างลายผ้า / แบบชุดอ้างอิงสำหรับฝ่ายผลิต
                     </div>
                   </div>
-                </div>
+                ` : `
+                  <!-- กรณีไม่มีรูปถ่าย ให้แสดงหุ่นวัดตัวเวกเตอร์พร้อมเส้นสัดส่วน เต็มพื้นที่ สวยงามสง่างาม -->
+                  <div class="mannequin-container">
+                    <div style="font-size: 10.5px; font-weight: bold; color: #334155; margin-bottom: 4px;">
+                      ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'} - ${order.categoryType === 'PANTS' ? 'เน้นสัดส่วนช่วงล่าง (กางเกง)' : 'เน้นสัดส่วนช่วงบน (เสื้อ/แจ็กเก็ต)'}
+                    </div>
+                    <div style="max-height: 230px; display: flex; justify-content: center; align-items: center;">
+                      ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
+                    </div>
+                  </div>
+                `}
               </td>
             </tr>
           </table>
