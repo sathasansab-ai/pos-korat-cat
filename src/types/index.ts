@@ -229,14 +229,82 @@ export interface StockTransfer {
   notes?: string;
 }
 
+export type GenderType = 'FEMALE' | 'MALE' | 'LGBTQ' | 'UNSPECIFIED';
+
+export type AgeRangeType = 
+  | 'UNDER_18'  // ต่ำกว่า 18 ปี
+  | '18_24'     // 18 - 24 ปี
+  | '25_29'     // 25 - 29 ปี
+  | '30_34'     // 30 - 34 ปี
+  | '35_39'     // 35 - 39 ปี
+  | '40_44'     // 40 - 44 ปี
+  | '45_49'     // 45 - 49 ปี
+  | '50_54'     // 50 - 54 ปี
+  | '55_59'     // 55 - 59 ปี
+  | '60_PLUS'   // 60 ปีขึ้นไป
+  | 'UNSPECIFIED'; // ไม่ระบุ
+
+export const GENDER_CONFIG: Record<GenderType, { label: string; icon: string; badgeColor: string }> = {
+  FEMALE: { label: 'หญิง', icon: '👩', badgeColor: 'bg-rose-100 text-rose-800 border-rose-300' },
+  MALE: { label: 'ชาย', icon: '👨', badgeColor: 'bg-blue-100 text-blue-800 border-blue-300' },
+  LGBTQ: { label: 'LGBTQ+', icon: '🌈', badgeColor: 'bg-purple-100 text-purple-800 border-purple-300' },
+  UNSPECIFIED: { label: 'ไม่ระบุ', icon: '👤', badgeColor: 'bg-slate-100 text-slate-700 border-slate-300' }
+};
+
+export const AGE_RANGE_CONFIG: Record<AgeRangeType, { label: string; short: string }> = {
+  UNDER_18: { label: 'ต่ำกว่า 18 ปี', short: '<18' },
+  '18_24': { label: '18 - 24 ปี', short: '18-24' },
+  '25_29': { label: '25 - 29 ปี', short: '25-29' },
+  '30_34': { label: '30 - 34 ปี', short: '30-34' },
+  '35_39': { label: '35 - 39 ปี', short: '35-39' },
+  '40_44': { label: '40 - 44 ปี', short: '40-44' },
+  '45_49': { label: '45 - 49 ปี', short: '45-49' },
+  '50_54': { label: '50 - 54 ปี', short: '50-54' },
+  '55_59': { label: '55 - 59 ปี', short: '55-59' },
+  '60_PLUS': { label: '60 ปีขึ้นไป', short: '60+' },
+  UNSPECIFIED: { label: 'ไม่ระบุ', short: 'ไม่ระบุ' }
+};
+
+export type CustomOrderCategory = 'SHIRT' | 'PANTS' | 'JACKET' | 'BAG' | 'HAT' | 'OTHER';
+
+export interface CustomOrderMeasurements {
+  // เสื้อ & แจ็กเก็ต
+  chest?: string;       // รอบอก
+  waist?: string;       // รอบเอว
+  shoulder?: string;    // ไหล่กว้าง
+  shirtLength?: string; // ความยาวเสื้อ
+  armLength?: string;   // ความยาวแขน
+  armHole?: string;     // รอบวงแขน / ต้นแขน
+  neck?: string;        // รอบคอ
+  wrist?: string;       // ข้อมือ / ปลายแขน
+
+  // กางเกง
+  waistPants?: string;  // เอวกางเกง
+  hipsPants?: string;   // สะโพก
+  pantsLength?: string; // ความยาวกางเกง
+  thigh?: string;       // รอบต้นขา
+  crotch?: string;      // เป้ากางเกง
+  legOpening?: string;  // ปลายขา
+
+  // มิติ / ขนาดอื่นๆ
+  customDimension?: string; // เช่น ขนาดหมวก / กระเป๋า / ผ้าพันคอ
+}
+
 export interface CustomMadeOrder {
   id: string;
   orderNo: string;
   createdAt: string;
   staffName: string;
   branch: BranchLocation;
+  customerId?: string;
   customerName: string;
   customerPhone: string;
+  customerGender?: GenderType;
+  categoryType?: CustomOrderCategory;
+  measurements?: CustomOrderMeasurements;
+  referenceImageUrl?: string; // รูปแบบอ้างอิง หรือ ลายผ้าที่ลูกค้าต้องการ
+  fabricType?: string; // ชนิดผ้า เช่น ผ้าไหมมัดหมี่, คอตตอน Comb 20
+  specialInstructions?: string; // ตำแหน่งปักลาย หรือ งานสกรีน
   deliveryMethod: 'PICKUP_SHOP' | 'SHIPPING_ADDRESS';
   shippingAddress?: string;
   dueDate: string; // วันนัดรับสินค้า
@@ -296,6 +364,8 @@ export interface Customer {
   tier?: 'SILVER' | 'GOLD' | 'BLACK_WISDOM'; // ระดับสมาชิก Luxury
   phone: string;
   name: string;
+  gender?: GenderType;
+  ageRange?: AgeRangeType;
   contactChannel?: string; // LINE, FB, Email
   address?: string;
   taxId?: string;
@@ -378,6 +448,10 @@ export interface Order {
   // Sales Channel (ช่องทางการขาย)
   salesChannel?: SalesChannel;
   onlineOrderRef?: string; // เลขที่ออเดอร์ออนไลน์ / เลขพัสดุ (เช่น TikTok Order ID)
+
+  // Customer Demographics (ข้อมูลประชากรผู้ซื้อ)
+  customerGender?: GenderType;
+  customerAgeRange?: AgeRangeType;
 
   // Tax Invoice Info
   isTaxInvoiceIssued?: boolean;

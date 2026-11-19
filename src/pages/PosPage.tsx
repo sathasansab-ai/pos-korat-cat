@@ -41,9 +41,11 @@ import type {
   Customer,
   StoreSettings,
   FreeGiftTier,
-  SalesChannel
+  SalesChannel,
+  GenderType,
+  AgeRangeType
 } from '../types';
-import { DEFAULT_PRODUCT_CATEGORIES, SALES_CHANNEL_CONFIG } from '../types';
+import { DEFAULT_PRODUCT_CATEGORIES, SALES_CHANNEL_CONFIG, GENDER_CONFIG, AGE_RANGE_CONFIG } from '../types';
 import { PromotionEngine } from '../services/promotionEngine';
 import { DualMonitorSync } from '../services/dualMonitorSync';
 import { AuthService } from '../services/auth';
@@ -100,6 +102,10 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [regPhone, setRegPhone] = useState('');
   const [regContactChannel, setRegContactChannel] = useState('');
   const [regAddress, setRegAddress] = useState('');
+  const [regGender, setRegGender] = useState<GenderType>('UNSPECIFIED');
+  const [regAgeRange, setRegAgeRange] = useState<AgeRangeType>('UNSPECIFIED');
+  const [customerGender, setCustomerGender] = useState<GenderType>('UNSPECIFIED');
+  const [customerAgeRange, setCustomerAgeRange] = useState<AgeRangeType>('UNSPECIFIED');
   const [newlyRegisteredCustomer, setNewlyRegisteredCustomer] = useState<Customer | null>(null);
   const [isDigitalPassOpen, setIsDigitalPassOpen] = useState(false);
   const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false);
@@ -697,6 +703,8 @@ export const PosPage: React.FC<PosPageProps> = ({
       tier: 'SILVER', // New members start at entry tier
       name: regName.trim(),
       phone: regPhone.trim(),
+      gender: regGender,
+      ageRange: regAgeRange,
       contactChannel: regContactChannel.trim() || undefined,
       address: regAddress.trim() || undefined,
       rewardPoints: 0,
@@ -706,11 +714,15 @@ export const PosPage: React.FC<PosPageProps> = ({
 
     await db.customers.add(newCust);
     setSelectedCustomer(newCust);
+    if (regGender !== 'UNSPECIFIED') setCustomerGender(regGender);
+    if (regAgeRange !== 'UNSPECIFIED') setCustomerAgeRange(regAgeRange);
     setNewlyRegisteredCustomer(newCust);
     setIsRegisterMemberOpen(false);
     setCustomerSearchQuery('');
     setRegName('');
     setRegPhone('');
+    setRegGender('UNSPECIFIED');
+    setRegAgeRange('UNSPECIFIED');
     setRegContactChannel('');
     setRegAddress('');
     SoundEffects.playSuccess();
@@ -724,6 +736,10 @@ export const PosPage: React.FC<PosPageProps> = ({
       alert('กรุณาเปิดกะก่อนทำการคิดเงิน');
       onOpenShiftRequired();
       return;
+    }
+    if (selectedCustomer) {
+      if (selectedCustomer.gender) setCustomerGender(selectedCustomer.gender);
+      if (selectedCustomer.ageRange) setCustomerAgeRange(selectedCustomer.ageRange);
     }
     setPaymentMode('CASH');
     setCashTendered(finalNetTotal.toString());
@@ -830,6 +846,8 @@ export const PosPage: React.FC<PosPageProps> = ({
         changeGiven: change,
         salesChannel: salesChannel,
         onlineOrderRef: salesChannel !== 'STORE_FRONT' && onlineOrderRef.trim() ? onlineOrderRef.trim() : undefined,
+        customerGender: customerGender !== 'UNSPECIFIED' ? customerGender : (selectedCustomer?.gender || 'UNSPECIFIED'),
+        customerAgeRange: customerAgeRange !== 'UNSPECIFIED' ? customerAgeRange : (selectedCustomer?.ageRange || 'UNSPECIFIED'),
         status: 'COMPLETED',
         isSynced: false
       };
@@ -969,6 +987,8 @@ export const PosPage: React.FC<PosPageProps> = ({
 
       setCart([]);
       setSelectedCustomer(null);
+      setCustomerGender('UNSPECIFIED');
+      setCustomerAgeRange('UNSPECIFIED');
       setDiscountValue(0);
       setDiscountReason('');
       setSalesChannel('STORE_FRONT');
@@ -1491,6 +1511,8 @@ export const PosPage: React.FC<PosPageProps> = ({
                       key={c.id}
                       onClick={() => {
                         setSelectedCustomer(c);
+                        if (c.gender) setCustomerGender(c.gender);
+                        if (c.ageRange) setCustomerAgeRange(c.ageRange);
                         setCustomerSearchQuery('');
                         setCustomerSearchResults([]);
                       }}
@@ -2056,6 +2078,71 @@ export const PosPage: React.FC<PosPageProps> = ({
                 </div>
               )}
 
+              {/* Customer Demographics Quick Selector (เพศ & ช่วงอายุ สำหรับสรุปข้อมูลผู้ซื้อ) */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <span>📊 ข้อมูลลูกค้า (เพศ & ช่วงอายุ):</span>
+                  </span>
+                  {selectedCustomer ? (
+                    <span className="text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-bold">
+                      สมาชิก: {selectedCustomer.name}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 font-semibold">
+                      (ติ๊กเลือกสำหรับลูกค้าทั่วไป)
+                    </span>
+                  )}
+                </div>
+
+                {/* Gender Options */}
+                <div className="grid grid-cols-4 gap-1.5 text-xs font-bold">
+                  {(['FEMALE', 'MALE', 'LGBTQ', 'UNSPECIFIED'] as const).map(g => {
+                    const cfg = GENDER_CONFIG[g];
+                    const isSelected = customerGender === g;
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setCustomerGender(g)}
+                        className={`py-1.5 px-1 rounded-xl border text-center transition flex items-center justify-center gap-1 ${
+                          isSelected
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        <span>{cfg.icon}</span>
+                        <span>{cfg.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Age Range 5-year Options */}
+                <div>
+                  <div className="grid grid-cols-5 gap-1 text-[10.5px] font-bold">
+                    {(['UNDER_18', '18_24', '25_29', '30_34', '35_39', '40_44', '45_49', '50_54', '55_59', '60_PLUS'] as const).map(a => {
+                      const cfg = AGE_RANGE_CONFIG[a];
+                      const isSelected = customerAgeRange === a;
+                      return (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => setCustomerAgeRange(a)}
+                          className={`py-1 px-0.5 rounded-lg border text-center transition ${
+                            isSelected
+                              ? 'bg-slate-900 text-amber-300 border-slate-900 shadow-xs'
+                              : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'
+                          }`}
+                        >
+                          {cfg.short}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <button
                 type="button"
                 onClick={handleCompleteOrder}
@@ -2114,6 +2201,44 @@ export const PosPage: React.FC<PosPageProps> = ({
                   placeholder="เช่น 0812345678"
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-sm"
                 />
+              </div>
+
+              {/* Gender & Age Range */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">เพศ (Gender)</label>
+                  <select
+                    value={regGender}
+                    onChange={e => setRegGender(e.target.value as GenderType)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
+                  >
+                    <option value="UNSPECIFIED">👤 ไม่ระบุ</option>
+                    <option value="FEMALE">👩 หญิง</option>
+                    <option value="MALE">👨 ชาย</option>
+                    <option value="LGBTQ">🌈 LGBTQ+</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ช่วงอายุ</label>
+                  <select
+                    value={regAgeRange}
+                    onChange={e => setRegAgeRange(e.target.value as AgeRangeType)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
+                  >
+                    <option value="UNSPECIFIED">ไม่ระบุ</option>
+                    <option value="UNDER_18">ต่ำกว่า 18 ปี</option>
+                    <option value="18_24">18 - 24 ปี</option>
+                    <option value="25_29">25 - 29 ปี</option>
+                    <option value="30_34">30 - 34 ปี</option>
+                    <option value="35_39">35 - 39 ปี</option>
+                    <option value="40_44">40 - 44 ปี</option>
+                    <option value="45_49">45 - 49 ปี</option>
+                    <option value="50_54">50 - 54 ปี</option>
+                    <option value="55_59">55 - 59 ปี</option>
+                    <option value="60_PLUS">60 ปีขึ้นไป</option>
+                  </select>
+                </div>
               </div>
 
               <div>

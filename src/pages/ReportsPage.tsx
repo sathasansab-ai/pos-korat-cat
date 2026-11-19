@@ -18,11 +18,14 @@ import {
   Boxes,
   Scissors,
   Truck,
-  RefreshCw
+  RefreshCw,
+  Users,
+  UserCheck,
+  Award
 } from 'lucide-react';
 import { db } from '../db';
-import type { Order, Shift, StoreSettings, ConsignmentVendor, SalesChannel } from '../types';
-import { SALES_CHANNEL_CONFIG } from '../types';
+import type { Order, Shift, StoreSettings, ConsignmentVendor, SalesChannel, GenderType, AgeRangeType } from '../types';
+import { SALES_CHANNEL_CONFIG, GENDER_CONFIG, AGE_RANGE_CONFIG } from '../types';
 import { GoogleSheetsBridge } from '../services/googleSheets';
 import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -57,7 +60,7 @@ export const ReportsPage: React.FC = () => {
   const [selectedChannelFilter, setSelectedChannelFilter] = useState<string>('ALL');
   
   // Active Report Sub-Tab
-  const [reportTab, setReportTab] = useState<'OVERVIEW' | 'SHIFTS' | 'DAILY' | 'ACCOUNTING' | 'ORDERS' | 'CONSIGNMENT'>('OVERVIEW');
+  const [reportTab, setReportTab] = useState<'OVERVIEW' | 'SHIFTS' | 'DAILY' | 'ACCOUNTING' | 'ORDERS' | 'CONSIGNMENT' | 'DEMOGRAPHICS'>('OVERVIEW');
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
@@ -222,6 +225,110 @@ export const ReportsPage: React.FC = () => {
   }, 0);
 
   const activeVendor = consignors.find(c => c.id === selectedVendorFilter);
+
+  // Customer Demographics Analytics (วิเคราะห์ยอดขายตามเพศ และช่วงอายุ 5 ปี)
+  const genderStats: Record<GenderType, { count: number; revenue: number; itemsCount: number }> = {
+    FEMALE: { count: 0, revenue: 0, itemsCount: 0 },
+    MALE: { count: 0, revenue: 0, itemsCount: 0 },
+    LGBTQ: { count: 0, revenue: 0, itemsCount: 0 },
+    UNSPECIFIED: { count: 0, revenue: 0, itemsCount: 0 }
+  };
+
+  const ageStats: Record<AgeRangeType, { 
+    count: number; 
+    revenue: number; 
+    itemsCount: number; 
+    productMap: Map<string, { name: string; qty: number; revenue: number }> 
+  }> = {
+    UNDER_18: { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    '18_24': { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    '25_29': { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    '30_34': { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    '35_39': { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    '40_44': { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    '45_49': { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    '50_54': { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    '55_59': { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    '60_PLUS': { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() },
+    UNSPECIFIED: { count: 0, revenue: 0, itemsCount: 0, productMap: new Map() }
+  };
+
+  filteredOrders.forEach(o => {
+    const g: GenderType = o.customerGender || 'UNSPECIFIED';
+    const a: AgeRangeType = o.customerAgeRange || 'UNSPECIFIED';
+    const totalOrderQty = o.items.reduce((s, it) => s + it.qty, 0);
+
+    if (genderStats[g]) {
+      genderStats[g].count += 1;
+      genderStats[g].revenue += o.netTotal;
+      genderStats[g].itemsCount += totalOrderQty;
+    }
+
+    if (ageStats[a]) {
+      ageStats[a].count += 1;
+      ageStats[a].revenue += o.netTotal;
+      ageStats[a].itemsCount += totalOrderQty;
+
+      o.items.forEach(it => {
+        const key = it.productName;
+        const exist = ageStats[a].productMap.get(key) || { name: key, qty: 0, revenue: 0 };
+        exist.qty += it.qty;
+        exist.revenue += it.lineTotal;
+        ageStats[a].productMap.set(key, exist);
+      });
+    }
+  });
+
+  const handleExportDemographicsCsv = () => {
+    const headers = [
+      'ช่วงอายุ',
+      'จำนวนบิลที่ซื้อ (บิล)',
+      'ยอดขายรวม (บาท)',
+      'ยอดเฉลี่ยต่อบิล (บาท)',
+      'จำนวนชิ้นรวม (ชิ้น)',
+      'สินค้าขายดีอันดับ 1',
+      'จำนวนที่ซื้อ (ชิ้น)',
+      'สินค้าขายดีอันดับ 2',
+      'จำนวนที่ซื้อ (ชิ้น)',
+      'สินค้าขายดีอันดับ 3',
+      'จำนวนที่ซื้อ (ชิ้น)'
+    ];
+
+    const ageKeys: AgeRangeType[] = ['UNDER_18', '18_24', '25_29', '30_34', '35_39', '40_44', '45_49', '50_54', '55_59', '60_PLUS', 'UNSPECIFIED'];
+
+    const rows = ageKeys.map(a => {
+      const stat = ageStats[a];
+      const sortedProds = Array.from(stat.productMap.values()).sort((p1, p2) => p2.qty - p1.qty);
+      const top1 = sortedProds[0] || { name: '-', qty: 0 };
+      const top2 = sortedProds[1] || { name: '-', qty: 0 };
+      const top3 = sortedProds[2] || { name: '-', qty: 0 };
+      const avg = stat.count > 0 ? (stat.revenue / stat.count).toFixed(2) : '0';
+
+      return [
+        `"${AGE_RANGE_CONFIG[a].label}"`,
+        stat.count,
+        stat.revenue.toFixed(2),
+        avg,
+        stat.itemsCount,
+        `"${top1.name.replace(/"/g, '""')}"`,
+        top1.qty,
+        `"${top2.name.replace(/"/g, '""')}"`,
+        top2.qty,
+        `"${top3.name.replace(/"/g, '""')}"`,
+        top3.qty
+      ].join(',');
+    });
+
+    const csv = [
+      `"รายงานวิเคราะห์ข้อมูลประชากรลูกค้าและพฤติกรรมการซื้อ - ${settings?.storeName || 'KORAT CAT'}"`,
+      `"ประจำช่วง: ${dateFilterMode}"`,
+      '',
+      headers.join(','),
+      ...rows
+    ].join('\r\n');
+
+    GoogleSheetsBridge.downloadCsv(csv, `รายงานวิเคราะห์ประชากรลูกค้า_${dateFilterMode}_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
 
   // 1. Export Detailed Sales & Accounting Ledger (สมุดรายวันขายและกำไร)
   const handleExportOrdersCsv = () => {
@@ -858,6 +965,16 @@ export const ReportsPage: React.FC = () => {
             <Truck className="w-4 h-4 text-sky-200" />
             <span>🚚 ประวัติการโอนย้าย</span>
           </button>
+
+          <button
+            type="button"
+            onClick={handleExportDemographicsCsv}
+            className="px-3.5 py-2 bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            title="ดาวน์โหลดรายงานสรุปพฤติกรรมลูกค้าตามเพศและช่วงอายุ (Excel/CSV)"
+          >
+            <Users className="w-4 h-4 text-indigo-200" />
+            <span>👥 ข้อมูลประชากรลูกค้า</span>
+          </button>
         </div>
       </div>
 
@@ -1137,6 +1254,17 @@ export const ReportsPage: React.FC = () => {
                 {totalConsignmentQty} ชิ้น
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setReportTab('DEMOGRAPHICS')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              reportTab === 'DEMOGRAPHICS' 
+                ? 'bg-slate-900 text-amber-300 shadow-md font-black' 
+                : 'text-slate-600 hover:bg-slate-200/60'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>👥 ข้อมูลลูกค้า (เพศ & ช่วงอายุ)</span>
           </button>
         </div>
 
@@ -1825,6 +1953,232 @@ export const ReportsPage: React.FC = () => {
                   <div style={{ marginTop: '4px' }}>ผู้รับมอบเงิน (ผู้ประกอบการฝากขาย)</div>
                   <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>วันที่ ______ / ______ / _________</div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 6. DEMOGRAPHICS CONTENT */}
+        {reportTab === 'DEMOGRAPHICS' && (
+          <div className="p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-amber-600" />
+                  <span>รายงานวิเคราะห์ข้อมูลประชากรลูกค้า & สินค้าขายดีตามช่วงอายุ</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  วิเคราะห์ยอดขายและพฤติกรรมการซื้อจริงแบ่งตามเพศ และช่วงอายุทุกๆ 5 ปี เพื่อใช้วางแผนการตลาดและผลิตสินค้า
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleExportDemographicsCsv}
+                className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>ดาวน์โหลด Excel/CSV</span>
+              </button>
+            </div>
+
+            {/* GENDER BREAKDOWN CARDS */}
+            <div>
+              <div className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <span>1. สัดส่วนยอดขายแบ่งตามเพศ (Gender Breakdown)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {(['FEMALE', 'MALE', 'LGBTQ', 'UNSPECIFIED'] as const).map(g => {
+                  const cfg = GENDER_CONFIG[g];
+                  const stat = genderStats[g];
+                  const percentOfRev = totalRevenue > 0 ? (stat.revenue / totalRevenue) * 100 : 0;
+                  const avgPerBill = stat.count > 0 ? stat.revenue / stat.count : 0;
+
+                  return (
+                    <div 
+                      key={g} 
+                      className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col justify-between hover:border-amber-400 transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${cfg.badgeColor}`}>
+                          <span>{cfg.icon}</span>
+                          <span>{cfg.label}</span>
+                        </span>
+                        <span className="text-xs font-bold font-mono text-slate-500">
+                          {percentOfRev.toFixed(1)}%
+                        </span>
+                      </div>
+
+                      <div className="mt-3">
+                        <div className="text-xs text-slate-500">ยอดขายรวม</div>
+                        <div className="text-xl font-black font-mono text-slate-900">
+                          ฿{stat.revenue.toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <div className="text-slate-400">จำนวนบิล</div>
+                          <div className="font-bold text-slate-800 font-mono">{stat.count} บิล</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-400">เฉลี่ยต่อบิล</div>
+                          <div className="font-bold text-slate-800 font-mono">฿{avgPerBill.toFixed(0)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* AGE RANGE BREAKDOWN & TOP PRODUCTS */}
+            <div>
+              <div className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <span>2. สรุปพฤติกรรม & สินค้าที่ซื้อเยอะที่สุดตามช่วงอายุ (Age Groups & Best Sellers)</span>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
+                      <tr>
+                        <th className="p-3.5">ช่วงอายุ</th>
+                        <th className="p-3.5 text-center">จำนวนบิล</th>
+                        <th className="p-3.5 text-right">ยอดขายรวม</th>
+                        <th className="p-3.5 text-right">เฉลี่ย/บิล</th>
+                        <th className="p-3.5 text-center">ชิ้นรวม</th>
+                        <th className="p-3.5">สินค้าที่ซื้อเยอะที่สุด (Top Best Sellers)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(['UNDER_18', '18_24', '25_29', '30_34', '35_39', '40_44', '45_49', '50_54', '55_59', '60_PLUS', 'UNSPECIFIED'] as const).map(a => {
+                        const stat = ageStats[a];
+                        const cfg = AGE_RANGE_CONFIG[a];
+                        const avgPerBill = stat.count > 0 ? stat.revenue / stat.count : 0;
+                        const sortedProds = Array.from(stat.productMap.values()).sort((p1, p2) => p2.qty - p1.qty);
+                        const top3 = sortedProds.slice(0, 3);
+
+                        return (
+                          <tr key={a} className="hover:bg-slate-50 transition">
+                            <td className="p-3.5 font-bold text-slate-900 whitespace-nowrap">
+                              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-xs font-mono">
+                                {cfg.label}
+                              </span>
+                            </td>
+                            <td className="p-3.5 text-center font-mono font-bold text-slate-700">
+                              {stat.count} บิล
+                            </td>
+                            <td className="p-3.5 text-right font-mono font-bold text-emerald-700">
+                              ฿{stat.revenue.toLocaleString()}
+                            </td>
+                            <td className="p-3.5 text-right font-mono font-bold text-amber-900">
+                              ฿{avgPerBill.toFixed(0)}
+                            </td>
+                            <td className="p-3.5 text-center font-mono text-slate-600">
+                              {stat.itemsCount} ชิ้น
+                            </td>
+                            <td className="p-3.5">
+                              {top3.length === 0 ? (
+                                <span className="text-slate-400 italic text-[11px]">- ยังไม่มีข้อมูลการซื้อ -</span>
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {top3.map((tp, idx) => (
+                                    <span 
+                                      key={idx}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium border ${
+                                        idx === 0 
+                                          ? 'bg-amber-50 text-amber-900 border-amber-300 font-bold' 
+                                          : 'bg-slate-50 text-slate-700 border-slate-200'
+                                      }`}
+                                    >
+                                      <span className="text-[10px] font-mono text-amber-700">#{idx + 1}</span>
+                                      <span className="truncate max-w-[150px]">{tp.name}</span>
+                                      <span className="font-mono font-bold text-[10px] bg-white px-1 rounded">({tp.qty} ชิ้น)</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* KEY DEMOGRAPHIC INSIGHTS CARD */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border border-amber-200">
+                <div className="text-xs font-bold text-amber-800 flex items-center gap-1">
+                  <TrendingUp className="w-4 h-4 text-amber-600" />
+                  <span>กลุ่มอายุที่สร้างยอดขายสูงสุด</span>
+                </div>
+                {(() => {
+                  const sorted = (['UNDER_18', '18_24', '25_29', '30_34', '35_39', '40_44', '45_49', '50_54', '55_59', '60_PLUS'] as const)
+                    .map(k => ({ key: k, stat: ageStats[k] }))
+                    .sort((x, y) => y.stat.revenue - x.stat.revenue);
+                  const top = sorted[0];
+                  return (
+                    <div className="mt-2">
+                      <div className="text-lg font-black text-amber-950 font-mono">
+                        {top && top.stat.revenue > 0 ? AGE_RANGE_CONFIG[top.key].label : 'กำลังรวบรวมข้อมูล'}
+                      </div>
+                      <div className="text-xs text-amber-800 font-medium mt-0.5">
+                        {top && top.stat.revenue > 0 ? `ยอดรวม ฿${top.stat.revenue.toLocaleString()} (${top.stat.count} บิล)` : 'บันทึกข้อมูลตอนคิดเงินเพื่อดูสถิติ'}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-200">
+                <div className="text-xs font-bold text-purple-800 flex items-center gap-1">
+                  <ShoppingBag className="w-4 h-4 text-purple-600" />
+                  <span>กลุ่มที่มีการใช้จ่ายเฉลี่ยต่อบิลสูงสุด</span>
+                </div>
+                {(() => {
+                  const sorted = (['UNDER_18', '18_24', '25_29', '30_34', '35_39', '40_44', '45_49', '50_54', '55_59', '60_PLUS'] as const)
+                    .map(k => ({ key: k, avg: ageStats[k].count > 0 ? ageStats[k].revenue / ageStats[k].count : 0 }))
+                    .sort((x, y) => y.avg - x.avg);
+                  const top = sorted[0];
+                  return (
+                    <div className="mt-2">
+                      <div className="text-lg font-black text-purple-950 font-mono">
+                        {top && top.avg > 0 ? AGE_RANGE_CONFIG[top.key].label : 'กำลังรวบรวมข้อมูล'}
+                      </div>
+                      <div className="text-xs text-purple-800 font-medium mt-0.5">
+                        {top && top.avg > 0 ? `เฉลี่ยบิลละ ฿${top.avg.toFixed(0)}` : 'บันทึกข้อมูลตอนคิดเงินเพื่อดูสถิติ'}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200">
+                <div className="text-xs font-bold text-emerald-800 flex items-center gap-1">
+                  <Award className="w-4 h-4 text-emerald-600" />
+                  <span>เพศที่เป็นลูกค้าหลักของร้าน</span>
+                </div>
+                {(() => {
+                  const sorted = (['FEMALE', 'MALE', 'LGBTQ'] as const)
+                    .map(k => ({ key: k, stat: genderStats[k] }))
+                    .sort((x, y) => y.stat.revenue - x.stat.revenue);
+                  const top = sorted[0];
+                  return (
+                    <div className="mt-2">
+                      <div className="text-lg font-black text-emerald-950 font-mono flex items-center gap-1">
+                        <span>{top && top.stat.revenue > 0 ? GENDER_CONFIG[top.key].icon : '👥'}</span>
+                        <span>{top && top.stat.revenue > 0 ? GENDER_CONFIG[top.key].label : 'กำลังรวบรวมข้อมูล'}</span>
+                      </div>
+                      <div className="text-xs text-emerald-800 font-medium mt-0.5">
+                        {top && top.stat.revenue > 0 ? `สัดส่วน ${(totalRevenue > 0 ? (top.stat.revenue / totalRevenue) * 100 : 0).toFixed(1)}% ของยอดขายทั้งหมด` : 'บันทึกข้อมูลตอนคิดเงินเพื่อดูสถิติ'}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

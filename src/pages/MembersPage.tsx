@@ -20,7 +20,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { db } from '../db';
-import type { Customer, StoreSettings } from '../types';
+import type { Customer, StoreSettings, GenderType, AgeRangeType } from '../types';
+import { GENDER_CONFIG, AGE_RANGE_CONFIG } from '../types';
 import { DigitalPassModal } from '../components/DigitalPassModal';
 import { SoundEffects } from '../services/soundEffects';
 
@@ -53,6 +54,8 @@ export const MembersPage: React.FC = () => {
   // Form State
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [gender, setGender] = useState<GenderType>('UNSPECIFIED');
+  const [ageRange, setAgeRange] = useState<AgeRangeType>('UNSPECIFIED');
   const [tier, setTier] = useState<'SILVER' | 'GOLD' | 'BLACK_WISDOM'>('BLACK_WISDOM');
   const [rewardPoints, setRewardPoints] = useState<number>(0);
   const [contactChannel, setContactChannel] = useState('');
@@ -106,6 +109,8 @@ export const MembersPage: React.FC = () => {
     setEditingCustomer(null);
     setName('');
     setPhone('');
+    setGender('UNSPECIFIED');
+    setAgeRange('UNSPECIFIED');
     setTier('SILVER');
     setRewardPoints(0);
     setContactChannel('');
@@ -117,6 +122,8 @@ export const MembersPage: React.FC = () => {
     setEditingCustomer(c);
     setName(c.name);
     setPhone(c.phone);
+    setGender(c.gender || 'UNSPECIFIED');
+    setAgeRange(c.ageRange || 'UNSPECIFIED');
     setTier(c.tier || 'BLACK_WISDOM');
     setRewardPoints(c.rewardPoints || 0);
     setContactChannel(c.contactChannel || '');
@@ -136,6 +143,8 @@ export const MembersPage: React.FC = () => {
       await db.customers.update(editingCustomer.id, {
         name: name.trim(),
         phone: phone.trim(),
+        gender,
+        ageRange,
         tier,
         rewardPoints,
         contactChannel: contactChannel.trim() || undefined,
@@ -151,6 +160,8 @@ export const MembersPage: React.FC = () => {
         memberCode,
         name: name.trim(),
         phone: phone.trim(),
+        gender,
+        ageRange,
         tier,
         rewardPoints,
         totalSpent: 0,
@@ -325,7 +336,24 @@ export const MembersPage: React.FC = () => {
                           <Sparkles className="w-3 h-3 text-amber-400" />
                         </button>
                       </td>
-                      <td className="p-3.5 font-bold text-slate-900">{c.name}</td>
+                      <td className="p-3.5">
+                        <div className="font-bold text-slate-900">{c.name}</div>
+                        {((c.gender && c.gender !== 'UNSPECIFIED') || (c.ageRange && c.ageRange !== 'UNSPECIFIED')) && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            {c.gender && c.gender !== 'UNSPECIFIED' && (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${GENDER_CONFIG[c.gender].badgeColor}`}>
+                                <span>{GENDER_CONFIG[c.gender].icon}</span>
+                                <span>{GENDER_CONFIG[c.gender].label}</span>
+                              </span>
+                            )}
+                            {c.ageRange && c.ageRange !== 'UNSPECIFIED' && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                {AGE_RANGE_CONFIG[c.ageRange].label}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-3.5 font-mono text-slate-600">{c.phone}</td>
                       <td className="p-3.5">
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border ${
@@ -421,6 +449,44 @@ export const MembersPage: React.FC = () => {
                   placeholder="เช่น 0891234567"
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-sm"
                 />
+              </div>
+
+              {/* Gender & Age Range */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">เพศ (Gender)</label>
+                  <select
+                    value={gender}
+                    onChange={e => setGender(e.target.value as GenderType)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="UNSPECIFIED">👤 ไม่ระบุ</option>
+                    <option value="FEMALE">👩 หญิง</option>
+                    <option value="MALE">👨 ชาย</option>
+                    <option value="LGBTQ">🌈 LGBTQ+</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ช่วงอายุ (Age Range)</label>
+                  <select
+                    value={ageRange}
+                    onChange={e => setAgeRange(e.target.value as AgeRangeType)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="UNSPECIFIED">ไม่ระบุ</option>
+                    <option value="UNDER_18">ต่ำกว่า 18 ปี</option>
+                    <option value="18_24">18 - 24 ปี</option>
+                    <option value="25_29">25 - 29 ปี</option>
+                    <option value="30_34">30 - 34 ปี</option>
+                    <option value="35_39">35 - 39 ปี</option>
+                    <option value="40_44">40 - 44 ปี</option>
+                    <option value="45_49">45 - 49 ปี</option>
+                    <option value="50_54">50 - 54 ปี</option>
+                    <option value="55_59">55 - 59 ปี</option>
+                    <option value="60_PLUS">60 ปีขึ้นไป</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

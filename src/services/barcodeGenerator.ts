@@ -21,7 +21,9 @@ export class BarcodeGenerator {
     "114131", "311141", "411131", "211412", "211214", "211232", "2331112" // 100-106 (103=StartA, 104=StartB, 105=StartC, 106=Stop)
   ];
 
+  private static readonly START_A = 103;
   private static readonly START_B = 104;
+  private static readonly START_C = 105;
   private static readonly STOP = 106;
 
   /**
@@ -38,7 +40,8 @@ export class BarcodeGenerator {
   }
 
   /**
-   * สร้าง SVG string ของบาร์โค้ด Code 128 ตามมาตรฐานสากล ISO/IEC 15417
+   * สร้าง SVG string ของบาร์โค้ด Code 128 (Auto B/C) ตามมาตรฐานสากล ISO/IEC 15417
+   * หากเป็นตัวเลขล้วน จะเข้ารหัสด้วย Code 128C อัตโนมัติ (แท่งหนาเป็น 2 เท่า สแกนเนอร์ทุกรุ่นยิงติด 100%)
    */
   public static generateSvg(
     text: string, 
@@ -47,27 +50,54 @@ export class BarcodeGenerator {
     const rawText = String(text || '').trim();
     if (!rawText) return '<svg width="100" height="40"></svg>';
 
-    // Height of the black bars in SVG space
     const height = options.height || 120;
     const showText = options.showText !== false;
     
-    // 1. Calculate Code 128B symbols & Modulo 103 checksum
-    const symbols: number[] = [this.START_B];
-    let checksum = this.START_B;
+    // ตรวจสอบว่าข้อความเป็นตัวเลขล้วนหรือไม่
+    const isNumericOnly = /^\d+$/.test(rawText);
 
-    for (let i = 0; i < rawText.length; i++) {
-      const asciiCode = rawText.charCodeAt(i);
-      // Code 128B maps ASCII 32 (' ') through 127
-      const symbolValue = asciiCode >= 32 && asciiCode <= 127 ? asciiCode - 32 : 0;
-      symbols.push(symbolValue);
-      checksum += symbolValue * (i + 1);
+    const symbols: number[] = [];
+    let checksum = 0;
+    let displayText = rawText;
+
+    if (isNumericOnly && rawText.length >= 2) {
+      // 🚀 CODE 128 SUBSET C: จัดกลุ่มตัวเลขทีละ 2 หลัก (Double Density & Thick Bars)
+      // แท่งบาร์โค้ดจะกว้างขึ้นเกือบเท่าตัว สแกนเนอร์ปืนยิง 1D ทุกยี่ห้ออ่านติดง่ายที่สุด
+      let encodedDigits = rawText;
+      if (encodedDigits.length % 2 !== 0) {
+        // หากจำนวนหลักเป็นเลขคี่ ให้เติม 0 ด้านหน้าเพื่อให้จับคู่ 2 หลักได้สมบูรณ์
+        encodedDigits = '0' + encodedDigits;
+        displayText = encodedDigits;
+      }
+
+      symbols.push(this.START_C);
+      checksum = this.START_C;
+
+      let position = 1;
+      for (let i = 0; i < encodedDigits.length; i += 2) {
+        const pairValue = parseInt(encodedDigits.slice(i, i + 2), 10);
+        symbols.push(pairValue);
+        checksum += pairValue * position;
+        position++;
+      }
+    } else {
+      // 🔤 CODE 128 SUBSET B: สำหรับข้อความผสมตัวอักษรและตัวเลข (Alphanumeric)
+      symbols.push(this.START_B);
+      checksum = this.START_B;
+
+      for (let i = 0; i < rawText.length; i++) {
+        const asciiCode = rawText.charCodeAt(i);
+        const symbolValue = asciiCode >= 32 && asciiCode <= 127 ? asciiCode - 32 : 0;
+        symbols.push(symbolValue);
+        checksum += symbolValue * (i + 1);
+      }
     }
 
-    // 2. Append Check Digit (modulo 103) and Stop Character
+    // 2. คำนวณ Check Digit (Modulo 103) และใส่ Stop Character
     symbols.push(checksum % 103);
     symbols.push(this.STOP);
 
-    // 3. Convert all symbols to full binary string
+    // 3. แปลง Symbol เป็นแท่งสีดำและช่องว่างสีขาว
     let fullBinary = '';
     for (const sym of symbols) {
       const widthStr = this.WIDTHS[sym];
@@ -76,9 +106,10 @@ export class BarcodeGenerator {
       }
     }
 
-    // 4. Barcode Geometry (module width & quiet zones)
-    const moduleWidth = 2.0; // standard crisp module width (px)
-    const quietZoneModules = 12; // 12 modules quiet margin each side (standard requires at least 10)
+    // 4. Barcode Geometry (Quiet Zones กว้างปลอดภัย + Module Width คมชัด)
+    // สำหรับ Code 128C แท่งบาร์โค้ดน้อยลง สามารถเพิ่มความกว้างแท่งให้หนาคมชัดพิเศษได้
+    const moduleWidth = isNumericOnly ? 2.6 : 2.0; 
+    const quietZoneModules = 14; // ขอบขาวซ้าย-ขวา 14 modules ป้องกันการรบกวนของเส้นตัด
     const quietZonePx = quietZoneModules * moduleWidth;
     const totalWidth = fullBinary.length * moduleWidth + (quietZonePx * 2);
 
@@ -107,19 +138,19 @@ export class BarcodeGenerator {
       rects += `<rect x="${barX.toFixed(2)}" y="6" width="${barWidth.toFixed(2)}" height="${height}" fill="#000000" shape-rendering="crispEdges"/>`;
     }
 
-    const totalHeight = showText ? height + 32 : height + 12;
+    const totalHeight = showText ? height + 34 : height + 12;
     const textSvg = showText
-      ? `<text x="${(totalWidth / 2).toFixed(2)}" y="${height + 26}" text-anchor="middle" font-family="'Courier New', Courier, monospace, monospace" font-size="16" font-weight="900" letter-spacing="4" fill="#000000">${rawText}</text>`
+      ? `<text x="${(totalWidth / 2).toFixed(2)}" y="${height + 26}" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-size="16" font-weight="900" letter-spacing="4" fill="#000000">${displayText}</text>`
       : '';
 
-    // Notice: preserveAspectRatio="xMidYMid meet" ensures bars keep exact integer ratios without stretching!
     return `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(2)} ${totalHeight}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style="display:block; margin:auto;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(2)} ${totalHeight}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style="display:block; margin:auto; background:#ffffff;">
         <rect width="100%" height="100%" fill="#ffffff"/>
         ${rects}
         ${textSvg}
       </svg>
     `.trim();
+  }
   }
 
   /**
