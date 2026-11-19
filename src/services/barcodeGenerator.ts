@@ -151,7 +151,6 @@ export class BarcodeGenerator {
       </svg>
     `.trim();
   }
-  }
 
   /**
    * สร้าง Data URI สำหรับใส่ใน <img src="..." />
