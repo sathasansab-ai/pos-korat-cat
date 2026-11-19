@@ -19,7 +19,13 @@ import {
   Truck,
   PackageCheck,
   ChevronDown,
-  Layers
+  Layers,
+  Tablet,
+  ExternalLink,
+  Copy,
+  Check,
+  X,
+  QrCode
 } from 'lucide-react';
 import type { UserAccount, Shift, StoreSettings } from '../types';
 import { AuthService } from '../services/auth';
@@ -54,6 +60,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [pendingTransfersCount, setPendingTransfersCount] = useState(0);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const checkPendingTransfers = async () => {
     try {
@@ -360,6 +368,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden xl:inline">จอฝั่งลูกค้า (QR)</span>
             </button>
 
+            {/* Sales Staff iPad Stock Checker */}
+            <button
+              onClick={() => setIsStockModalOpen(true)}
+              title="เปิดคิวอาร์โค้ด / ลิงก์สำหรับพนักงานขายเปิดดูสต็อกบน iPad หรือโทรศัพท์มือถือ"
+              className="flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition border border-slate-700"
+            >
+              <Tablet className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden xl:inline">เช็คสต็อก (iPad)</span>
+            </button>
+
             {/* Unified Cloud Sync + Online Status Pill */}
             <button
               type="button"
@@ -482,6 +500,95 @@ export const Navbar: React.FC<NavbarProps> = ({
         }}
         onTransferComplete={checkPendingTransfers}
       />
+
+      {/* iPad / Floor Staff Stock Checker QR Modal */}
+      {isStockModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-md w-full p-6 text-white shadow-2xl relative">
+            <button
+              onClick={() => setIsStockModalOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              title="ปิด"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
+                <Tablet className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-white">เช็คสต็อกพนักงานขาย (iPad)</h3>
+                <p className="text-xs text-amber-400 font-medium">ระบบดูสต็อกเรียลไทม์ขณะเดินบริการลูกค้า</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 mb-4 text-xs text-amber-200 leading-relaxed flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>ระบบ Read-Only ปลอดภัย 100%:</strong> พนักงานขายใช้ค้นหาไซส์ สี และเช็คสต็อกหน้าร้าน/โกดังได้ทันที โดยไม่มีปุ่มแก้ไข, ไม่มีการตัดสต็อก, และไม่มีการคิดเงิน ไม่กระทบกับระบบแคชเชียร์แน่นอนครับ
+              </span>
+            </div>
+
+            {/* QR Code Container */}
+            <div className="bg-white p-5 rounded-2xl flex flex-col items-center justify-center mx-auto shadow-xl border-4 border-amber-400 max-w-xs">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(`${window.location.origin}/#/stock`)}`}
+                alt="Stock Checker QR Code"
+                className="w-48 h-48 object-contain rounded-lg"
+              />
+              <p className="text-slate-800 text-xs font-bold mt-2">เปิดกล้อง iPad / มือถือ สแกนได้ทันที</p>
+              <span className="text-[10px] text-slate-500 font-mono">URL: {window.location.origin}/#/stock</span>
+            </div>
+
+            {/* Link & Action Buttons */}
+            <div className="mt-5 space-y-2.5">
+              <div className="flex items-center gap-2 p-2.5 bg-slate-800/80 rounded-xl border border-slate-700 text-xs font-mono text-slate-300">
+                <span className="truncate flex-1">{window.location.origin}/#/stock</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/#/stock`);
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2000);
+                  }}
+                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg transition flex items-center gap-1 flex-shrink-0"
+                >
+                  {isCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-950" />
+                      <span>คัดลอกแล้ว</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>คัดลอกลิงก์</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.open(`${window.location.origin}/#/stock`, '_blank')}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-slate-700"
+                >
+                  <ExternalLink className="w-4 h-4 text-sky-400" />
+                  <span>ทดลองเปิดดูในหน้าต่างใหม่</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsStockModalOpen(false)}
+                  className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition"
+                >
+                  ปิด
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

@@ -16,7 +16,9 @@ import {
   Scissors,
   Layers,
   Star,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { DualMonitorSync, type CustomerDisplayState } from '../services/dualMonitorSync';
 import { db } from '../db';
@@ -31,6 +33,23 @@ export const CustomerFacingPage: React.FC = () => {
 
   // Screensaver / Promotional Slideshow state
   const [activeSlide, setActiveSlide] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   // Thank You State latch (persists 10s after payment even if cart clears)
   const [isThankYouActive, setIsThankYouActive] = useState(false);
@@ -267,10 +286,10 @@ export const CustomerFacingPage: React.FC = () => {
   const subTextColor = isLight ? 'text-slate-500' : 'text-slate-400';
 
   return (
-    <div className={`min-h-screen ${themeStyles.bg} ${textColor} flex flex-col justify-between p-6 sm:p-8 select-none font-sans transition-colors duration-500`}>
+    <div className={`min-h-screen ${themeStyles.bg} ${textColor} flex flex-col justify-between p-3 sm:p-5 lg:p-8 select-none font-sans transition-colors duration-500`}>
       {/* Top Banner */}
-      <div className={`flex items-center justify-between pb-5 border-b ${themeStyles.headerBorder}`}>
-        <div className="flex items-center space-x-4">
+      <div className={`flex items-center justify-between pb-3 sm:pb-5 border-b ${themeStyles.headerBorder} gap-2`}>
+        <div className="flex items-center space-x-2.5 sm:space-x-4 min-w-0">
           {settings?.logoUrl && !logoError ? (
             <img
               src={settings.logoUrl}
@@ -279,48 +298,69 @@ export const CustomerFacingPage: React.FC = () => {
               style={{
                 mixBlendMode: !isLight ? 'screen' : 'normal'
               }}
-              className="max-h-14 max-w-[130px] w-auto h-auto object-contain select-none"
+              className="max-h-10 sm:max-h-14 max-w-[90px] sm:max-w-[130px] w-auto h-auto object-contain select-none flex-shrink-0"
             />
           ) : (
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center font-black text-xl shadow-xl border border-amber-400/40 text-slate-950">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 flex items-center justify-center font-black text-sm sm:text-xl shadow-xl border border-amber-400/40 text-slate-950 flex-shrink-0">
               KC
             </div>
           )}
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black tracking-wide uppercase">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h1 className="text-sm sm:text-xl lg:text-2xl font-black tracking-wide uppercase truncate">
                 {settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}
               </h1>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider border ${themeStyles.accentBg}`}>
+              <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold tracking-wider border whitespace-nowrap hidden sm:inline-block ${themeStyles.accentBg}`}>
                 {themeStyles.tag}
               </span>
             </div>
-            <p className={`text-xs ${themeStyles.accentText} font-medium tracking-wide mt-0.5`}>
+            <p className={`text-[10px] sm:text-xs ${themeStyles.accentText} font-medium tracking-wide mt-0.5 truncate`}>
               {settings?.subTitle || 'Haute Couture & Heritage Craft Boutique'}
             </p>
           </div>
         </div>
 
-        {/* Status Badge */}
-        {isThankYouActive ? (
-          <div className="flex items-center gap-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-5 py-2.5 rounded-2xl text-sm font-bold shadow-lg animate-bounce">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            <span>ชำระเงินเรียบร้อยแล้ว</span>
-          </div>
-        ) : displayState.isCheckoutStep ? (
-          <div className="flex items-center gap-2 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-5 py-2.5 rounded-2xl text-sm font-bold shadow-lg">
-            <QrCode className="w-5 h-5 text-amber-400 animate-pulse" />
-            <span>พร้อมชำระเงิน (PromptPay)</span>
-          </div>
-        ) : (
-          <div className="text-right">
-            <span className="text-[11px] opacity-70">หน้าจอแสดงผลสด: </span>
-            <span className="text-xs font-bold text-emerald-400 inline-flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              พร้อมบริการ
-            </span>
-          </div>
-        )}
+        {/* Right Actions: Status Badge & Fullscreen Toggle */}
+        <div className="flex items-center space-x-2 flex-shrink-0">
+          {/* Fullscreen Button */}
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'ออกจากโหมดเต็มจอ' : 'เปิดแสดงผลแบบเต็มจอ (Fullscreen)'}
+            className="flex items-center space-x-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-amber-300 text-xs font-bold transition border border-slate-700 shadow-sm active:scale-95"
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">ย่อหน้าต่าง</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">เต็มจอ (F11)</span>
+              </>
+            )}
+          </button>
+
+          {isThankYouActive ? (
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-bold shadow-lg animate-bounce">
+              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
+              <span>ชำระเงินเรียบร้อย</span>
+            </div>
+          ) : displayState.isCheckoutStep ? (
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-bold shadow-lg">
+              <QrCode className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 animate-pulse" />
+              <span>พร้อมชำระเงิน (PromptPay)</span>
+            </div>
+          ) : (
+            <div className="text-right hidden sm:block">
+              <span className="text-[10px] sm:text-[11px] opacity-70">หน้าจอแสดงผลสด: </span>
+              <span className="text-xs font-bold text-emerald-400 inline-flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                พร้อมบริการ
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 0. SHOW DIGITAL WISDOM PASS FOR SCANNING */}
@@ -610,9 +650,9 @@ export const CustomerFacingPage: React.FC = () => {
           </div>
         ) : (
           /* ACTIVE CART & CHECKOUT SPLIT VIEW */
-          <div className="grid grid-cols-12 gap-6 my-auto py-4">
+          <div className="grid grid-cols-12 gap-3 sm:gap-6 my-auto py-2 sm:py-4">
             {/* Scanned Items List with Photos (7 cols) */}
-            <div className={`col-span-12 lg:col-span-7 rounded-3xl p-6 border flex flex-col h-[520px] shadow-2xl backdrop-blur-sm ${themeStyles.cardBg}`}>
+            <div className={`col-span-12 lg:col-span-7 rounded-3xl p-4 sm:p-6 border flex flex-col min-h-[280px] h-[360px] sm:h-[450px] lg:h-[500px] xl:h-[540px] max-h-[62vh] shadow-2xl backdrop-blur-sm ${themeStyles.cardBg}`}>
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-700/50">
                 <h2 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${subTextColor}`}>
                   <ShoppingBag className="w-4 h-4 text-amber-500" />
@@ -621,43 +661,43 @@ export const CustomerFacingPage: React.FC = () => {
                 <span className="text-xs font-mono opacity-60">OFFICIAL REGISTER</span>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+              <div className="flex-1 overflow-y-auto space-y-2 sm:space-y-3 pr-1 sm:pr-2">
                 {displayState.cart.map((item) => (
                   <div
                     key={item.variantId}
-                    className={`p-3.5 rounded-2xl flex items-center justify-between border gap-3 transition ${
+                    className={`p-2.5 sm:p-3.5 rounded-2xl flex items-center justify-between border gap-2.5 sm:gap-3 transition ${
                       isLight ? 'bg-amber-50/60 border-amber-200' : 'bg-slate-800/80 border-slate-700/80'
                     }`}
                   >
-                    <div className="flex items-center space-x-3.5 min-w-0">
+                    <div className="flex items-center space-x-2.5 sm:space-x-3.5 min-w-0">
                       {item.imageUrl ? (
                         <img
                           src={item.imageUrl}
                           alt=""
-                          className="w-14 h-14 rounded-xl object-cover border border-slate-700 flex-shrink-0"
+                          className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl object-cover border border-slate-700 flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-14 h-14 rounded-xl bg-slate-700/50 flex items-center justify-center flex-shrink-0">
-                          <Tag className="w-6 h-6 text-slate-400" />
+                        <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-slate-700/50 flex items-center justify-center flex-shrink-0">
+                          <Tag className="w-5 h-5 sm:w-6 sm:h-6 text-slate-400" />
                         </div>
                       )}
                       <div className="min-w-0">
-                        <h3 className="text-sm font-bold truncate leading-tight">
+                        <h3 className="text-xs sm:text-sm font-bold truncate leading-tight">
                           {item.productName}
                         </h3>
                         {item.attributes && (
-                          <div className={`text-[11px] ${themeStyles.accentText} mt-0.5 truncate`}>
+                          <div className={`text-[10px] sm:text-[11px] ${themeStyles.accentText} mt-0.5 truncate`}>
                             {Object.values(item.attributes).join(' • ')}
                           </div>
                         )}
-                        <div className={`text-[11px] ${subTextColor} font-mono mt-0.5`}>
+                        <div className={`text-[10px] sm:text-[11px] ${subTextColor} font-mono mt-0.5`}>
                           ฿{item.unitPrice.toLocaleString()} x {item.qty} ชิ้น
                         </div>
                       </div>
                     </div>
 
                     <div className="text-right flex-shrink-0">
-                      <div className="text-base font-extrabold font-mono">
+                      <div className="text-sm sm:text-base font-extrabold font-mono">
                         ฿{(item.unitPrice * item.qty).toLocaleString()}
                       </div>
                     </div>
@@ -667,7 +707,7 @@ export const CustomerFacingPage: React.FC = () => {
 
               {/* Upsell banner */}
               {displayState.upsellPrompts.length > 0 && (
-                <div className="mt-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs">
+                <div className="mt-2 sm:mt-3 p-2.5 sm:p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs">
                   <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
                   <span className="text-amber-300 font-medium truncate">{displayState.upsellPrompts[0]}</span>
                 </div>
@@ -675,17 +715,17 @@ export const CustomerFacingPage: React.FC = () => {
             </div>
 
           {/* RIGHT COLUMN: PRICE TOTALS & DYNAMIC CHECKOUT QR CODE (5 cols) */}
-          <div className={`col-span-12 lg:col-span-5 rounded-3xl p-6 sm:p-7 border flex flex-col justify-between shadow-2xl ${themeStyles.cardBg}`}>
+          <div className={`col-span-12 lg:col-span-5 rounded-3xl p-4 sm:p-6 lg:p-7 border flex flex-col justify-between shadow-2xl ${themeStyles.cardBg}`}>
             {/* Price Breakdown */}
             <div>
-              <div className="flex items-center justify-between border-b border-slate-700/50 pb-3">
-                <span className={`text-xs uppercase font-bold tracking-widest ${subTextColor}`}>
+              <div className="flex items-center justify-between border-b border-slate-700/50 pb-2.5 sm:pb-3">
+                <span className={`text-[11px] sm:text-xs uppercase font-bold tracking-widest ${subTextColor}`}>
                   สรุปยอดชำระ
                 </span>
-                <span className={`text-[10px] font-mono font-bold ${themeStyles.accentText}`}>OFFICIAL TERMINAL</span>
+                <span className={`text-[9px] sm:text-[10px] font-mono font-bold ${themeStyles.accentText}`}>OFFICIAL TERMINAL</span>
               </div>
 
-              <div className="mt-4 space-y-2 text-xs">
+              <div className="mt-2.5 sm:mt-4 space-y-1.5 sm:space-y-2 text-xs">
                 <div className={`flex justify-between ${subTextColor}`}>
                   <span>ราคารวมปกติ:</span>
                   <span className="font-mono">฿{displayState.subtotal.toLocaleString()}</span>
@@ -714,9 +754,9 @@ export const CustomerFacingPage: React.FC = () => {
               </div>
 
               {/* Huge Total */}
-              <div className="mt-4 pt-3 border-t border-slate-700/60">
-                <span className={`text-xs ${subTextColor} uppercase font-semibold`}>ยอดสุทธิที่ต้องชำระ</span>
-                <div className={`text-4xl sm:text-5xl font-black font-mono ${themeStyles.totalText} mt-1 tracking-tight`}>
+              <div className="mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-700/60">
+                <span className={`text-[10px] sm:text-xs ${subTextColor} uppercase font-semibold`}>ยอดสุทธิที่ต้องชำระ</span>
+                <div className={`text-3xl sm:text-4xl lg:text-5xl font-black font-mono ${themeStyles.totalText} mt-0.5 sm:mt-1 tracking-tight`}>
                   ฿{displayState.netTotal.toLocaleString()}
                 </div>
               </div>
@@ -728,12 +768,12 @@ export const CustomerFacingPage: React.FC = () => {
             */}
             {displayState.cart.length > 0 && displayState.isCheckoutStep ? (
               /* PROMPTPAY QR CODE (Appears only when cashier clicks "ชำระเงิน") */
-              <div className="my-2 p-4 bg-white rounded-3xl text-slate-900 flex flex-col items-center justify-center text-center shadow-2xl border-4 border-amber-400 animate-in zoom-in-95 duration-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-6 h-6 rounded-lg bg-blue-900 text-white flex items-center justify-center font-black text-xs">
+              <div className="my-2 p-3 sm:p-4 bg-white rounded-3xl text-slate-900 flex flex-col items-center justify-center text-center shadow-2xl border-4 border-amber-400 animate-in zoom-in-95 duration-200">
+                <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-blue-900 text-white flex items-center justify-center font-black text-[10px] sm:text-xs">
                     PP
                   </div>
-                  <span className="text-xs font-black text-slate-900 tracking-wider uppercase">
+                  <span className="text-[11px] sm:text-xs font-black text-slate-900 tracking-wider uppercase">
                     Thai PromptPay QR
                   </span>
                 </div>
@@ -742,40 +782,40 @@ export const CustomerFacingPage: React.FC = () => {
                   <img
                     src={qrImageUrl}
                     alt="PromptPay QR Code"
-                    className="w-52 h-52 object-contain rounded-xl border border-slate-200 shadow-inner"
+                    className="w-36 h-36 sm:w-44 sm:h-44 lg:w-52 lg:h-52 object-contain rounded-xl border border-slate-200 shadow-inner"
                   />
                 ) : (
-                  <div className="w-52 h-52 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
-                    <QrCode className="w-20 h-20" />
+                  <div className="w-36 h-36 sm:w-44 sm:h-44 lg:w-52 lg:h-52 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
+                    <QrCode className="w-16 h-16 sm:w-20 sm:h-20" />
                   </div>
                 )}
 
-                <div className="mt-2 text-xs font-bold text-slate-800">
+                <div className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs font-bold text-slate-800">
                   สแกนจ่ายผ่าน Mobile Banking ได้ทุกธนาคาร
                 </div>
-                <div className="text-[11px] text-emerald-700 font-bold font-mono">
+                <div className="text-[10px] sm:text-[11px] text-emerald-700 font-bold font-mono">
                   ยอดตรงอัตโนมัติ: ฿{displayState.netTotal.toLocaleString()}
                 </div>
               </div>
             ) : displayState.cart.length > 0 ? (
               /* SCANNING IN PROGRESS BADGE (Customer checks items comfortably) */
-              <div className="my-auto p-5 text-center space-y-2.5 bg-slate-800/40 rounded-3xl border border-slate-700/50">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center text-amber-400 mx-auto">
-                  <Eye className="w-7 h-7" />
+              <div className="my-auto p-4 sm:p-5 text-center space-y-2 sm:space-y-2.5 bg-slate-800/40 rounded-3xl border border-slate-700/50">
+                <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center text-amber-400 mx-auto">
+                  <Eye className="w-5 h-5 sm:w-7 sm:h-7" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-slate-100">
+                  <h3 className="font-extrabold text-xs sm:text-sm text-slate-100">
                     กำลังสแกนรายการสินค้า
                   </h3>
-                  <p className={`text-xs ${subTextColor} mt-1 max-w-xs mx-auto leading-relaxed`}>
+                  <p className={`text-[10px] sm:text-xs ${subTextColor} mt-1 max-w-xs mx-auto leading-relaxed`}>
                     โปรดตรวจเช็ครายการและจำนวนสินค้าทางด้านซ้าย<br />
                     QR Code จะปรากฏเมื่อพนักงานกดชำระเงิน
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="p-8 text-center text-slate-500">
-                <QrCode className="w-16 h-16 mx-auto opacity-30 mb-2" />
+              <div className="p-6 sm:p-8 text-center text-slate-500">
+                <QrCode className="w-12 h-12 sm:w-16 sm:h-16 mx-auto opacity-30 mb-2" />
                 <p className="text-xs">หน้าจอพร้อมบริการ</p>
               </div>
             )}

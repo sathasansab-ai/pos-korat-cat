@@ -14,6 +14,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { GoogleSheetPage } from './pages/GoogleSheetPage';
 import { CustomerFacingPage } from './pages/CustomerFacingPage';
 import { MobilePassPage } from './pages/MobilePassPage';
+import { StockCheckerPage } from './pages/StockCheckerPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CloudSync } from './services/cloudSync';
 
@@ -26,9 +27,31 @@ export function App() {
   const [isReady, setIsReady] = useState(false);
   const [storeSettings, setStoreSettings] = useState<any>(null);
 
-  // Check if current page is the dual screen monitor (/display) or mobile member pass (/pass)
-  const isDisplayPath = window.location.pathname === '/display';
-  const isPassPath = window.location.pathname === '/pass';
+  // Check if current page is the dual screen monitor (/display), mobile member pass (/pass), or stock checker (/stock)
+  const pathname = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  const search = window.location.search.toLowerCase();
+
+  const isDisplayPath = 
+    pathname === '/display' || 
+    pathname.endsWith('/display') || 
+    hash === '#/display' || 
+    hash === '#display' || 
+    search.includes('display=true');
+
+  const isPassPath = 
+    pathname === '/pass' || 
+    pathname.endsWith('/pass') || 
+    hash === '#/pass' || 
+    hash === '#pass' || 
+    search.includes('pass=true');
+
+  const isStockPath = 
+    pathname === '/stock' || 
+    pathname.endsWith('/stock') || 
+    hash === '#/stock' || 
+    hash === '#stock' || 
+    search.includes('stock=true');
 
   const refreshShift = async () => {
     const shift = await db.shifts.where({ status: 'OPEN' }).last();
@@ -79,6 +102,10 @@ export function App() {
 
   if (isDisplayPath) {
     return <CustomerFacingPage />;
+  }
+
+  if (isStockPath) {
+    return <StockCheckerPage />;
   }
 
   if (isPassPath) {
