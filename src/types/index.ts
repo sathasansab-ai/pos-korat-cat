@@ -271,6 +271,7 @@ export interface CustomOrderMeasurements {
   // เสื้อ & แจ็กเก็ต
   chest?: string;       // รอบอก
   waist?: string;       // รอบเอว
+  hips?: string;        // รอบสะโพก
   shoulder?: string;    // ไหล่กว้าง
   shirtLength?: string; // ความยาวเสื้อ
   armLength?: string;   // ความยาวแขน
