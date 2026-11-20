@@ -37,6 +37,7 @@ import { CloudSync } from '../services/cloudSync';
 import { ImageOptimizer } from '../services/imageOptimizer';
 import { PromptPayService } from '../services/promptPay';
 import { DualMonitorSync } from '../services/dualMonitorSync';
+import { BarcodeGenerator } from '../services/barcodeGenerator';
 import { MannequinFigure, renderMannequinSvgHtml } from './MannequinFigure';
 
 interface CustomOrderModalProps {
@@ -417,6 +418,9 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
       ? PromptPayService.getQrImageUrl(printPromptPayPayload, 260)
       : '';
 
+    // Code 128 Barcode for quick scanning at POS when customer picks up
+    const orderBarcodeDataUrl = BarcodeGenerator.generateDataUrl(order.orderNo, { height: 40, showText: false });
+
     // Generate Measurement rows
     const measurementRows: string[] = [];
     if (meas.chest) measurementRows.push(`<tr><td>รอบอก</td><td class="bold">${meas.chest}</td></tr>`);
@@ -495,6 +499,9 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                 <div class="doc-title" style="font-size: 11px; font-weight: normal; color: #64748b;">(CUSTOM TAILORING & WORK ORDER)</div>
                 <div class="doc-no">เลขที่: ${order.orderNo}</div>
                 <div style="font-size: 11px; color: #64748b;">วันที่: ${new Date(order.createdAt).toLocaleDateString('th-TH')}</div>
+                <div style="margin-top: 4px; display: flex; justify-content: flex-end;">
+                  <img src="${orderBarcodeDataUrl}" style="height: 36px; width: 140px; object-fit: contain;" alt="Order Barcode" />
+                </div>
               </td>
             </tr>
           </table>

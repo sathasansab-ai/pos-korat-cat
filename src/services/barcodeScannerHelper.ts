@@ -1,6 +1,6 @@
 // src/services/barcodeScannerHelper.ts
 import { db } from '../db';
-import type { ProductVariant, Customer } from '../types';
+import type { ProductVariant, Customer, CustomMadeOrder } from '../types';
 
 /**
  * Thai Kedmanee to English QWERTY Keyboard Mapping
@@ -66,9 +66,10 @@ export class BarcodeScannerHelper {
    * Automatically attempts both exact string and Thai-to-English converted string.
    */
   public static async findMatch(rawInput: string): Promise<{
-    type: 'PRODUCT' | 'MEMBER' | 'NONE';
+    type: 'PRODUCT' | 'MEMBER' | 'CUSTOM_ORDER' | 'NONE';
     variant?: ProductVariant;
     customer?: Customer;
+    customOrder?: CustomMadeOrder;
     resolvedCode: string;
   }> {
     const cleaned = this.clean(rawInput);
@@ -91,7 +92,24 @@ export class BarcodeScannerHelper {
       }
     }
 
-    // 2. Try finding Product Variant (by Barcode, SKU, or Digits-Only sequence)
+    // 2. Try finding Custom Tailoring Order (by Order No like CUST-... or Phone)
+    for (const code of candidates) {
+      const lower = code.toLowerCase();
+      const numOnly = code.replace(/\D/g, '');
+      const customOrder = await db.customOrders
+        .filter(co => {
+          if (co.orderNo.toLowerCase() === lower) return true;
+          if (numOnly.length >= 8 && co.orderNo.replace(/\D/g, '').includes(numOnly)) return true;
+          if (co.customerPhone && co.customerPhone === code) return true;
+          return false;
+        })
+        .first();
+      if (customOrder) {
+        return { type: 'CUSTOM_ORDER', customOrder, resolvedCode: code };
+      }
+    }
+
+    // 3. Try finding Product Variant (by Barcode, SKU, or Digits-Only sequence)
     for (const code of candidates) {
       const lower = code.toLowerCase();
       const numOnly = code.replace(/\D/g, '');

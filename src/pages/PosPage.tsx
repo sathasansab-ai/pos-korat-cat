@@ -46,7 +46,8 @@ import type {
   FreeGiftTier,
   SalesChannel,
   GenderType,
-  AgeRangeType
+  AgeRangeType,
+  CustomMadeOrder
 } from '../types';
 import { DEFAULT_PRODUCT_CATEGORIES, SALES_CHANNEL_CONFIG, GENDER_CONFIG, AGE_RANGE_CONFIG } from '../types';
 import { PromotionEngine } from '../services/promotionEngine';
@@ -58,6 +59,7 @@ import { ReceiptModal } from '../components/ReceiptModal';
 import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 import { DigitalPassModal } from '../components/DigitalPassModal';
 import { CustomOrderModal } from '../components/CustomOrderModal';
+import { CustomOrderQueueModal } from '../components/CustomOrderQueueModal';
 import { ProductExchangeModal } from '../components/ProductExchangeModal';
 import { QuotationModal } from '../components/QuotationModal';
 import { CloudSync } from '../services/cloudSync';
@@ -141,6 +143,9 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [isRecentOrdersModalOpen, setIsRecentOrdersModalOpen] = useState(false);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [isCustomOrderModalOpen, setIsCustomOrderModalOpen] = useState(false);
+  const [isCustomOrderQueueOpen, setIsCustomOrderQueueOpen] = useState(false);
+  const [selectedCustomOrderForPickup, setSelectedCustomOrderForPickup] = useState<CustomMadeOrder | null>(null);
+  const [activeCustomOrdersCount, setActiveCustomOrdersCount] = useState(0);
 
   // Custom Price / Non-Catalog Item Modal (F7)
   const [isCustomItemModalOpen, setIsCustomItemModalOpen] = useState(false);
@@ -184,6 +189,16 @@ export const PosPage: React.FC<PosPageProps> = ({
     // 2. Fetch all active variants
     const items = await db.variants.filter(v => v.isActive !== false).toArray();
     setAllVariants(items);
+
+    // 3. Count active custom tailoring orders (not completed and not cancelled)
+    try {
+      const activeCount = await db.customOrders
+        .filter(co => co.status !== 'COMPLETED' && co.status !== 'CANCELLED')
+        .count();
+      setActiveCustomOrdersCount(activeCount);
+    } catch {
+      // ignore
+    }
   };
 
   useEffect(() => {
@@ -273,6 +288,13 @@ export const PosPage: React.FC<PosPageProps> = ({
             return;
           }
 
+          if (result.type === 'CUSTOM_ORDER' && result.customOrder) {
+            SoundEffects.playSuccess();
+            setSelectedCustomOrderForPickup(result.customOrder);
+            setIsCustomOrderQueueOpen(true);
+            return;
+          }
+
           if (result.type === 'PRODUCT' && result.variant) {
             addToCart(result.variant);
             return;
@@ -354,6 +376,14 @@ export const PosPage: React.FC<PosPageProps> = ({
     if (result.type === 'MEMBER' && result.customer) {
       setSelectedCustomer(result.customer);
       SoundEffects.playSuccess();
+      setSearchTerm('');
+      return;
+    }
+
+    if (result.type === 'CUSTOM_ORDER' && result.customOrder) {
+      SoundEffects.playSuccess();
+      setSelectedCustomOrderForPickup(result.customOrder);
+      setIsCustomOrderQueueOpen(true);
       setSearchTerm('');
       return;
     }
@@ -1147,6 +1177,29 @@ export const PosPage: React.FC<PosPageProps> = ({
             >
               <Scissors className="w-3.5 h-3.5 text-amber-200" />
               <span>สั่งตัด/มัดจำ</span>
+            </button>
+
+            {/* Custom Tailoring & Production Queue / Pickup Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCustomOrderForPickup(null);
+                setIsCustomOrderQueueOpen(true);
+              }}
+              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 shadow-xs transition text-xs whitespace-nowrap border active:scale-95 ${
+                activeCustomOrdersCount > 0
+                  ? 'bg-amber-100 hover:bg-amber-200 text-amber-950 border-amber-400 ring-2 ring-amber-400/30'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+              }`}
+              title="ติดตามคิวงานสั่งตัด, สแกนบาร์โค้ดใบสั่ง, และรับของชำระเงินส่วนที่เหลือ"
+            >
+              <Scissors className="w-3.5 h-3.5 text-amber-700" />
+              <span>คิวสั่งตัด/รับของ</span>
+              {activeCustomOrdersCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">
+                  {activeCustomOrdersCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -2624,12 +2677,41 @@ export const PosPage: React.FC<PosPageProps> = ({
       {/* Custom Made Order & 50% Deposit Modal */}
       <CustomOrderModal
         isOpen={isCustomOrderModalOpen}
-        onClose={() => setIsCustomOrderModalOpen(false)}
+        onClose={() => {
+          setIsCustomOrderModalOpen(false);
+          loadQuickData();
+        }}
         staffName={currentUser?.name || 'พนักงาน'}
         currentUser={currentUser}
         activeShift={activeShift}
         onOpenShiftRequired={onOpenShiftRequired}
-        onShiftUpdated={onShiftUpdated}
+        onShiftUpdated={() => {
+          loadQuickData();
+          if (onShiftUpdated) onShiftUpdated();
+        }}
+      />
+
+      {/* Custom Tailoring & Production Queue / Pickup Modal */}
+      <CustomOrderQueueModal
+        isOpen={isCustomOrderQueueOpen}
+        onClose={() => {
+          setIsCustomOrderQueueOpen(false);
+          setSelectedCustomOrderForPickup(null);
+          loadQuickData();
+        }}
+        currentUser={currentUser}
+        activeShift={activeShift}
+        settings={settings}
+        onOpenShiftRequired={onOpenShiftRequired}
+        onShiftUpdated={() => {
+          loadQuickData();
+          if (onShiftUpdated) onShiftUpdated();
+        }}
+        onOpenNewCustomOrder={() => {
+          setIsCustomOrderQueueOpen(false);
+          setIsCustomOrderModalOpen(true);
+        }}
+        initialSelectedOrder={selectedCustomOrderForPickup}
       />
 
       {/* Custom Price / Non-Catalog Item Modal */}
