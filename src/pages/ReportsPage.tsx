@@ -1039,62 +1039,6 @@ export const ReportsPage: React.FC = () => {
             กำหนดวันเอง
           </button>
         </div>
-          </span>
-
-          <button
-            onClick={() => setDateFilterMode('TODAY')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              dateFilterMode === 'TODAY' ? 'bg-amber-600 text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            วันนี้
-          </button>
-
-          <button
-            onClick={() => setDateFilterMode('7DAYS')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              dateFilterMode === '7DAYS' ? 'bg-amber-600 text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            7 วันล่าสุด
-          </button>
-
-          <button
-            onClick={() => setDateFilterMode('THIS_MONTH')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              dateFilterMode === 'THIS_MONTH' ? 'bg-amber-600 text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            เดือนนี้
-          </button>
-
-          <button
-            onClick={() => setDateFilterMode('LAST_MONTH')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              dateFilterMode === 'LAST_MONTH' ? 'bg-amber-600 text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            เดือนที่แล้ว
-          </button>
-
-          <button
-            onClick={() => setDateFilterMode('ALL')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              dateFilterMode === 'ALL' ? 'bg-amber-600 text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            สรุปรวมทั้งหมด
-          </button>
-
-          <button
-            onClick={() => setDateFilterMode('CUSTOM')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              dateFilterMode === 'CUSTOM' ? 'bg-amber-600 text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            📅 กำหนดวันเอง
-          </button>
-        </div>
 
         {/* Custom Date Range Picker */}
         {dateFilterMode === 'CUSTOM' && (
@@ -1316,25 +1260,6 @@ export const ReportsPage: React.FC = () => {
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 duration-150 ${
               reportTab === 'DEMOGRAPHICS' 
                 ? 'bg-slate-900 text-amber-300 shadow-xs font-black' 
-                : 'text-slate-600 hover:bg-slate-200/60'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>👥 ข้อมูลลูกค้า (เพศ & ช่วงอายุ)</span>
-          </button>
-        </div>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                reportTab === 'CONSIGNMENT' ? 'bg-white text-amber-900 font-black' : 'bg-amber-200 text-amber-900 font-bold'
-              }`}>
-                {totalConsignmentQty} ชิ้น
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setReportTab('DEMOGRAPHICS')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-              reportTab === 'DEMOGRAPHICS' 
-                ? 'bg-slate-900 text-amber-300 shadow-md font-black' 
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
