@@ -158,7 +158,7 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
 
   // Currently active checked-in records
   const activeAttendances = useMemo(() => {
-    return attendanceRecords.filter(r => r.status === 'CHECKED_IN' && !r.checkOutTime);
+    return attendanceRecords.filter(r => (r.status === 'CHECKED_IN' || r.status === 'CLOCKED_IN') && !r.checkOutTime);
   }, [attendanceRecords]);
 
   // Map of staffId -> active attendance
@@ -209,11 +209,11 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
 
     const inTime = new Date(activeRec.checkInTime);
     const outTime = new Date();
-    const rawMinutes = Math.max(0, Math.round((outTime.getTime() - inTime.getTime()) / 60000));
+    const rawDurationMinutes = Math.max(0, Math.round((outTime.getTime() - inTime.getTime()) / 60000));
     
     // Auto-deduct 1 hour break if worked >= 6 hours (360 minutes)
-    const breakDeductionMinutes = rawMinutes >= 360 ? 60 : 0;
-    const payableDurationMinutes = Math.max(0, rawMinutes - breakDeductionMinutes);
+    const breakDeductionMinutes = rawDurationMinutes >= 360 ? 60 : 0;
+    const payableDurationMinutes = Math.max(0, rawDurationMinutes - breakDeductionMinutes);
     const payableHours = parseFloat((payableDurationMinutes / 60).toFixed(2));
     const hourlyRate = activeRec.hourlyRate || staff.hourlyRate || 40;
     const totalWage = Math.round(payableHours * hourlyRate);
@@ -221,7 +221,7 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
     const confirmMsg = `ยืนยันลงเวลาออกงาน: ${staff.name}\n\n` +
       `• เวลาเข้า: ${inTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}\n` +
       `• เวลาออก: ${outTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}\n` +
-      `• เวลาทำงานจริง: ${Math.floor(rawMinutes / 60)} ชม. ${rawMinutes % 60} นาที\n` +
+      `• เวลาทำงานจริง: ${Math.floor(rawDurationMinutes / 60)} ชม. ${rawDurationMinutes % 60} นาที\n` +
       (breakDeductionMinutes > 0 ? `• หักเวลาพักเบรก: 1 ชั่วโมง (ทำงานเกิน 6 ชม.)\n` : `• ไม่หักเวลาพัก (ทำงานน้อยกว่า 6 ชม.)\n`) +
       `• ชั่วโมงคิดเงินสุทธิ: ${payableHours} ชม.\n` +
       `• รวมค่าจ้างสุทธิ: ฿${totalWage.toLocaleString()} บาท (อัตรา ฿${hourlyRate}/ชม.)`;
@@ -309,24 +309,26 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
     });
   }, [attendanceRecords, startDate, endDate]);
 
+interface StaffPayrollSummaryItem {
+  staff: PartTimeStaff;
+  daysWorked: Set<string>;
+  totalShifts: number;
+  totalRawMinutes: number;
+  totalBreakMinutes: number;
+  totalPayableMinutes: number;
+  totalPayableHours: number;
+  totalWage: number;
+  records: PartTimeAttendance[];
+}
+
   // Aggregate Payroll per Staff
   const staffPayrollSummary = useMemo(() => {
-    const summaryMap = new Map<string, {
-      staff: PartTimeStaff;
-      daysWorked: Set<string>;
-      totalShifts: number;
-      totalRawMinutes: number;
-      totalBreakMinutes: number;
-      totalPayableMinutes: number;
-      totalPayableHours: number;
-      totalWage: number;
-      records: PartTimeAttendance[];
-    }>();
+    const summaryMap = new Map<string, StaffPayrollSummaryItem>();
 
     staffList.forEach(s => {
       summaryMap.set(s.id, {
         staff: s,
-        daysWorked: new Set(),
+        daysWorked: new Set<string>(),
         totalShifts: 0,
         totalRawMinutes: 0,
         totalBreakMinutes: 0,
@@ -341,16 +343,16 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
       let entry = summaryMap.get(rec.staffId);
       if (!entry) {
         // Staff might be deleted or unlisted
-        entry = {
+        const newEntry: StaffPayrollSummaryItem = {
           staff: {
             id: rec.staffId,
             name: rec.staffName || 'พนักงาน',
             phone: '-',
             hourlyRate: rec.hourlyRate || 40,
             isActive: false,
-            createdAt: rec.createdAt
+            createdAt: rec.createdAt || new Date().toISOString()
           },
-          daysWorked: new Set(),
+          daysWorked: new Set<string>(),
           totalShifts: 0,
           totalRawMinutes: 0,
           totalBreakMinutes: 0,
@@ -359,7 +361,8 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
           totalWage: 0,
           records: []
         };
-        summaryMap.set(rec.staffId, entry);
+        summaryMap.set(rec.staffId, newEntry);
+        entry = newEntry;
       }
 
       entry.daysWorked.add(rec.date);
@@ -462,11 +465,11 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
 
     const inTime = new Date(`${manualDate}T${manualInTime}:00`);
     const outTime = new Date(`${manualDate}T${manualOutTime}:00`);
-    const rawMinutes = Math.max(0, Math.round((outTime.getTime() - inTime.getTime()) / 60000));
+    const rawDurationMinutes = Math.max(0, Math.round((outTime.getTime() - inTime.getTime()) / 60000));
     
     // Auto-deduct 1 hour break if worked >= 6 hours
-    const breakDeductionMinutes = rawMinutes >= 360 ? 60 : 0;
-    const payableDurationMinutes = Math.max(0, rawMinutes - breakDeductionMinutes);
+    const breakDeductionMinutes = rawDurationMinutes >= 360 ? 60 : 0;
+    const payableDurationMinutes = Math.max(0, rawDurationMinutes - breakDeductionMinutes);
     const payableHours = parseFloat((payableDurationMinutes / 60).toFixed(2));
     const hourlyRate = staff.hourlyRate || 40;
     const totalWage = Math.round(payableHours * hourlyRate);
@@ -484,7 +487,7 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
       payableHours,
       hourlyRate,
       totalWage,
-      status: 'CHECKED_OUT',
+      status: 'CLOCKED_OUT',
       notes: manualNotes.trim() || undefined,
       verifiedByCashierName: currentUser?.name || 'บันทึกย้อนหลังโดยผู้จัดการ',
       createdAt: new Date().toISOString()
@@ -1075,7 +1078,7 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
                           .map(rec => {
                             const inTime = new Date(rec.checkInTime);
                             const outTime = rec.checkOutTime ? new Date(rec.checkOutTime) : null;
-                            const isStillIn = rec.status === 'CHECKED_IN';
+                            const isStillIn = rec.status === 'CHECKED_IN' || rec.status === 'CLOCKED_IN' || !rec.checkOutTime;
 
                             return (
                               <tr key={rec.id} className="hover:bg-slate-900/40">

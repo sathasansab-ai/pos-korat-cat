@@ -206,7 +206,7 @@ export const PosPage: React.FC<PosPageProps> = ({
     // 4. Count active checked-in part-time staff
     try {
       const ptCount = await db.partTimeAttendance
-        .filter(att => att.status === 'CHECKED_IN' && !att.checkOutTime)
+        .filter(att => (att.status === 'CHECKED_IN' || att.status === 'CLOCKED_IN') && !att.checkOutTime)
         .count();
       setActivePartTimeCount(ptCount);
     } catch {

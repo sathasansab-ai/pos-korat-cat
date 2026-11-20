@@ -144,11 +144,11 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
     try {
       const now = new Date();
       const inTime = new Date(activeAttendance.checkInTime);
-      const rawMinutes = Math.max(0, Math.round((now.getTime() - inTime.getTime()) / 60000));
+      const rawDurationMinutes = Math.max(0, Math.round((now.getTime() - inTime.getTime()) / 60000));
       
       // Rule: If worked >= 6 hours (360 mins), deduct 1 hour break (60 mins)
-      const breakDeductionMinutes = rawMinutes >= 360 ? 60 : 0;
-      const payableDurationMinutes = Math.max(0, rawMinutes - breakDeductionMinutes);
+      const breakDeductionMinutes = rawDurationMinutes >= 360 ? 60 : 0;
+      const payableDurationMinutes = Math.max(0, rawDurationMinutes - breakDeductionMinutes);
       const payableHours = parseFloat((payableDurationMinutes / 60).toFixed(2));
       const rate = activeAttendance.hourlyRate || selectedStaff.hourlyRate || 40;
       const totalWage = Math.round(payableHours * rate);
