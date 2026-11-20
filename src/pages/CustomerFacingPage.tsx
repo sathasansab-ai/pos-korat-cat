@@ -372,6 +372,7 @@ export const CustomerFacingPage: React.FC = () => {
 
       {/* 0. SHOW DIGITAL WISDOM PASS FOR SCANNING */}
       {displayState.showDigitalPass && displayState.memberPassData && !isThankYouActive && (
+
         <div className="my-auto py-6 max-w-lg mx-auto w-full animate-in zoom-in-95 duration-300">
           <div className="text-center mb-4">
             <span className="text-[11px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full">
@@ -472,8 +473,45 @@ export const CustomerFacingPage: React.FC = () => {
         </div>
       )}
 
-      {/* 0.5 SHOW CUSTOM ORDER PAYMENT & WORK ORDER SHOWCASE */}
-      {!displayState.showDigitalPass && displayState.customOrderPayment && !isThankYouActive && (
+      {/* 0.5 SHOW PART-TIME STAFF CHECK-IN QR FOR MOBILE SCAN */}
+      {displayState.staffCheckinQr?.show && displayState.staffCheckinQr.qrUrl && !isThankYouActive && (
+        <div className="my-auto py-6 max-w-md mx-auto w-full animate-in zoom-in-95 duration-300">
+          <div className="bg-slate-900/95 border-2 border-emerald-500/50 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl text-center space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto shadow-lg">
+              <QrCode className="w-9 h-9" />
+            </div>
+
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full">
+                PART-TIME ATTENDANCE
+              </span>
+              <h2 className="text-2xl font-black text-white mt-2">
+                จุดสแกนลงเวลาเข้า-ออกงาน
+              </h2>
+              <p className="text-xs text-slate-300 mt-1">
+                พนักงานพาร์ทไทม์เปิดกล้องมือถือสแกน QR เพื่อลงเวลาเข้างาน หรือบันทึกเวลาออกงาน
+              </p>
+            </div>
+
+            {/* QR Code Container */}
+            <div className="p-4 bg-white rounded-3xl shadow-2xl inline-block border-4 border-emerald-400/30">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=10&data=${encodeURIComponent(displayState.staffCheckinQr.qrUrl)}`}
+                alt="Part-Time Check-In QR"
+                className="w-56 h-56 sm:w-64 sm:h-64 object-contain rounded-xl mx-auto"
+              />
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700 text-xs text-slate-300 space-y-1">
+              <p className="font-semibold text-emerald-300">💡 ขั้นตอนการลงเวลา:</p>
+              <p className="text-[11px] text-slate-400">1. สแกน QR ด้วยกล้องมือถือ &rarr; 2. เลือกชื่อพนักงาน &rarr; 3. ใส่ PIN 4 หลักเพื่อยืนยัน</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 0.6 SHOW CUSTOM ORDER PAYMENT & WORK ORDER SHOWCASE */}
+      {!displayState.showDigitalPass && !displayState.staffCheckinQr?.show && displayState.customOrderPayment && !isThankYouActive && (
         <div className="my-auto py-4 sm:py-6 max-w-4xl mx-auto w-full animate-in zoom-in-95 duration-300">
           <div className={`rounded-3xl p-6 sm:p-8 border shadow-2xl backdrop-blur-md overflow-hidden ${themeStyles.cardBg} relative`}>
             {/* Ambient Background Glow */}
@@ -670,7 +708,7 @@ export const CustomerFacingPage: React.FC = () => {
       )}
 
       {/* 2. MAIN VIEW: IDLE SCREENSAVER vs ACTIVE CART CHECKOUT */}
-      {!displayState.showDigitalPass && !displayState.customOrderPayment && !isThankYouActive && (
+      {!displayState.showDigitalPass && !displayState.customOrderPayment && !displayState.staffCheckinQr?.show && !isThankYouActive && (
         displayState.cart.length === 0 ? (
           /* CINEMA-GRADE LUXURY SCREENSAVER & PROMOTIONAL SLIDESHOW */
           <div className="my-auto py-4 w-full max-w-5xl mx-auto animate-in fade-in duration-500">

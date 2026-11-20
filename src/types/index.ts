@@ -10,6 +10,36 @@ export interface UserAccount {
   isActive?: boolean;
 }
 
+export interface PartTimeStaff {
+  id: string;
+  name: string;
+  phone: string;
+  hourlyRate: number; // อัตราค่าจ้างเริ่มต้น เช่น 40 บาท/ชม.
+  pin?: string; // รหัส PIN 4 หลักสำหรับยืนยันตน
+  isActive: boolean;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface PartTimeAttendance {
+  id: string;
+  staffId: string;
+  staffName: string;
+  date: string; // YYYY-MM-DD
+  checkInTime: string; // ISO string
+  checkOutTime?: string; // ISO string
+  rawDurationMinutes?: number; // ระยะเวลาจริงทั้งหมด (นาที)
+  breakDeductionMinutes?: number; // หักเวลาพัก 60 นาที (หากทำกะยาวตั้งแต่ 6 ชม. ขึ้นไป)
+  payableDurationMinutes?: number; // ระยะเวลาคิดค่าจ้างสุทธิ (นาที)
+  payableHours?: number; // ชั่วโมงคิดค่าจ้างสุทธิ (payableDurationMinutes / 60)
+  hourlyRate: number; // อัตราค่าจ้าง ณ วันที่เข้างาน
+  totalWage?: number; // รวมเงินค่าจ้าง (payableHours * hourlyRate)
+  status: 'CLOCKED_IN' | 'CLOCKED_OUT';
+  checkInMethod?: 'QR_MOBILE' | 'POS_MANUAL';
+  checkOutMethod?: 'QR_MOBILE' | 'POS_MANUAL';
+  notes?: string;
+}
+
 export type CustomerScreenTheme = 'BLACK_GOLD' | 'BROWN_GOLD' | 'WHITE_GOLD' | 'EMERALD_GOLD';
 
 export interface CustomerSlideItem {
@@ -551,3 +581,39 @@ export const DEFAULT_PRODUCT_CATEGORIES = [
   'เครื่องดื่มและเบเกอรี่',
   'สินค้าอื่นๆ'
 ];
+
+export interface PartTimeStaff {
+  id: string;
+  name: string;
+  nickname?: string;
+  phone: string;
+  hourlyRate: number; // อัตราค่าจ้างต่อชั่วโมง (ค่าเริ่มต้น 40 บาท/ชม.)
+  pin?: string; // รหัส PIN 4 หลัก สำหรับยืนยันตัวตน
+  isActive: boolean;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface PartTimeAttendance {
+  id: string;
+  staffId: string;
+  staffName: string;
+  date: string; // YYYY-MM-DD
+  checkInTime: string; // ISO 8601
+  checkOutTime?: string; // ISO 8601
+  rawDurationMinutes?: number; // จำนวนนาทีรวมทั้งหมดที่สแกน
+  breakDeductionMinutes?: number; // หักเวลาพัก 60 นาที (เมื่อทำงาน >= 6 ชม.)
+  payableDurationMinutes?: number; // จำนวนนาทีสุทธิที่คิดเงิน
+  payableHours?: number; // จำนวนชั่วโมงสุทธิ (ทศนิยม 2 ตำแหน่ง)
+  hourlyRate: number; // ค่าจ้างต่อชั่วโมง ณ วันทำงาน
+  totalWage?: number; // ค่าจ้างรวมสุทธิ (บาท)
+  status: 'CHECKED_IN' | 'CHECKED_OUT' | 'CLOCKED_IN' | 'CLOCKED_OUT' | 'CANCELLED';
+  checkInMethod?: 'QR_MOBILE' | 'MANUAL_CASHIER' | string;
+  checkOutMethod?: 'QR_MOBILE' | 'MANUAL_CASHIER' | string;
+  notes?: string;
+  verifiedByShiftId?: string;
+  verifiedByCashierName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+

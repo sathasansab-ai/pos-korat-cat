@@ -14,7 +14,9 @@ import type {
   ConsignmentVendor,
   ConsignmentSettlement,
   ProductExchangeRecord,
-  Quotation
+  Quotation,
+  PartTimeStaff,
+  PartTimeAttendance
 } from '../types';
 
 export class PosDatabase extends Dexie {
@@ -32,6 +34,8 @@ export class PosDatabase extends Dexie {
   settlements!: Table<ConsignmentSettlement, string>;
   exchanges!: Table<ProductExchangeRecord, string>;
   quotations!: Table<Quotation, string>;
+  partTimeStaff!: Table<PartTimeStaff, string>;
+  partTimeAttendance!: Table<PartTimeAttendance, string>;
 
   constructor() {
     super('PosKoratCatDB');
@@ -69,6 +73,10 @@ export class PosDatabase extends Dexie {
     });
     this.version(7).stores({
       quotations: 'id, quotationNo, date, status, createdAt'
+    });
+    this.version(8).stores({
+      partTimeStaff: 'id, name, phone, isActive',
+      partTimeAttendance: 'id, staffId, date, status, checkInTime'
     });
   }
 }
@@ -442,5 +450,33 @@ export async function seedInitialData() {
       }
     ];
     await db.consignors.bulkAdd(initialVendors);
+  }
+
+  // 7. Seed Initial Part-Time Staff
+  const partTimeCount = await db.partTimeStaff.count();
+  if (partTimeCount === 0) {
+    const initialPartTimeStaff = [
+      {
+        id: 'pt-001',
+        name: 'น้องบี (พนักงานพาร์ทไทม์)',
+        phone: '089-111-2233',
+        hourlyRate: 40,
+        pin: '1234',
+        isActive: true,
+        notes: 'กะเช้า-เย็น / งานบริการหน้าร้าน',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'pt-002',
+        name: 'น้องฟลุ๊ค (พนักงานพาร์ทไทม์)',
+        phone: '089-444-5566',
+        hourlyRate: 40,
+        pin: '5678',
+        isActive: true,
+        notes: 'กะเสาร์-อาทิตย์ / สต็อกและงานจัดบูติก',
+        createdAt: new Date().toISOString()
+      }
+    ];
+    await db.partTimeStaff.bulkAdd(initialPartTimeStaff);
   }
 }

@@ -15,6 +15,7 @@ import { GoogleSheetPage } from './pages/GoogleSheetPage';
 import { CustomerFacingPage } from './pages/CustomerFacingPage';
 import { MobilePassPage } from './pages/MobilePassPage';
 import { StockCheckerPage } from './pages/StockCheckerPage';
+import { PartTimeCheckinMobilePage } from './pages/PartTimeCheckinMobilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CloudSync } from './services/cloudSync';
 
@@ -52,6 +53,14 @@ export function App() {
     hash === '#/stock' || 
     hash === '#stock' || 
     search.includes('stock=true');
+
+  const isStaffCheckinPath = 
+    pathname === '/checkin' || 
+    pathname.endsWith('/checkin') || 
+    hash === '#/checkin' || 
+    hash === '#checkin' || 
+    search.includes('staff_checkin=true') ||
+    search.includes('checkin=true');
 
   const refreshShift = async () => {
     const shift = await db.shifts.where({ status: 'OPEN' }).last();
@@ -110,6 +119,10 @@ export function App() {
 
   if (isPassPath) {
     return <MobilePassPage />;
+  }
+
+  if (isStaffCheckinPath) {
+    return <PartTimeCheckinMobilePage />;
   }
 
   if (!isReady) {

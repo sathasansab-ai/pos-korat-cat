@@ -62,6 +62,7 @@ import { CustomOrderModal } from '../components/CustomOrderModal';
 import { CustomOrderQueueModal } from '../components/CustomOrderQueueModal';
 import { ProductExchangeModal } from '../components/ProductExchangeModal';
 import { QuotationModal } from '../components/QuotationModal';
+import { PartTimeAttendanceModal } from '../components/PartTimeAttendanceModal';
 import { CloudSync } from '../services/cloudSync';
 import { BarcodeScannerHelper } from '../services/barcodeScannerHelper';
 import { ThermalPrinterService } from '../services/thermalPrinter';
@@ -115,6 +116,8 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [isDigitalPassOpen, setIsDigitalPassOpen] = useState(false);
   const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false);
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
+  const [isPartTimeModalOpen, setIsPartTimeModalOpen] = useState(false);
+  const [activePartTimeCount, setActivePartTimeCount] = useState(0);
 
   // Sales Channel State (Default: หน้าร้าน STORE_FRONT)
   const [salesChannel, setSalesChannel] = useState<SalesChannel>('STORE_FRONT');
@@ -196,6 +199,16 @@ export const PosPage: React.FC<PosPageProps> = ({
         .filter(co => co.status !== 'COMPLETED' && co.status !== 'CANCELLED')
         .count();
       setActiveCustomOrdersCount(activeCount);
+    } catch {
+      // ignore
+    }
+
+    // 4. Count active checked-in part-time staff
+    try {
+      const ptCount = await db.partTimeAttendance
+        .filter(att => att.status === 'CHECKED_IN' && !att.checkOutTime)
+        .count();
+      setActivePartTimeCount(ptCount);
     } catch {
       // ignore
     }
@@ -1198,6 +1211,22 @@ export const PosPage: React.FC<PosPageProps> = ({
               {activeCustomOrdersCount > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">
                   {activeCustomOrdersCount}
+                </span>
+              )}
+            </button>
+
+            {/* Part-Time Attendance & Wage Calculator Button */}
+            <button
+              type="button"
+              onClick={() => setIsPartTimeModalOpen(true)}
+              className="px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 active:scale-95 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-xs transition text-xs whitespace-nowrap"
+              title="ลงเวลาเข้า-ออกงานพนักงานพาร์ทไทม์ (QR Code) และสรุปยอดค่าจ้าง (฿40/ชม.)"
+            >
+              <Clock className="w-3.5 h-3.5 text-teal-200" />
+              <span>ลงเวลาพาร์ทไทม์</span>
+              {activePartTimeCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-emerald-300 text-emerald-950 font-black text-[10px] animate-pulse">
+                  {activePartTimeCount}
                 </span>
               )}
             </button>
@@ -2850,6 +2879,15 @@ export const PosPage: React.FC<PosPageProps> = ({
           setCart(items);
           SoundEffects.playSuccess();
         }}
+      />
+
+      {/* PART-TIME STAFF ATTENDANCE & PAYROLL MODAL */}
+      <PartTimeAttendanceModal
+        isOpen={isPartTimeModalOpen}
+        onClose={() => setIsPartTimeModalOpen(false)}
+        currentUser={currentUser}
+        activeShift={activeShift}
+        onAttendanceChanged={loadQuickData}
       />
 
       {/* Upgrade 3: Customer History & Favorite Sizes Modal */}

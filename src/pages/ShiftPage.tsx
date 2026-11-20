@@ -5,6 +5,17 @@ import { db } from '../db';
 import type { Shift, UserAccount } from '../types';
 import { CloudSync } from '../services/cloudSync';
 import { ThermalPrinterService } from '../services/thermalPrinter';
+import { PartTimeAttendanceModal } from '../components/PartTimeAttendanceModal';
+
+function formatShiftDuration(startTime: string, endTime?: string): string {
+  const s = new Date(startTime).getTime();
+  const e = endTime ? new Date(endTime).getTime() : Date.now();
+  const diffMins = Math.max(0, Math.floor((e - s) / 60000));
+  const hrs = Math.floor(diffMins / 60);
+  const mins = diffMins % 60;
+  if (hrs === 0) return `${mins} นาที`;
+  return `${hrs} ชม. ${mins} นาที`;
+}
 
 interface ShiftPageProps {
   currentUser: UserAccount;
@@ -22,6 +33,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   const [closingNotes, setClosingNotes] = useState<string>('');
   const [isClosingShift, setIsClosingShift] = useState(false);
   const [printedShift, setPrintedShift] = useState<Shift | null>(null);
+  const [isPartTimeModalOpen, setIsPartTimeModalOpen] = useState(false);
 
   // Live real-time shift stats queried directly from actual orders
   const [liveShift, setLiveShift] = useState<Shift | null>(activeShift);
@@ -342,17 +354,29 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
           </p>
         </div>
 
-        {currentShift && (
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={refreshLiveShift}
-            disabled={isRefreshing}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
+            onClick={() => setIsPartTimeModalOpen(true)}
+            className="px-3.5 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition"
+            title="จัดการเวลาเข้า-ออกงานและสรุปค่าจ้างพนักงานพาร์ทไทม์ (฿40/ชม.)"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>{isRefreshing ? 'กำลังดึงยอด...' : 'รีเฟรชยอดเงิน (Cloud)'}</span>
+            <Clock className="w-3.5 h-3.5 text-teal-200" />
+            <span>ลงเวลา & ค่าจ้างพาร์ทไทม์</span>
           </button>
-        )}
+
+          {currentShift && (
+            <button
+              type="button"
+              onClick={refreshLiveShift}
+              disabled={isRefreshing}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>{isRefreshing ? 'กำลังดึงยอด...' : 'รีเฟรชยอดเงิน (Cloud)'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Active Shift Card or Open Shift Form */}
@@ -367,9 +391,18 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               <h2 className="text-lg font-bold text-slate-900 mt-2">
                 ผู้รับผิดชอบกะ: {currentShift.cashierName}
               </h2>
-              <p className="text-xs text-slate-500">
-                เริ่มกะเวลา: {new Date(currentShift.startTime).toLocaleString('th-TH')}
-              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs">
+                <span className="text-slate-500">
+                  เริ่มกะเวลา: {new Date(currentShift.startTime).toLocaleString('th-TH')}
+                </span>
+                <span className="text-teal-800 font-bold flex items-center gap-1 bg-teal-50 px-2.5 py-0.5 rounded-lg border border-teal-200">
+                  <Clock className="w-3.5 h-3.5 text-teal-600" />
+                  ระยะเวลาในกะ: {formatShiftDuration(currentShift.startTime)}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  (พนักงานประจำตามกะ — ไม่คิดค่าจ้างรายชั่วโมง)
+                </span>
+              </div>
             </div>
             <button
               onClick={() => {
@@ -710,6 +743,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
             <div>แคชเชียร์: {printedShift.cashierName}</div>
             <div>เปิดกะ: {new Date(printedShift.startTime).toLocaleString('th-TH')}</div>
             <div>ปิดกะ: {printedShift.endTime ? new Date(printedShift.endTime).toLocaleString('th-TH') : '-'}</div>
+            <div>ระยะเวลากะ: {formatShiftDuration(printedShift.startTime, printedShift.endTime)} (พนักงานประจำ)</div>
             <div className="receipt-line my-2 border-t border-dashed border-slate-400" />
             <div className="flex justify-between">
               <span>เงินทอนตั้งต้น (Float):</span>
@@ -815,6 +849,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
                   <th className="p-3">แคชเชียร์</th>
                   <th className="p-3">เวลาเปิดกะ</th>
                   <th className="p-3">เวลาปิดกะ</th>
+                  <th className="p-3 text-center">ระยะเวลากะ</th>
                   <th className="p-3 text-right">เงินทอนตั้งต้น</th>
                   <th className="p-3 text-right">ยอดขายสด</th>
                   <th className="p-3 text-right">ยอดขายโอน</th>
@@ -840,6 +875,9 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
                       <td className="p-3 font-bold text-slate-800">{s.cashierName}</td>
                       <td className="p-3 text-slate-500">{new Date(s.startTime).toLocaleString('th-TH')}</td>
                       <td className="p-3 text-slate-500">{s.endTime ? new Date(s.endTime).toLocaleString('th-TH') : '-'}</td>
+                      <td className="p-3 text-center font-bold text-teal-700">
+                        {formatShiftDuration(s.startTime, s.endTime)}
+                      </td>
                       <td className="p-3 text-right font-mono">฿{s.startingCash.toLocaleString()}</td>
                       <td className="p-3 text-right font-mono text-emerald-700 font-bold">฿{(s.totalCashSales || 0).toLocaleString()}</td>
                       <td className="p-3 text-right font-mono text-sky-700">฿{(s.totalPromptPaySales || 0).toLocaleString()}</td>
@@ -870,6 +908,14 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
           </div>
         )}
       </div>
+
+      {/* PART-TIME ATTENDANCE & PAYROLL MODAL */}
+      <PartTimeAttendanceModal
+        isOpen={isPartTimeModalOpen}
+        onClose={() => setIsPartTimeModalOpen(false)}
+        currentUser={currentUser}
+        activeShift={activeShift}
+      />
     </div>
   );
 };

@@ -29,6 +29,7 @@ import { SALES_CHANNEL_CONFIG, GENDER_CONFIG, AGE_RANGE_CONFIG } from '../types'
 import { GoogleSheetsBridge } from '../services/googleSheets';
 import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
 import { ReceiptModal } from '../components/ReceiptModal';
+import { PartTimeAttendanceModal } from '../components/PartTimeAttendanceModal';
 import { CloudSync } from '../services/cloudSync';
 
 export const ReportsPage: React.FC = () => {
@@ -52,6 +53,7 @@ export const ReportsPage: React.FC = () => {
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<Order | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isPartTimeModalOpen, setIsPartTimeModalOpen] = useState(false);
 
   // Date Range & Sales Channel Filters
   const [dateFilterMode, setDateFilterMode] = useState<'TODAY' | '7DAYS' | 'THIS_MONTH' | 'LAST_MONTH' | 'ALL' | 'CUSTOM'>('THIS_MONTH');
@@ -1215,6 +1217,13 @@ export const ReportsPage: React.FC = () => {
             ⏱️ สรุปกะพนักงาน ({shifts.length})
           </button>
           <button
+            onClick={() => setIsPartTimeModalOpen(true)}
+            className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 duration-150 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200"
+            title="เปิดระบบลงเวลาและคิดเงินค่าจ้างพนักงานพาร์ทไทม์ (฿40/ชม.)"
+          >
+            <span>⏰ ค่าจ้างพาร์ทไทม์ (฿40/ชม.)</span>
+          </button>
+          <button
             onClick={() => setReportTab('DAILY')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
               reportTab === 'DAILY' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
@@ -2320,6 +2329,11 @@ export const ReportsPage: React.FC = () => {
           }}
         />
       )}
+      {/* Part-Time Attendance & Payroll Modal */}
+      <PartTimeAttendanceModal
+        isOpen={isPartTimeModalOpen}
+        onClose={() => setIsPartTimeModalOpen(false)}
+      />
     </div>
   );
 };

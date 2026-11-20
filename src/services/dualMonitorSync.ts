@@ -55,6 +55,13 @@ export interface CustomerDisplayState {
     paymentMethod?: 'PROMPTPAY' | 'CASH';
     status?: 'PENDING_DEPOSIT' | 'DEPOSIT_PAID';
   } | null;
+
+  // Part-Time Staff QR Check-In Showcase (ส่ง QR สแกนเข้างานขึ้นหน้าจอที่ 2)
+  staffCheckinQr?: {
+    show: boolean;
+    qrUrl: string;
+    storeName?: string;
+  } | null;
 }
 
 const CHANNEL_NAME = 'pos_korat_dual_screen_channel';
