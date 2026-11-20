@@ -795,12 +795,6 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                 </button>
               </div>
             </div>
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ ออกใบสั่งผลิตใหม่</span>
-                </button>
-              </div>
-            </div>
           ) : (
             /* FORM VIEW */
             <form onSubmit={handleSaveOrder} className="space-y-5">
@@ -817,7 +811,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        onClose();
+                        handleClose();
                         onOpenShiftRequired();
                       }}
                       className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex-shrink-0"
