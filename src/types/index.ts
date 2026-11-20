@@ -404,6 +404,7 @@ export interface Order {
     variantId: string;
     productName: string;
     sku: string;
+    category?: string;
     imageUrl?: string;
     attributes: Record<string, string>;
     qty: number;

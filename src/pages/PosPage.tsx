@@ -872,6 +872,7 @@ export const PosPage: React.FC<PosPageProps> = ({
             variantId: i.variantId,
             productName: i.productName,
             sku: i.sku,
+            category: i.category,
             imageUrl: i.imageUrl,
             attributes: i.attributes,
             qty: i.qty,
