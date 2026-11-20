@@ -346,6 +346,13 @@ export const CustomerFacingPage: React.FC = () => {
               <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
               <span>ชำระเงินเรียบร้อย</span>
             </div>
+          ) : displayState.customOrderPayment ? (
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-bold shadow-lg">
+              <Scissors className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 animate-pulse" />
+              <span>
+                {displayState.customOrderPayment.status === 'DEPOSIT_PAID' ? 'ชำระมัดจำเรียบร้อย' : 'สั่งตัดพิเศษ (มัดจำ 50%)'}
+              </span>
+            </div>
           ) : displayState.isCheckoutStep ? (
             <div className="flex items-center gap-1.5 sm:gap-2 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-bold shadow-lg">
               <QrCode className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 animate-pulse" />
@@ -465,6 +472,176 @@ export const CustomerFacingPage: React.FC = () => {
         </div>
       )}
 
+      {/* 0.5 SHOW CUSTOM ORDER PAYMENT & WORK ORDER SHOWCASE */}
+      {!displayState.showDigitalPass && displayState.customOrderPayment && !isThankYouActive && (
+        <div className="my-auto py-4 sm:py-6 max-w-4xl mx-auto w-full animate-in zoom-in-95 duration-300">
+          <div className={`rounded-3xl p-6 sm:p-8 border shadow-2xl backdrop-blur-md overflow-hidden ${themeStyles.cardBg} relative`}>
+            {/* Ambient Background Glow */}
+            <div className="absolute -top-24 -right-24 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Header Badge */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-700/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <Scissors className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-amber-400">
+                      HAUTE COUTURE ATELIER
+                    </span>
+                    <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                      งานสั่งผลิต / สั่งตัดพิเศษ
+                    </span>
+                  </div>
+                  <h2 className="text-base sm:text-xl font-black text-white mt-0.5">
+                    {displayState.customOrderPayment.itemDescription}
+                  </h2>
+                </div>
+              </div>
+              <div className="text-right font-mono hidden sm:block">
+                <span className="text-[10px] text-slate-400 block">เลขที่ใบสั่ง:</span>
+                <span className="text-xs font-bold text-amber-400">{displayState.customOrderPayment.orderNo}</span>
+              </div>
+            </div>
+
+            {/* Split Content: Order Summary (Left) vs Payment/QR Card (Right) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              {/* Left Column: Customer & Production Details */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className={`p-4 rounded-2xl border space-y-2.5 text-xs ${isLight ? 'bg-amber-50/70 border-amber-200' : 'bg-slate-800/60 border-slate-700/70'}`}>
+                  <div className="flex justify-between items-center">
+                    <span className={subTextColor}>ลูกค้าผู้สั่ง:</span>
+                    <span className="font-bold text-white text-sm">
+                      {displayState.customOrderPayment.customerName}
+                      {displayState.customOrderPayment.customerPhone && (
+                        <span className="font-mono text-xs text-amber-300 font-normal ml-1.5">
+                          ({displayState.customOrderPayment.customerPhone})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+
+                  {displayState.customOrderPayment.categoryLabel && (
+                    <div className="flex justify-between items-center">
+                      <span className={subTextColor}>ประเภทชิ้นงาน:</span>
+                      <span className="font-semibold text-slate-200">{displayState.customOrderPayment.categoryLabel}</span>
+                    </div>
+                  )}
+
+                  {displayState.customOrderPayment.fabricType && (
+                    <div className="flex justify-between items-center">
+                      <span className={subTextColor}>ชนิดผ้า / ลวดลาย:</span>
+                      <span className="font-semibold text-amber-300">{displayState.customOrderPayment.fabricType}</span>
+                    </div>
+                  )}
+
+                  {displayState.customOrderPayment.dueDate && (
+                    <div className="flex justify-between items-center">
+                      <span className={subTextColor}>กำหนดส่งมอบ / วันนัดรับ:</span>
+                      <span className="font-bold text-amber-400 font-mono text-xs bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/30">
+                        🗓️ {displayState.customOrderPayment.dueDate}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Price Breakdown */}
+                <div className="space-y-1.5 text-xs px-1">
+                  <div className="flex justify-between text-slate-400">
+                    <span>ยอดราคาผลิตรวมทั้งสิ้น:</span>
+                    <span className="font-mono font-bold text-slate-200">฿{displayState.customOrderPayment.totalAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-400 font-bold">
+                    <span>ยอดค้างชำระคงเหลือ (วันนัดรับสินค้า):</span>
+                    <span className="font-mono">฿{displayState.customOrderPayment.balanceDue.toLocaleString()}</span>
+                  </div>
+                  <div className="border-t border-slate-700/60 pt-2 flex justify-between items-baseline">
+                    <span className="font-bold text-slate-200 text-sm">ยอดเงินมัดจำ (Deposit 50%):</span>
+                    <span className={`text-2xl sm:text-3xl font-black font-mono ${themeStyles.totalText}`}>
+                      ฿{displayState.customOrderPayment.depositAmount.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Dynamic PromptPay QR or Deposit Paid Badge */}
+              <div className="lg:col-span-5 flex flex-col items-center justify-center">
+                {displayState.customOrderPayment.status === 'DEPOSIT_PAID' ? (
+                  <div className="w-full p-6 rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/40 text-center space-y-3 shadow-xl">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 flex items-center justify-center mx-auto shadow-md">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-emerald-300">
+                        รับชำระเงินมัดจำเรียบร้อยแล้ว
+                      </h3>
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        ขอบคุณที่ไว้วางใจ KORAT CAT<br />
+                        ช่างตัดเย็บจะเริ่มกระบวนการผลิตอย่างประณีต
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-900/60 border border-emerald-500/30 text-xs text-emerald-200 font-mono font-bold">
+                      ยอดชำระวันรับของ: ฿{displayState.customOrderPayment.balanceDue.toLocaleString()}
+                    </div>
+                  </div>
+                ) : displayState.customOrderPayment.paymentMethod === 'PROMPTPAY' ? (
+                  <div className="w-full p-4 sm:p-5 bg-white rounded-3xl text-slate-900 flex flex-col items-center justify-center text-center shadow-2xl border-4 border-amber-400 animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <div className="w-5 h-5 rounded-lg bg-blue-900 text-white flex items-center justify-center font-black text-[10px]">
+                        PP
+                      </div>
+                      <span className="text-xs font-black text-slate-900 tracking-wider uppercase">
+                        Thai PromptPay QR
+                      </span>
+                    </div>
+
+                    {displayState.customOrderPayment.qrImageUrl ? (
+                      <img
+                        src={displayState.customOrderPayment.qrImageUrl}
+                        alt="PromptPay QR Code"
+                        className="w-40 h-40 sm:w-48 sm:h-48 object-contain rounded-xl border border-slate-200 shadow-inner"
+                      />
+                    ) : (
+                      <div className="w-40 h-40 sm:w-48 sm:h-48 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
+                        <QrCode className="w-16 h-16" />
+                      </div>
+                    )}
+
+                    <div className="mt-2 text-xs font-bold text-slate-800">
+                      สแกนจ่ายมัดจำ 50% ผ่าน Mobile Banking
+                    </div>
+                    <div className="text-xs text-emerald-700 font-black font-mono">
+                      ยอดมัดจำ: ฿{displayState.customOrderPayment.depositAmount.toLocaleString()}
+                    </div>
+                    {displayState.customOrderPayment.promptPayId && (
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                        พร้อมเพย์: {displayState.customOrderPayment.promptPayId}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full p-6 rounded-3xl bg-slate-800/80 border-2 border-emerald-500/40 text-center space-y-3 shadow-xl">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 flex items-center justify-center mx-auto shadow-md">
+                      <Banknote className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-white">
+                        ชำระเงินมัดจำด้วยเงินสด
+                      </h3>
+                      <p className="text-xs text-slate-300 mt-1">
+                        กรุณาส่งมอบเงินสดจำนวน ฿{displayState.customOrderPayment.depositAmount.toLocaleString()} ให้กับพนักงานแคชเชียร์
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. THANK YOU POPUP / OVERLAY (Stays for 10s after payment) */}
       {!displayState.showDigitalPass && isThankYouActive && (
         <div className="my-auto py-8 text-center animate-in zoom-in-95 duration-300 max-w-2xl mx-auto">
@@ -493,7 +670,7 @@ export const CustomerFacingPage: React.FC = () => {
       )}
 
       {/* 2. MAIN VIEW: IDLE SCREENSAVER vs ACTIVE CART CHECKOUT */}
-      {!displayState.showDigitalPass && !isThankYouActive && (
+      {!displayState.showDigitalPass && !displayState.customOrderPayment && !isThankYouActive && (
         displayState.cart.length === 0 ? (
           /* CINEMA-GRADE LUXURY SCREENSAVER & PROMOTIONAL SLIDESHOW */
           <div className="my-auto py-4 w-full max-w-5xl mx-auto animate-in fade-in duration-500">

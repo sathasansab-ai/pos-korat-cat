@@ -17,7 +17,8 @@ import {
   Ruler,
   Sparkles,
   Search,
-  Truck
+  Truck,
+  QrCode
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
@@ -34,6 +35,8 @@ import type {
 import { GENDER_CONFIG } from '../types';
 import { CloudSync } from '../services/cloudSync';
 import { ImageOptimizer } from '../services/imageOptimizer';
+import { PromptPayService } from '../services/promptPay';
+import { DualMonitorSync } from '../services/dualMonitorSync';
 import { MannequinFigure, renderMannequinSvgHtml } from './MannequinFigure';
 
 interface CustomOrderModalProps {
@@ -115,6 +118,14 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
   const [savedOrder, setSavedOrder] = useState<CustomMadeOrder | null>(null);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
 
+  // Dynamic PromptPay QR Payload for deposit
+  const promptPayPayload = (settings?.promptPayId && depositAmount > 0)
+    ? PromptPayService.generatePayload(settings.promptPayId, depositAmount)
+    : '';
+  const qrImageUrl = promptPayPayload
+    ? PromptPayService.getQrImageUrl(promptPayPayload, 260)
+    : '';
+
   const loadData = async () => {
     const [cList, s] = await Promise.all([
       db.customers.toArray(),
@@ -122,6 +133,18 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     ]);
     setExistingCustomers(cList);
     if (s) setSettings(s);
+  };
+
+  const handleClose = () => {
+    DualMonitorSync.broadcast({
+      cart: [],
+      subtotal: 0,
+      promoDiscount: 0,
+      netTotal: 0,
+      upsellPrompts: [],
+      customOrderPayment: null
+    });
+    onClose();
   };
 
   const resetForm = () => {
@@ -169,6 +192,69 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
       resetForm();
     }
   }, [isOpen]);
+
+  // Synchronize Custom Order state with Customer-Facing 2nd Monitor
+  useEffect(() => {
+    if (!isOpen) return;
+
+    DualMonitorSync.broadcast({
+      cart: [],
+      subtotal: totalPrice,
+      promoDiscount: 0,
+      netTotal: depositAmount,
+      upsellPrompts: [],
+      theme: settings?.customerScreenTheme,
+      welcomeTitle: settings?.welcomeTitle,
+      welcomeSubtitle: settings?.welcomeSubtitle,
+      welcomeImageUrl: settings?.welcomeImageUrl,
+      thankYouMessage: settings?.thankYouMessage,
+      customOrderPayment: {
+        orderNo: savedOrder ? savedOrder.orderNo : 'งานสั่งผลิตใหม่ (New Order)',
+        customerName: customerName.trim() || 'ลูกค้าคนสำคัญ',
+        customerPhone: customerPhone.trim(),
+        itemDescription: itemDescription.trim() || 'สั่งตัดพิเศษ Haute Couture',
+        categoryLabel: CATEGORY_OPTIONS.find(c => c.id === categoryType)?.label,
+        fabricType: fabricType.trim(),
+        totalAmount: totalPrice,
+        depositAmount: depositAmount,
+        balanceDue: Math.max(0, totalPrice - depositAmount),
+        dueDate: dueDate,
+        qrImageUrl: qrImageUrl,
+        promptPayId: settings?.promptPayId,
+        paymentMethod: paymentMethod,
+        status: viewState === 'SUCCESS_VIEW' ? 'DEPOSIT_PAID' : 'PENDING_DEPOSIT'
+      }
+    });
+  }, [
+    isOpen,
+    customerName,
+    customerPhone,
+    itemDescription,
+    categoryType,
+    fabricType,
+    totalPrice,
+    depositAmount,
+    dueDate,
+    qrImageUrl,
+    settings,
+    paymentMethod,
+    viewState,
+    savedOrder
+  ]);
+
+  // Reset custom order display on dual screen when component unmounts
+  useEffect(() => {
+    return () => {
+      DualMonitorSync.broadcast({
+        cart: [],
+        subtotal: 0,
+        promoDiscount: 0,
+        netTotal: 0,
+        upsellPrompts: [],
+        customOrderPayment: null
+      });
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -317,10 +403,19 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     setViewState('SUCCESS_VIEW');
   };
 
-  // พิมพ์ใบสั่งผลิตและยืนยันการสั่งซื้อ ขนาด A4 มาตรฐาน พร้อมอินโฟกราฟิกหุ่นสัดส่วน
+  // พิมพ์ใบสั่งผลิตและยืนยันการสั่งซื้อ ขนาด A4 มาตรฐาน พร้อมอินโฟกราฟิกหุ่นสัดส่วน และ PromptPay QR ชำระเงิน
   const handlePrintA4 = (order: CustomMadeOrder) => {
     const isFem = order.customerGender === 'FEMALE';
     const meas = order.measurements || {};
+
+    // Dynamic QR for printable A4: For remaining balance due (or deposit/total)
+    const printAmount = order.balanceDue > 0 ? order.balanceDue : (order.depositAmount > 0 ? order.depositAmount : order.totalPrice);
+    const printPromptPayPayload = settings?.promptPayId
+      ? PromptPayService.generatePayload(settings.promptPayId, printAmount)
+      : '';
+    const printQrUrl = printPromptPayPayload
+      ? PromptPayService.getQrImageUrl(printPromptPayPayload, 260)
+      : '';
 
     // Generate Measurement rows
     const measurementRows: string[] = [];
@@ -374,7 +469,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
             table.items-table th, table.items-table td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
             table.items-table th { background: #f1f5f9; font-weight: 700; color: #334155; font-size: 11.5px; }
             
-            .summary-table { width: 45%; margin-left: auto; margin-bottom: 15px; border-collapse: collapse; font-size: 12px; }
+            .summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
             .summary-table td { padding: 5px 8px; }
             .total-row { border-top: 1.5px solid #0f172a; border-bottom: 2px solid #0f172a; font-size: 13px; }
 
@@ -520,18 +615,49 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
             </tbody>
           </table>
 
-          <table class="summary-table">
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
             <tr>
-              <td>ยอดรวมทั้งสิ้น (Total):</td>
-              <td style="text-align: right; font-weight: 700;">฿${order.totalPrice.toLocaleString()}</td>
-            </tr>
-            <tr style="color: #15803d;">
-              <td><b>เงินมัดจำที่ชำระแล้ว (Deposit Paid):</b></td>
-              <td style="text-align: right; font-weight: 700;">฿${order.depositAmount.toLocaleString()}</td>
-            </tr>
-            <tr class="total-row" style="color: #b91c1c;">
-              <td style="font-weight: 700;">ยอดค้างชำระคงเหลือ (Balance Due):</td>
-              <td style="text-align: right; font-weight: 700;">฿${order.balanceDue.toLocaleString()}</td>
+              <td style="width: 52%; vertical-align: middle; padding-right: 15px;">
+                ${printQrUrl ? `
+                  <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 12px;">
+                    <img src="${printQrUrl}" style="width: 90px; height: 90px; object-fit: contain; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; padding: 3px;" alt="PromptPay QR" />
+                    <div style="flex: 1;">
+                      <div style="font-weight: 800; font-size: 11px; color: #0f172a;">📱 สแกนชำระเงินผ่าน PromptPay QR</div>
+                      <div style="font-size: 10px; color: #475569; margin-top: 2px;">
+                        ${order.balanceDue > 0 
+                          ? `ยอดค้างชำระคงเหลือวันรับของ: <b style="color: #b91c1c; font-size: 11.5px;">฿${order.balanceDue.toLocaleString()}</b>`
+                          : `ยอดชำระมัดจำแล้ว: <b style="color: #15803d; font-size: 11.5px;">฿${order.depositAmount.toLocaleString()}</b>`}
+                      </div>
+                      <div style="font-size: 9.5px; color: #64748b; font-family: monospace; margin-top: 2px;">
+                        พร้อมเพย์: <b>${settings?.promptPayId || '-'}</b> (${settings?.storeName || 'KORAT CAT'})
+                      </div>
+                      <div style="font-size: 8.5px; color: #94a3b8; margin-top: 2px; line-height: 1.3;">
+                        * สแกนผ่าน Mobile Banking ได้ทุกธนาคาร ลูกค้าสามารถนำใบนี้มาสแกนจ่ายยอดคงเหลือในวันรับสินค้าได้ทันที
+                      </div>
+                    </div>
+                  </div>
+                ` : `
+                  <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; font-size: 10.5px; color: #64748b;">
+                    <b>ช่องทางชำระมัดจำ:</b> ${order.depositPaymentMethod === 'PROMPTPAY' ? 'สแกนโอน PromptPay QR' : 'เงินสด'}
+                  </div>
+                `}
+              </td>
+              <td style="width: 48%; vertical-align: top;">
+                <table class="summary-table">
+                  <tr>
+                    <td>ยอดรวมทั้งสิ้น (Total):</td>
+                    <td style="text-align: right; font-weight: 700;">฿${order.totalPrice.toLocaleString()}</td>
+                  </tr>
+                  <tr style="color: #15803d;">
+                    <td><b>เงินมัดจำที่ชำระแล้ว (Deposit Paid):</b></td>
+                    <td style="text-align: right; font-weight: 700;">฿${order.depositAmount.toLocaleString()}</td>
+                  </tr>
+                  <tr class="total-row" style="color: #b91c1c;">
+                    <td style="font-weight: 700;">ยอดค้างชำระคงเหลือ (Balance Due):</td>
+                    <td style="text-align: right; font-weight: 700;">฿${order.balanceDue.toLocaleString()}</td>
+                  </tr>
+                </table>
+              </td>
             </tr>
           </table>
 
@@ -585,7 +711,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
           </div>
           <button 
             type="button" 
-            onClick={onClose}
+            onClick={handleClose}
             className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
@@ -637,6 +763,17 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                 </div>
               </div>
 
+              {/* QR Code Embedded Notice */}
+              <div className="p-3 bg-sky-950/40 border border-sky-500/30 rounded-2xl max-w-md mx-auto text-xs text-sky-200 flex items-center gap-2.5 text-left">
+                <QrCode className="w-5 h-5 text-sky-400 flex-shrink-0" />
+                <div>
+                  <span className="font-bold text-white">ระบบแนบ PromptPay QR ลงในใบสั่งตัด A4 ให้เรียบร้อย</span>
+                  <p className="text-[11px] text-sky-300/80 mt-0.5">
+                    ลูกค้าสามารถนำเอกสาร A4 นี้มาสแกนจ่ายยอดคงเหลือ (฿{savedOrder.balanceDue.toLocaleString()}) ผ่านมือถือในวันรับสินค้าได้ทันที
+                  </p>
+                </div>
+              </div>
+
               {/* Print Action Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
@@ -645,13 +782,19 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                   className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>🖨️ พิมพ์ใบสั่งตัด A4 พร้อมหุ่นวัดตัว (มีช่องเซ็น)</span>
+                  <span>🖨️ พิมพ์ใบสั่งตัด A4 พร้อมหุ่นวัดตัว &amp; QR ชำระเงิน</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={resetForm}
                   className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ ออกใบสั่งผลิตใหม่</span>
+                </button>
+              </div>
+            </div>
                 >
                   <Plus className="w-4 h-4" />
                   <span>+ ออกใบสั่งผลิตใหม่</span>
@@ -1134,6 +1277,42 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                       </div>
                     </div>
 
+                    {/* Live PromptPay QR for Deposit scanning directly at counter */}
+                    {paymentMethod === 'PROMPTPAY' && depositAmount > 0 && (
+                      <div className="p-3 bg-slate-900 border border-sky-500/40 rounded-2xl flex flex-col sm:flex-row items-center gap-3.5 shadow-inner">
+                        <div className="bg-white p-2 rounded-xl flex-shrink-0 shadow">
+                          {qrImageUrl ? (
+                            <img
+                              src={qrImageUrl}
+                              alt="PromptPay QR"
+                              className="w-24 h-24 object-contain rounded-lg"
+                            />
+                          ) : (
+                            <div className="w-24 h-24 flex flex-col items-center justify-center text-slate-400 text-center p-1">
+                              <QrCode className="w-6 h-6 mb-1 text-slate-300" />
+                              <span className="text-[9px]">ไม่พบเลขพร้อมเพย์</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 text-center sm:text-left space-y-1">
+                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10.5px] font-bold border border-sky-500/40">
+                            <QrCode className="w-3 h-3" />
+                            <span>สแกนจ่ายมัดจำ 50% ทันที (PromptPay)</span>
+                          </div>
+                          <div className="text-xs font-bold text-white">
+                            ยอดมัดจำ: <span className="font-mono text-emerald-400 text-sm font-black">฿{depositAmount.toLocaleString()}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 leading-relaxed">
+                            {settings?.promptPayId ? (
+                              <>พร้อมเพย์: <b className="font-mono text-slate-200">{settings.promptPayId}</b><br />• สแกนจ่ายที่เคาน์เตอร์นี้ หรือสแกนผ่าน <b>"หน้าจอที่ 2 ของลูกค้า"</b> ได้พร้อมกัน</>
+                            ) : (
+                              <span className="text-amber-400">* ยังไม่ได้ตั้งค่าเบอร์พร้อมเพย์ในระบบ (ไปที่ เมนูตั้งค่า)</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between text-xs bg-slate-900 p-2.5 rounded-xl border border-slate-800">
                       <span className="text-rose-300 font-bold">ยอดค้างชำระเมื่อรับของ:</span>
                       <span className="font-mono font-black text-rose-400 text-sm">
@@ -1200,7 +1379,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
           <span>KORAT CAT Haute Couture Atelier</span>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition"
           >
             ปิด

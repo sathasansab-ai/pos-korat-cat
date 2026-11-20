@@ -37,6 +37,24 @@ export interface CustomerDisplayState {
     qrDataUrl?: string;
     barcodeDataUrl?: string;
   };
+
+  // Custom Order Showcase / Payment (หน้าจอชำระเงินมัดจำ/สั่งตัดพิเศษ)
+  customOrderPayment?: {
+    orderNo: string;
+    customerName: string;
+    customerPhone?: string;
+    itemDescription: string;
+    categoryLabel?: string;
+    fabricType?: string;
+    totalAmount: number;
+    depositAmount: number;
+    balanceDue: number;
+    dueDate?: string;
+    qrImageUrl?: string;
+    promptPayId?: string;
+    paymentMethod?: 'PROMPTPAY' | 'CASH';
+    status?: 'PENDING_DEPOSIT' | 'DEPOSIT_PAID';
+  } | null;
 }
 
 const CHANNEL_NAME = 'pos_korat_dual_screen_channel';
