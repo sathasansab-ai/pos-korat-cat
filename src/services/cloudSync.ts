@@ -1006,6 +1006,56 @@ class CloudSyncService {
   }
 
   /**
+   * ซิงค์ข้อมูลพนักงานพาร์ทไทม์ทั้งหมดขึ้น Cloud ทันที เพื่อให้มือถือสแกนเห็นตรงกัน
+   */
+  public async syncPartTimeStaffToCloud(): Promise<void> {
+    try {
+      const [allStaff, allAttendance, settings] = await Promise.all([
+        db.partTimeStaff.toArray(),
+        db.partTimeAttendance.orderBy('checkInTime').reverse().limit(100).toArray(),
+        db.settings.get('current_store_settings')
+      ]);
+
+      if (settings) {
+        const updated: StoreSettings = {
+          ...settings,
+          partTimeStaffList: allStaff,
+          partTimeAttendanceList: allAttendance,
+          updatedAt: new Date().toISOString()
+        };
+        await db.settings.put(updated);
+        await this.pushStoreSettings(updated);
+      }
+    } catch (e) {
+      console.warn('Failed to sync part-time staff to cloud', e);
+    }
+  }
+
+  /**
+   * ส่งบันทึกการลงเวลาเข้า-ออกงานจากมือถือขึ้น Cloud ทันที
+   */
+  public async pushPartTimeAttendance(rec: any): Promise<void> {
+    try {
+      await db.partTimeAttendance.put(rec);
+      const settings = await db.settings.get('current_store_settings');
+      if (settings) {
+        const currentList = settings.partTimeAttendanceList || [];
+        const filtered = currentList.filter(a => a.id !== rec.id);
+        const updatedList = [rec, ...filtered].slice(0, 100);
+        const updatedSettings: StoreSettings = {
+          ...settings,
+          partTimeAttendanceList: updatedList,
+          updatedAt: new Date().toISOString()
+        };
+        await db.settings.put(updatedSettings);
+        await this.pushStoreSettings(updatedSettings);
+      }
+    } catch (e) {
+      console.warn('Failed to push part-time attendance to cloud', e);
+    }
+  }
+
+  /**
    * ดึงการตั้งค่าร้านค้า รูปภาพ และสไลด์โฆษณาจาก Cloud ลงเครื่อง (สำหรับให้จอฝั่งลูกค้าซิงค์ตรงกัน)
    */
   public async pullStoreSettings(): Promise<StoreSettings | null> {
@@ -1071,6 +1121,20 @@ class CloudSyncService {
         if (cloudSettings.consignors && cloudSettings.consignors.length > 0) {
           for (const c of cloudSettings.consignors) {
             await db.consignors.put(c);
+          }
+        }
+
+        // ซิงค์รายชื่อพนักงานพาร์ทไทม์ลงฐานข้อมูล Dexie ในเครื่องนี้/มือถืออัตโนมัติ
+        if (cloudSettings.partTimeStaffList && cloudSettings.partTimeStaffList.length > 0) {
+          for (const pts of cloudSettings.partTimeStaffList) {
+            await db.partTimeStaff.put(pts);
+          }
+        }
+
+        // ซิงค์บันทึกเวลาเข้า-ออกงานพาร์ทไทม์ลงฐานข้อมูล Dexie ในเครื่องนี้/มือถืออัตโนมัติ
+        if (cloudSettings.partTimeAttendanceList && cloudSettings.partTimeAttendanceList.length > 0) {
+          for (const pta of cloudSettings.partTimeAttendanceList) {
+            await db.partTimeAttendance.put(pta);
           }
         }
 

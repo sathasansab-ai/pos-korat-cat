@@ -16,9 +16,10 @@ import {
   ArrowRight,
   RefreshCw
 } from 'lucide-react';
-import { db } from '../db';
+import { db, seedInitialData } from '../db';
 import type { PartTimeStaff, PartTimeAttendance, StoreSettings } from '../types';
 import { SoundEffects } from '../services/soundEffects';
+import { CloudSync } from '../services/cloudSync';
 
 export const PartTimeCheckinMobilePage: React.FC = () => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
@@ -27,6 +28,7 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
   const [enteredPin, setEnteredPin] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
   const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
   // Active attendance state
   const [activeAttendance, setActiveAttendance] = useState<PartTimeAttendance | null>(null);
@@ -42,14 +44,41 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-    const [s, st] = await Promise.all([
-      db.settings.get('current_store_settings'),
-      db.partTimeStaff.filter(p => p.isActive !== false).toArray()
-    ]);
-    if (s) setSettings(s);
-    setStaffList(st);
-    if (st.length > 0 && !selectedStaffId) {
-      setSelectedStaffId(st[0].id);
+    setIsSyncingCloud(true);
+    try {
+      // 1. ตรวจสอบข้อมูลในเครื่องก่อน
+      let [s, st] = await Promise.all([
+        db.settings.get('current_store_settings'),
+        db.partTimeStaff.filter(p => p.isActive !== false).toArray()
+      ]);
+
+      if (st.length === 0) {
+        await seedInitialData();
+        st = await db.partTimeStaff.filter(p => p.isActive !== false).toArray();
+      }
+
+      if (s) setSettings(s);
+      setStaffList(st);
+      if (st.length > 0 && !selectedStaffId) {
+        setSelectedStaffId(st[0].id);
+      }
+
+      // 2. ดึงข้อมูลพนักงานและการลงเวลาล่าสุดจาก Supabase Cloud
+      if (navigator.onLine) {
+        const cloudSettings = await CloudSync.pullStoreSettings();
+        if (cloudSettings) {
+          setSettings(cloudSettings);
+          const freshStaff = await db.partTimeStaff.filter(p => p.isActive !== false).toArray();
+          setStaffList(freshStaff);
+          if (freshStaff.length > 0) {
+            setSelectedStaffId(prev => prev || freshStaff[0].id);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error loading staff data on mobile', err);
+    } finally {
+      setIsSyncingCloud(false);
     }
   };
 
@@ -118,6 +147,9 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
       };
 
       await db.partTimeAttendance.add(newAttendance);
+      if (navigator.onLine) {
+        CloudSync.pushPartTimeAttendance(newAttendance).catch(() => {});
+      }
       SoundEffects.playSuccess();
       setCompletedSummary(null);
       await checkStaffStatus(selectedStaff.id);
@@ -166,6 +198,9 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
       };
 
       await db.partTimeAttendance.put(updatedRecord);
+      if (navigator.onLine) {
+        CloudSync.pushPartTimeAttendance(updatedRecord).catch(() => {});
+      }
       SoundEffects.playSuccess();
       setCompletedSummary(updatedRecord);
       setActiveAttendance(null);
@@ -228,27 +263,57 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
 
         {/* Staff Selection Dropdown */}
         <div className="p-4 bg-slate-900/90 border border-slate-800 rounded-3xl space-y-3 shadow-xl">
-          <label className="block text-xs font-bold text-slate-300 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
               <UserCheck className="w-4 h-4 text-amber-400" />
               <span>เลือกชื่อพนักงานพาร์ทไทม์:</span>
-            </span>
-            <span className="text-[10px] text-amber-400 font-mono">
-              ฿{selectedStaff?.hourlyRate || 40}/ชม.
-            </span>
-          </label>
+            </label>
 
-          <select
-            value={selectedStaffId}
-            onChange={e => setSelectedStaffId(e.target.value)}
-            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-2xl text-sm font-bold text-white focus:outline-none focus:border-amber-400"
-          >
-            {staffList.map(st => (
-              <option key={st.id} value={st.id}>
-                {st.name} ({st.phone})
-              </option>
-            ))}
-          </select>
+            <button
+              type="button"
+              onClick={loadData}
+              disabled={isSyncingCloud}
+              className="text-[11px] text-teal-300 hover:text-teal-200 flex items-center gap-1 bg-teal-500/10 border border-teal-500/30 px-2.5 py-1 rounded-xl transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+              <span>{isSyncingCloud ? 'ดึง Cloud...' : 'รีเฟรช'}</span>
+            </button>
+          </div>
+
+          {staffList.length === 0 ? (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center space-y-2">
+              <AlertCircle className="w-6 h-6 text-amber-400 mx-auto" />
+              <p className="text-xs font-bold text-amber-300">
+                ยังไม่พบรายชื่อพนักงานพาร์ทไทม์ในระบบ
+              </p>
+              <p className="text-[11px] text-slate-400">
+                กรุณาให้แอดมินหรือเจ้าของร้านเพิ่มรายชื่อที่เครื่อง POS หน้าร้าน แล้วกดปุ่มดึงข้อมูล
+              </p>
+              <button
+                type="button"
+                onClick={loadData}
+                disabled={isSyncingCloud}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition inline-flex items-center gap-1.5 shadow"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                <span>กดดึงข้อมูลพนักงานจาก Cloud ทันที</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <select
+                value={selectedStaffId}
+                onChange={e => setSelectedStaffId(e.target.value)}
+                className="w-full p-3 bg-slate-800 border border-slate-700 rounded-2xl text-sm font-bold text-white focus:outline-none focus:border-amber-400"
+              >
+                {staffList.map(st => (
+                  <option key={st.id} value={st.id}>
+                    {st.name} {st.nickname ? `(${st.nickname})` : ''} - ฿{st.hourlyRate || 40}/ชม.
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
 
           {/* Optional PIN Input if staff has PIN configured */}
           {selectedStaff?.pin && (

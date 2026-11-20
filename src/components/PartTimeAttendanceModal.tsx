@@ -24,7 +24,11 @@ import {
   Filter,
   ArrowRight,
   ShieldCheck,
-  Check
+  Check,
+  Lock,
+  Unlock,
+  Key,
+  RefreshCw
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
@@ -36,6 +40,8 @@ import type {
 } from '../types';
 import { DualMonitorSync } from '../services/dualMonitorSync';
 import { SoundEffects } from '../services/soundEffects';
+import { AuthService } from '../services/auth';
+import { CloudSync } from '../services/cloudSync';
 
 interface PartTimeAttendanceModalProps {
   isOpen: boolean;
@@ -48,6 +54,18 @@ interface PartTimeAttendanceModalProps {
 type TabType = 'QR_CHECKIN' | 'PAYROLL_REPORT' | 'STAFF_LIST';
 type PeriodFilterType = '15_DAYS_1' | '15_DAYS_2' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
 
+interface StaffPayrollSummaryItem {
+  staff: PartTimeStaff;
+  daysWorked: Set<string>;
+  totalShifts: number;
+  totalRawMinutes: number;
+  totalBreakMinutes: number;
+  totalPayableMinutes: number;
+  totalPayableHours: number;
+  totalWage: number;
+  records: PartTimeAttendance[];
+}
+
 export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = ({
   isOpen,
   onClose,
@@ -59,6 +77,16 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
   const [staffList, setStaffList] = useState<PartTimeStaff[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<PartTimeAttendance[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
+
+  // Owner Authentication & Permission Guard
+  const isOwnerLoggedIn = currentUser?.role === 'OWNER' || AuthService.isOwner();
+  const [isOwnerUnlocked, setIsOwnerUnlocked] = useState(false);
+  const isOwnerAuthorized = isOwnerLoggedIn || isOwnerUnlocked;
+
+  const [isOwnerPinModalOpen, setIsOwnerPinModalOpen] = useState(false);
+  const [ownerPinInput, setOwnerPinInput] = useState('');
+  const [ownerPinError, setOwnerPinError] = useState('');
+  const [pendingOwnerAction, setPendingOwnerAction] = useState<(() => void) | null>(null);
 
   // Broadcast to 2nd screen state
   const [isBroadcastTo2ndScreen, setIsBroadcastTo2ndScreen] = useState(false);
@@ -108,6 +136,11 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
   }, []);
 
   const loadAllData = async () => {
+    // Background pull latest store settings & part-time records from cloud
+    if (navigator.onLine) {
+      CloudSync.pullStoreSettings().catch(() => {});
+    }
+
     const [staff, attendance, s] = await Promise.all([
       db.partTimeStaff.toArray(),
       db.partTimeAttendance.orderBy('checkInTime').reverse().toArray(),
@@ -136,6 +169,35 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
       }
     }
   }, [isOpen]);
+
+  // Guard for Owner-only actions
+  const executeOwnerAction = (action: () => void) => {
+    if (isOwnerAuthorized) {
+      action();
+    } else {
+      setOwnerPinInput('');
+      setOwnerPinError('');
+      setPendingOwnerAction(() => action);
+      setIsOwnerPinModalOpen(true);
+    }
+  };
+
+  const handleVerifyOwnerPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const isValid = await AuthService.verifyOwnerPin(ownerPinInput.trim());
+    if (isValid) {
+      setIsOwnerUnlocked(true);
+      setIsOwnerPinModalOpen(false);
+      SoundEffects.playSuccess();
+      if (pendingOwnerAction) {
+        pendingOwnerAction();
+        setPendingOwnerAction(null);
+      }
+    } else {
+      setOwnerPinError('รหัส PIN เจ้าของร้าน / แอดมินไม่ถูกต้อง');
+      SoundEffects.playWarning();
+    }
+  };
 
   // Toggle broadcast QR to 2nd screen
   const handleToggle2ndScreen = (enable: boolean) => {
@@ -194,6 +256,9 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
     };
 
     await db.partTimeAttendance.add(record);
+    if (navigator.onLine) {
+      CloudSync.pushPartTimeAttendance(record).catch(() => {});
+    }
     SoundEffects.playSuccess();
     await loadAllData();
     if (onAttendanceChanged) onAttendanceChanged();
@@ -228,16 +293,21 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
 
     if (!window.confirm(confirmMsg)) return;
 
-    await db.partTimeAttendance.update(activeRec.id, {
+    const updatedData = {
       checkOutTime: outTime.toISOString(),
       rawDurationMinutes,
       breakDeductionMinutes,
       payableDurationMinutes,
       payableHours,
       totalWage,
-      status: 'CHECKED_OUT',
+      status: 'CHECKED_OUT' as const,
       updatedAt: outTime.toISOString()
-    });
+    };
+
+    await db.partTimeAttendance.update(activeRec.id, updatedData);
+    if (navigator.onLine) {
+      CloudSync.pushPartTimeAttendance({ ...activeRec, ...updatedData }).catch(() => {});
+    }
 
     SoundEffects.playSuccess();
     await loadAllData();
@@ -308,18 +378,6 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
       return d >= startDate && d <= endDate;
     });
   }, [attendanceRecords, startDate, endDate]);
-
-interface StaffPayrollSummaryItem {
-  staff: PartTimeStaff;
-  daysWorked: Set<string>;
-  totalShifts: number;
-  totalRawMinutes: number;
-  totalBreakMinutes: number;
-  totalPayableMinutes: number;
-  totalPayableHours: number;
-  totalWage: number;
-  records: PartTimeAttendance[];
-}
 
   // Aggregate Payroll per Staff
   const staffPayrollSummary = useMemo(() => {
@@ -402,7 +460,7 @@ interface StaffPayrollSummaryItem {
     };
   }, [staffPayrollSummary]);
 
-  // Handle Save Staff (Add or Edit)
+  // Handle Save Staff (Owner Only)
   const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!staffFormName.trim()) {
@@ -435,6 +493,9 @@ interface StaffPayrollSummaryItem {
       await db.partTimeStaff.add(newStaff);
     }
 
+    // Sync updated staff list to cloud immediately so mobile check-in sees it!
+    await CloudSync.syncPartTimeStaffToCloud();
+
     setIsStaffFormOpen(false);
     setEditingStaff(null);
     setStaffFormName('');
@@ -443,17 +504,30 @@ interface StaffPayrollSummaryItem {
     setStaffFormHourlyRate('40');
     setStaffFormPin('');
     setStaffFormNotes('');
+    SoundEffects.playSuccess();
     await loadAllData();
   };
 
-  // Toggle Active Staff
+  // Toggle Active Staff (Owner Only)
   const handleToggleStaffActive = async (staff: PartTimeStaff) => {
     const nextStatus = !staff.isActive;
     await db.partTimeStaff.update(staff.id, { isActive: nextStatus });
+    await CloudSync.syncPartTimeStaffToCloud();
     await loadAllData();
   };
 
-  // Add Manual Record (บันทึกย้อนหลัง)
+  // Delete Staff (Owner Only)
+  const handleDeleteStaff = async (staff: PartTimeStaff) => {
+    if (!window.confirm(`⚠️ ยืนยันการลบรายชื่อ "${staff.name}" ออกจากระบบ?\n(ประวัติการลงเวลาในอดีตจะยังคงถูกบันทึกไว้ในรายงาน)`)) {
+      return;
+    }
+    await db.partTimeStaff.delete(staff.id);
+    await CloudSync.syncPartTimeStaffToCloud();
+    SoundEffects.playSuccess();
+    await loadAllData();
+  };
+
+  // Add Manual Record (บันทึกย้อนหลัง - Owner Only)
   const handleSaveManualRecord = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualStaffId) {
@@ -494,23 +568,313 @@ interface StaffPayrollSummaryItem {
     };
 
     await db.partTimeAttendance.add(record);
+    if (navigator.onLine) {
+      CloudSync.pushPartTimeAttendance(record).catch(() => {});
+    }
     SoundEffects.playSuccess();
     setIsManualRecordOpen(false);
     await loadAllData();
     if (onAttendanceChanged) onAttendanceChanged();
   };
 
-  // Delete Attendance Record
+  // Delete Attendance Record (Owner Only)
   const handleDeleteAttendance = async (recordId: string) => {
     if (!window.confirm('คุณต้องการลบรายการลงเวลานี้ใช่หรือไม่?')) return;
     await db.partTimeAttendance.delete(recordId);
+    await CloudSync.syncPartTimeStaffToCloud();
     await loadAllData();
     if (onAttendanceChanged) onAttendanceChanged();
   };
 
-  // Print Full Payroll Summary Sheet
+  /**
+   * ระบบพิมพ์เอกสาร A4 แบบแยกกรอบ Iframe อิสระ (ไม่ดึงหน้าจอ POS หรือ Modal เข้ามาปน)
+   */
+  const printIsolatedHtml = (title: string, htmlContent: string) => {
+    try {
+      const existingFrame = document.getElementById('print-payroll-iframe');
+      if (existingFrame) existingFrame.remove();
+
+      const printFrame = document.createElement('iframe');
+      printFrame.id = 'print-payroll-iframe';
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      document.body.appendChild(printFrame);
+
+      const frameDoc = printFrame.contentWindow?.document;
+      if (!frameDoc) {
+        window.print();
+        return;
+      }
+
+      frameDoc.open();
+      frameDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${title}</title>
+            <style>
+              @page { size: A4 portrait; margin: 12mm 15mm; }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                color: #0f172a;
+                background: #ffffff;
+                margin: 0;
+                padding: 0;
+                font-size: 12px;
+                line-height: 1.5;
+              }
+              * { box-sizing: border-box; }
+              .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+              .logo { max-height: 48px; margin-bottom: 6px; }
+              .store-name { font-size: 16px; font-weight: 800; text-transform: uppercase; color: #0f172a; margin: 0; }
+              .store-sub { font-size: 11px; color: #475569; margin: 2px 0; }
+              .doc-title { font-size: 14px; font-weight: 800; color: #0f766e; margin-top: 6px; text-transform: uppercase; }
+              .period-badge { font-size: 11px; font-weight: bold; color: #0f766e; background: #ccfbf1; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 16px; }
+              th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 7px 8px; font-weight: 700; font-size: 11px; text-align: left; }
+              td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 11.5px; }
+              .text-right { text-align: right; }
+              .text-center { text-align: center; }
+              .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+              .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+              .kpi-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; background: #f8fafc; }
+              .kpi-label { font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase; }
+              .kpi-val { font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 2px; }
+              .total-highlight { background: #ecfdf5 !important; font-weight: bold; }
+              .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 36px; text-align: center; font-size: 11px; page-break-inside: avoid; }
+              .sig-line { border-bottom: 1px dotted #94a3b8; width: 75%; margin: 36px auto 6px auto; }
+              .notes-box { font-size: 10px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; margin-top: 12px; }
+            </style>
+          </head>
+          <body>
+            ${htmlContent}
+          </body>
+        </html>
+      `);
+      frameDoc.close();
+
+      setTimeout(() => {
+        printFrame.contentWindow?.focus();
+        printFrame.contentWindow?.print();
+      }, 350);
+    } catch (e) {
+      console.warn('Iframe print fallback error', e);
+      window.print();
+    }
+  };
+
+  // พิมพ์ใบสรุปรายงานและคำนวณค่าจ้างพาร์ทไทม์ A4 (รวมทุกคน)
   const handlePrintPayrollSummary = () => {
-    window.print();
+    const storeName = settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา';
+    const storeAddress = settings?.address || 'ถนนจอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000';
+    const storePhone = settings?.phone || '044-123456 / 081-999-8888';
+    const printDate = new Date().toLocaleDateString('th-TH', { 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+
+    const rowsHtml = staffPayrollSummary.map((item, idx) => `
+      <tr>
+        <td class="text-center font-mono">${idx + 1}</td>
+        <td>
+          <strong>${item.staff.name}</strong>
+          ${item.staff.nickname ? `<span style="color:#0f766e;font-size:10.5px;"> (${item.staff.nickname})</span>` : ''}
+        </td>
+        <td class="font-mono text-center">${item.staff.phone || '-'}</td>
+        <td class="font-mono text-center">฿${item.staff.hourlyRate || 40}</td>
+        <td class="text-center font-bold font-mono">${item.daysWorked.size} วัน</td>
+        <td class="text-center font-bold font-mono" style="color:#0f766e;">${parseFloat(item.totalPayableHours.toFixed(2))} ชม.</td>
+        <td class="text-right font-mono font-bold" style="color:#047857;font-size:13px;">฿${item.totalWage.toLocaleString()}</td>
+        <td style="min-width:110px;height:32px;"></td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <div class="header">
+        ${settings?.logoUrl ? `<img src="${settings.logoUrl}" class="logo" alt="Logo" />` : ''}
+        <h1 class="store-name">${storeName}</h1>
+        <p class="store-sub">${storeAddress} &bull; โทร: ${storePhone}</p>
+        <div class="doc-title">ใบสรุปรายงานและคำนวณค่าจ้างพนักงานพาร์ทไทม์</div>
+        <div class="period-badge">รอบการคำนวณ: ${periodLabel}</div>
+        <div style="font-size:10px;color:#64748b;margin-top:3px;">พิมพ์เมื่อ: ${printDate}</div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">ยอดจ่ายค่าจ้างสุทธิ</div>
+          <div class="kpi-val font-mono" style="color:#047857;">฿${totalKpis.totalWage.toLocaleString()}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">ชั่วโมงทำงานสุทธิรวม</div>
+          <div class="kpi-val font-mono" style="color:#0f766e;">${totalKpis.totalHours} ชม.</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">จำนวนกะ/ครั้งที่มาทำ</div>
+          <div class="kpi-val font-mono">${totalKpis.totalShifts} ครั้ง</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">จำนวนพนักงานพาร์ทไทม์</div>
+          <div class="kpi-val font-mono">${totalKpis.activeWorkers} คน</div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th class="text-center" style="width:40px;">ลำดับ</th>
+            <th>ชื่อพนักงาน</th>
+            <th class="text-center">เบอร์โทรศัพท์</th>
+            <th class="text-center">อัตรา/ชม.</th>
+            <th class="text-center">จำนวนวัน</th>
+            <th class="text-center">ชั่วโมงสุทธิ</th>
+            <th class="text-right">ยอดเงินค่าจ้าง</th>
+            <th class="text-center">ลายเซ็นผู้รับเงิน</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml || '<tr><td colspan="8" class="text-center" style="padding:16px;">ไม่พบข้อมูลการลงเวลาในรอบนี้</td></tr>'}
+          <tr class="total-highlight">
+            <td colspan="4" class="text-right"><strong>รวมทั้งสิ้น</strong></td>
+            <td class="text-center font-mono"><strong>${staffPayrollSummary.reduce((acc, i) => acc + i.daysWorked.size, 0)} วัน-คน</strong></td>
+            <td class="text-center font-mono"><strong>${totalKpis.totalHours} ชม.</strong></td>
+            <td class="text-right font-mono" style="color:#047857;font-size:14px;"><strong>฿${totalKpis.totalWage.toLocaleString()}</strong></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="notes-box">
+        <strong>หมายเหตุเงื่อนไขการคิดค่าจ้าง:</strong> คำนวณในอัตราเริ่มต้น ฿40/ชม. โดยระบบคำนวณหักเวลาพักเบรก 1 ชั่วโมงโดยอัตโนมัติเมื่อพนักงานปฏิบัติงานกะยาวตั้งแต่ 6 ชั่วโมงขึ้นไป (เช่น กะ 09:00 - 18:00 น. รวม 9 ชม. หักพัก 1 ชม. คิดเงิน 8 ชม. = ฿320)
+      </div>
+
+      <div class="signatures">
+        <div>
+          <div class="sig-line"></div>
+          <div>(......................................................)</div>
+          <div style="font-weight:bold;margin-top:2px;">ผู้จัดทำรายงาน / ผู้จัดการร้าน</div>
+          <div style="color:#64748b;font-size:10px;">วันที่: ....../....../......</div>
+        </div>
+        <div>
+          <div class="sig-line"></div>
+          <div>(......................................................)</div>
+          <div style="font-weight:bold;margin-top:2px;">ผู้ตรวจสอบ / เจ้าของร้าน (แอดมิน)</div>
+          <div style="color:#64748b;font-size:10px;">วันที่: ....../....../......</div>
+        </div>
+      </div>
+    `;
+
+    printIsolatedHtml(`สรุปค่าจ้างพาร์ทไทม์-${periodLabel}`, html);
+  };
+
+  // พิมพ์ใบแจ้งค่าจ้างรายบุคคล A4 (Payslip)
+  const handlePrintIndividualPayslip = (staff: PartTimeStaff) => {
+    const storeName = settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา';
+    const storeAddress = settings?.address || 'ถนนจอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000';
+    const storePhone = settings?.phone || '044-123456 / 081-999-8888';
+    const printDate = new Date().toLocaleDateString('th-TH', { 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+
+    const staffSummary = staffPayrollSummary.find(s => s.staff.id === staff.id);
+    const staffRecords = filteredAttendance.filter(r => r.staffId === staff.id);
+
+    const recordsHtml = staffRecords.map(rec => {
+      const inTime = new Date(rec.checkInTime);
+      const outTime = rec.checkOutTime ? new Date(rec.checkOutTime) : null;
+      const rawText = rec.rawDurationMinutes !== undefined 
+        ? `${Math.floor(rec.rawDurationMinutes / 60)} ชม. ${rec.rawDurationMinutes % 60} น.`
+        : '-';
+      const breakText = rec.breakDeductionMinutes && rec.breakDeductionMinutes > 0 ? '-1 ชม.' : '0';
+
+      return `
+        <tr>
+          <td class="font-mono">${rec.date}</td>
+          <td class="font-mono text-center" style="color:#047857;">${inTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</td>
+          <td class="font-mono text-center">${outTime ? outTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : 'กำลังทำ'}</td>
+          <td class="font-mono text-center">${rawText}</td>
+          <td class="font-mono text-center" style="color:#b45309;">${breakText}</td>
+          <td class="font-mono text-center font-bold" style="color:#0f766e;">${rec.payableHours !== undefined ? `${rec.payableHours} ชม.` : '-'}</td>
+          <td class="font-mono text-right font-bold" style="color:#047857;">${rec.totalWage !== undefined ? `฿${rec.totalWage.toLocaleString()}` : '-'}</td>
+          <td style="font-size:10px;color:#64748b;">${rec.notes || rec.verifiedByCashierName || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <div class="header">
+        ${settings?.logoUrl ? `<img src="${settings.logoUrl}" class="logo" alt="Logo" />` : ''}
+        <h1 class="store-name">${storeName}</h1>
+        <p class="store-sub">${storeAddress} &bull; โทร: ${storePhone}</p>
+        <div class="doc-title">ใบแจ้งค่าจ้างพนักงานพาร์ทไทม์ (Payslip)</div>
+        <div class="period-badge">รอบการคำนวณ: ${periodLabel}</div>
+        <div style="font-size:10px;color:#64748b;margin-top:3px;">พิมพ์เมื่อ: ${printDate}</div>
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:12px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11.5px;">
+        <div>
+          <div>ชื่อพนักงาน: <strong>${staff.name}</strong> ${staff.nickname ? `<span style="color:#0f766e;">(${staff.nickname})</span>` : ''}</div>
+          <div style="margin-top:4px;">เบอร์โทรศัพท์: <span class="font-mono">${staff.phone || '-'}</span></div>
+        </div>
+        <div style="text-align:right;">
+          <div>อัตราค่าจ้าง: <strong class="font-mono" style="color:#0f766e;">฿${staff.hourlyRate || 40}</strong> / ชั่วโมง</div>
+          <div style="margin-top:4px;">มาทำงานรวม: <strong>${staffSummary?.daysWorked.size || 0} วัน</strong> (${staffSummary?.totalShifts || 0} กะ)</div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>วันที่</th>
+            <th class="text-center">เวลาเข้า</th>
+            <th class="text-center">เวลาออก</th>
+            <th class="text-center">เวลาจริง</th>
+            <th class="text-center">พักเบรก</th>
+            <th class="text-center">ชม.สุทธิ</th>
+            <th class="text-right">ค่าจ้าง</th>
+            <th>หมายเหตุ / ผู้ตรวจ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${recordsHtml || '<tr><td colspan="8" class="text-center" style="padding:16px;">ไม่พบประวัติการลงเวลาในรอบนี้</td></tr>'}
+        </tbody>
+      </table>
+
+      <div style="background:#ecfdf5;border:2px solid #a7f3d0;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+        <div>
+          <div style="font-weight:bold;color:#065f46;font-size:12px;">รวมชั่วโมงทำงานสุทธิ (หลังหักพัก): ${staffSummary?.totalPayableHours || 0} ชั่วโมง</div>
+          <div style="font-size:10px;color:#047857;">คำนวณหักพัก 1 ชม. เมื่อทำงานเกิน 6 ชม. เรียบร้อยแล้ว</div>
+        </div>
+        <div style="text-align:right;">
+          <span style="font-size:11px;color:#065f46;font-weight:bold;margin-right:8px;">รวมยอดเงินค่าจ้างสุทธิ:</span>
+          <span class="font-mono" style="font-size:22px;font-weight:900;color:#047857;">฿${(staffSummary?.totalWage || 0).toLocaleString()}</span>
+        </div>
+      </div>
+
+      <div class="signatures">
+        <div>
+          <div class="sig-line"></div>
+          <div>(......................................................)</div>
+          <div style="font-weight:bold;margin-top:2px;">ผู้จ่ายเงิน / ผู้จัดการร้าน</div>
+          <div style="color:#64748b;font-size:10px;">วันที่: ....../....../......</div>
+        </div>
+        <div>
+          <div class="sig-line"></div>
+          <div>(......................................................)</div>
+          <div style="font-weight:bold;margin-top:2px;">ผู้รับเงิน (${staff.name})</div>
+          <div style="color:#64748b;font-size:10px;">วันที่: ....../....../......</div>
+        </div>
+      </div>
+    `;
+
+    printIsolatedHtml(`สลิปค่าจ้าง-${staff.name}-${periodLabel}`, html);
   };
 
   if (!isOpen) return null;
@@ -597,6 +961,11 @@ interface StaffPayrollSummaryItem {
           >
             <Users className="w-4 h-4 text-blue-400" />
             <span>จัดการรายชื่อพนักงาน ({staffList.length})</span>
+            {isOwnerAuthorized ? (
+              <Unlock className="w-3.5 h-3.5 text-emerald-400 ml-1" />
+            ) : (
+              <Lock className="w-3.5 h-3.5 text-amber-400 ml-1" />
+            )}
           </button>
         </div>
 
@@ -698,7 +1067,7 @@ interface StaffPayrollSummaryItem {
                   <div className="space-y-2">
                     {staffList.filter(s => s.isActive).length === 0 ? (
                       <div className="text-center py-6 text-slate-500 text-xs">
-                        ยังไม่มีรายชื่อพนักงานพาร์ทไทม์ กรุณาไปที่แท็บ "จัดการรายชื่อพนักงาน" เพื่อเพิ่มข้อมูล
+                        ยังไม่มีรายชื่อพนักงานพาร์ทไทม์ กรุณาให้แอดมินหรือเจ้าของร้านเพิ่มรายชื่อในแท็บ "จัดการรายชื่อพนักงาน"
                       </div>
                     ) : (
                       staffList.filter(s => s.isActive).map(staff => {
@@ -897,9 +1266,11 @@ interface StaffPayrollSummaryItem {
 
                   <button
                     type="button"
-                    onClick={() => setIsManualRecordOpen(true)}
+                    onClick={() => executeOwnerAction(() => setIsManualRecordOpen(true))}
                     className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/30 rounded-xl text-xs font-bold flex items-center gap-1 transition"
+                    title={isOwnerAuthorized ? 'บันทึกประวัติการทำงานย้อนหลัง' : 'สงวนสิทธิ์เฉพาะเจ้าของร้าน (แอดมิน)'}
                   >
+                    {!isOwnerAuthorized && <Lock className="w-3 h-3 text-amber-400" />}
                     <Plus className="w-3.5 h-3.5" />
                     <span>บันทึกย้อนหลัง</span>
                   </button>
@@ -1019,9 +1390,9 @@ interface StaffPayrollSummaryItem {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setPrintingPayslipStaff(item.staff)}
+                                  onClick={() => handlePrintIndividualPayslip(item.staff)}
                                   className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition"
-                                  title="พิมพ์สลิปค่าจ้างพนักงานรายบุคคล"
+                                  title="พิมพ์ใบแจ้งค่าจ้าง (Payslip A4)"
                                 >
                                   สลิปเงิน
                                 </button>
@@ -1049,12 +1420,23 @@ interface StaffPayrollSummaryItem {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => setSelectedStaffForDetail(null)}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs transition"
-                    >
-                      ปิดหน้านี้
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handlePrintIndividualPayslip(selectedStaffForDetail)}
+                        className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-amber-500/30 transition"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>พิมพ์สลิปพนักงานคนนี้</span>
+                      </button>
+
+                      <button
+                        onClick={() => setSelectedStaffForDetail(null)}
+                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs transition"
+                      >
+                        ปิดหน้านี้
+                      </button>
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -1117,8 +1499,9 @@ interface StaffPayrollSummaryItem {
                                 <td className="py-2.5 px-2 text-center">
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteAttendance(rec.id)}
+                                    onClick={() => executeOwnerAction(() => handleDeleteAttendance(rec.id))}
                                     className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded transition"
+                                    title={isOwnerAuthorized ? 'ลบรายการนี้' : 'สงวนสิทธิ์เฉพาะเจ้าของร้าน (แอดมิน)'}
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1134,38 +1517,83 @@ interface StaffPayrollSummaryItem {
             </div>
           )}
 
-          {/* TAB 3: STAFF DIRECTORY & MANAGEMENT */}
+          {/* TAB 3: STAFF DIRECTORY & MANAGEMENT (OWNER PROTECTED) */}
           {activeTab === 'STAFF_LIST' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
                 <div>
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Users className="w-4 h-4 text-blue-400" />
-                    <span>รายชื่อพนักงานพาร์ทไทม์ทั้งหมด ({staffList.length} คน)</span>
-                  </h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Users className="w-4 h-4 text-blue-400" />
+                      <span>รายชื่อพนักงานพาร์ทไทม์ทั้งหมด ({staffList.length} คน)</span>
+                    </h4>
+                    {isOwnerAuthorized ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1">
+                        <Unlock className="w-3 h-3 text-emerald-400" /> สิทธิ์แอดมินเจ้าของร้าน
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-amber-400" /> มุมมองแคชเชียร์ (อ่านอย่างเดียว)
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-400 mt-0.5">
                     กำหนดอัตราค่าจ้าง (฿40/ชม.), รหัส PIN 4 หลักสำหรับสแกนเข้างาน และบันทึกข้อมูล
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingStaff(null);
-                    setStaffFormName('');
-                    setStaffFormNickname('');
-                    setStaffFormPhone('');
-                    setStaffFormHourlyRate('40');
-                    setStaffFormPin('');
-                    setStaffFormNotes('');
-                    setIsStaffFormOpen(true);
-                  }}
-                  className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>เพิ่มพนักงานใหม่</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {!isOwnerAuthorized && (
+                    <button
+                      type="button"
+                      onClick={() => executeOwnerAction(() => {})}
+                      className="px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
+                    >
+                      <Key className="w-3.5 h-3.5" />
+                      <span>ปลดล็อคด้วย PIN เจ้าของร้าน</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      executeOwnerAction(() => {
+                        setEditingStaff(null);
+                        setStaffFormName('');
+                        setStaffFormNickname('');
+                        setStaffFormPhone('');
+                        setStaffFormHourlyRate('40');
+                        setStaffFormPin('');
+                        setStaffFormNotes('');
+                        setIsStaffFormOpen(true);
+                      });
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>เพิ่มพนักงานใหม่</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Security Banner if not authorized */}
+              {!isOwnerAuthorized && (
+                <div className="p-3 bg-slate-950/80 border border-amber-500/30 rounded-2xl flex items-center justify-between text-xs text-amber-300 gap-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                    <span>
+                      <strong>ระบบความปลอดภัย:</strong> เฉพาะเจ้าของร้าน (แอดมิน) เท่านั้นที่สามารถเพิ่ม แก้ไข ปรับอัตราค่าจ้าง หรือลบพนักงาน เพื่อป้องกันการกดผิดหรือกลั่นแกล้งกัน
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => executeOwnerAction(() => {})}
+                    className="px-3 py-1 bg-amber-500 text-slate-950 font-bold rounded-lg text-xs hover:bg-amber-400 transition whitespace-nowrap flex-shrink-0"
+                  >
+                    ใส่ PIN ปลดล็อค
+                  </button>
+                </div>
+              )}
 
               {/* Staff Grid Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -1219,29 +1647,42 @@ interface StaffPayrollSummaryItem {
                     <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
                       <button
                         type="button"
-                        onClick={() => handleToggleStaffActive(staff)}
+                        onClick={() => executeOwnerAction(() => handleToggleStaffActive(staff))}
                         className="text-[11px] text-slate-400 hover:text-white transition"
                       >
                         {staff.isActive ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'}
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingStaff(staff);
-                          setStaffFormName(staff.name);
-                          setStaffFormNickname(staff.nickname || '');
-                          setStaffFormPhone(staff.phone);
-                          setStaffFormHourlyRate(staff.hourlyRate?.toString() || '40');
-                          setStaffFormPin(staff.pin || '');
-                          setStaffFormNotes(staff.notes || '');
-                          setIsStaffFormOpen(true);
-                        }}
-                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
-                      >
-                        <Edit3 className="w-3.5 h-3.5 text-teal-400" />
-                        <span>แก้ไข</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            executeOwnerAction(() => {
+                              setEditingStaff(staff);
+                              setStaffFormName(staff.name);
+                              setStaffFormNickname(staff.nickname || '');
+                              setStaffFormPhone(staff.phone);
+                              setStaffFormHourlyRate(staff.hourlyRate?.toString() || '40');
+                              setStaffFormPin(staff.pin || '');
+                              setStaffFormNotes(staff.notes || '');
+                              setIsStaffFormOpen(true);
+                            });
+                          }}
+                          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-teal-400" />
+                          <span>แก้ไข</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => executeOwnerAction(() => handleDeleteStaff(staff))}
+                          className="p-1.5 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg transition"
+                          title="ลบรายชื่อพนักงานคนนี้"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1269,13 +1710,14 @@ interface StaffPayrollSummaryItem {
 
       </div>
 
-      {/* SUB-MODAL 1: ADD / EDIT STAFF FORM */}
+      {/* SUB-MODAL 1: ADD / EDIT STAFF FORM (OWNER PROTECTED) */}
       {isStaffFormOpen && (
         <div className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h4 className="text-base font-bold text-white">
-                {editingStaff ? 'แก้ไขข้อมูลพนักงานพาร์ทไทม์' : 'เพิ่มพนักงานพาร์ทไทม์ใหม่'}
+              <h4 className="text-base font-bold text-white flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-teal-400" />
+                <span>{editingStaff ? 'แก้ไขข้อมูลพนักงานพาร์ทไทม์' : 'เพิ่มพนักงานพาร์ทไทม์ใหม่'}</span>
               </h4>
               <button
                 type="button"
@@ -1371,7 +1813,7 @@ interface StaffPayrollSummaryItem {
                   type="submit"
                   className="px-5 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-slate-950 font-bold rounded-xl shadow hover:from-teal-600 hover:to-emerald-700"
                 >
-                  บันทึกข้อมูล
+                  บันทึกข้อมูล (Sync Cloud)
                 </button>
               </div>
             </form>
@@ -1379,7 +1821,7 @@ interface StaffPayrollSummaryItem {
         </div>
       )}
 
-      {/* SUB-MODAL 2: MANUAL RECORD (บันทึกย้อนหลัง) */}
+      {/* SUB-MODAL 2: MANUAL RECORD (บันทึกย้อนหลัง - OWNER ONLY) */}
       {isManualRecordOpen && (
         <div className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
@@ -1484,102 +1926,75 @@ interface StaffPayrollSummaryItem {
         </div>
       )}
 
-      {/* SUB-MODAL 3: PRINTABLE INDIVIDUAL PAYSLIP */}
-      {printingPayslipStaff && (
-        <div className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-white text-slate-900 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Printer className="w-4 h-4 text-teal-600" />
-                <span>ใบแจ้งค่าจ้างพนักงานพาร์ทไทม์ (Payslip)</span>
-              </h4>
+      {/* SUB-MODAL 3: OWNER PIN VERIFICATION MODAL */}
+      {isOwnerPinModalOpen && (
+        <div className="fixed inset-0 z-70 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-amber-500/50 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2 text-amber-400">
+                <Lock className="w-5 h-5 text-amber-400" />
+                <h4 className="text-base font-bold text-white">ยืนยันสิทธิ์เจ้าของร้าน / แอดมิน</h4>
+              </div>
               <button
                 type="button"
-                onClick={() => setPrintingPayslipStaff(null)}
-                className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center"
+                onClick={() => {
+                  setIsOwnerPinModalOpen(false);
+                  setPendingOwnerAction(null);
+                }}
+                className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Payslip Content Container */}
-            <div id="printable-payslip" className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 text-xs">
-              <div className="text-center pb-2 border-b border-slate-200">
-                <h3 className="font-black text-sm text-slate-900 uppercase">
-                  {settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}
-                </h3>
-                <p className="text-[11px] text-slate-500">ใบสรุปค่าจ้างพนักงานพาร์ทไทม์ (Part-Time Payslip)</p>
-                <p className="text-[11px] font-semibold text-teal-700 mt-0.5">{periodLabel}</p>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              พื้นที่นี้สงวนสิทธิ์เฉพาะ <strong>เจ้าของร้าน (แอดมิน)</strong> เพื่อความปลอดภัย ป้องกันการเพิ่ม แก้ไข ปรับค่าจ้าง หรือลบข้อมูลพนักงานโดยไม่ได้รับอนุญาต
+            </p>
+
+            <form onSubmit={handleVerifyOwnerPin} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-200 mb-1">
+                  กรุณากรอกรหัส PIN เจ้าของร้าน 4 หลัก *
+                </label>
+                <input
+                  type="password"
+                  maxLength={12}
+                  autoFocus
+                  required
+                  value={ownerPinInput}
+                  onChange={(e) => {
+                    setOwnerPinInput(e.target.value);
+                    setOwnerPinError('');
+                  }}
+                  placeholder="••••"
+                  className="w-full text-center tracking-widest text-2xl font-mono px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-amber-400 font-black focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                {ownerPinError && (
+                  <p className="text-xs text-rose-400 font-semibold mt-1 text-center">
+                    {ownerPinError}
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-1.5 text-slate-700">
-                <div className="flex justify-between">
-                  <span>ชื่อพนักงาน:</span>
-                  <span className="font-bold text-slate-900">
-                    {printingPayslipStaff.name} {printingPayslipStaff.nickname ? `(${printingPayslipStaff.nickname})` : ''}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>เบอร์โทร:</span>
-                  <span className="font-mono">{printingPayslipStaff.phone}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>อัตราค่าจ้าง:</span>
-                  <span className="font-mono font-bold text-slate-900">฿{printingPayslipStaff.hourlyRate || 40} / ชั่วโมง</span>
-                </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOwnerPinModalOpen(false);
+                    setPendingOwnerAction(null);
+                  }}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl hover:bg-slate-700 font-semibold text-xs"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs shadow"
+                >
+                  ยืนยันรหัส PIN
+                </button>
               </div>
-
-              {(() => {
-                const staffSummary = staffPayrollSummary.find(s => s.staff.id === printingPayslipStaff.id);
-                return (
-                  <div className="pt-2 border-t border-slate-200 space-y-1.5">
-                    <div className="flex justify-between">
-                      <span>จำนวนวันที่มาทำงาน:</span>
-                      <span className="font-bold">{staffSummary?.daysWorked.size || 0} วัน</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>ชั่วโมงทำงานสุทธิ (หลังหักพัก):</span>
-                      <span className="font-mono font-bold">{staffSummary?.totalPayableHours || 0} ชั่วโมง</span>
-                    </div>
-                    <div className="p-3 bg-emerald-100/70 border border-emerald-300 rounded-xl flex justify-between items-baseline mt-2">
-                      <span className="font-bold text-emerald-950 text-sm">รวมยอดเงินค่าจ้างสุทธิ:</span>
-                      <span className="text-2xl font-black font-mono text-emerald-700">
-                        ฿{(staffSummary?.totalWage || 0).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 text-center text-[10px] text-slate-500">
-                <div>
-                  <div className="h-8 border-b border-slate-300" />
-                  <p className="mt-1">ผู้จ่ายเงิน / ผู้จัดการ</p>
-                </div>
-                <div>
-                  <div className="h-8 border-b border-slate-300" />
-                  <p className="mt-1">ผู้รับเงิน (พนักงาน)</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setPrintingPayslipStaff(null)}
-                className="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 font-semibold text-xs"
-              >
-                ปิด
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-5 py-2 bg-teal-600 text-white font-bold rounded-xl shadow hover:bg-teal-700 text-xs flex items-center gap-1.5"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>พิมพ์ใบแจ้งค่าจ้าง (Print)</span>
-              </button>
-            </div>
+            </form>
           </div>
         </div>
       )}

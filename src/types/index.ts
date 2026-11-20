@@ -125,6 +125,10 @@ export interface StoreSettings {
 
   // Tombstone tracking for deleted variants across devices
   deletedVariantIds?: string[];
+
+  // Part-Time Staff & Attendance Cloud Sync (ซิงค์ข้ามเครื่องระหว่างมือถือพนักงานที่สแกน QR กับเครื่อง POS)
+  partTimeStaffList?: PartTimeStaff[];
+  partTimeAttendanceList?: PartTimeAttendance[];
 }
 
 export interface FreeGiftTier {
