@@ -286,7 +286,7 @@ export const CustomerFacingPage: React.FC = () => {
   const subTextColor = isLight ? 'text-slate-500' : 'text-slate-400';
 
   return (
-    <div className={`min-h-screen ${themeStyles.bg} ${textColor} flex flex-col justify-between p-3 sm:p-5 lg:p-8 select-none font-sans transition-colors duration-500`}>
+    <div className={`min-h-dvh h-dvh ${themeStyles.bg} ${textColor} flex flex-col justify-between p-3 sm:p-5 lg:p-8 select-none font-sans transition-colors duration-200 overflow-hidden`}>
       {/* Top Banner */}
       <div className={`flex items-center justify-between pb-3 sm:pb-5 border-b ${themeStyles.headerBorder} gap-2`}>
         <div className="flex items-center space-x-2.5 sm:space-x-4 min-w-0">

@@ -596,28 +596,28 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Settings className="w-6 h-6 text-amber-500" />
-            <span>ตั้งค่าระบบร้าน, สลิปใบเสร็จ, จอฝั่งลูกค้า และภาษี (แอดมินเจ้าของร้าน)</span>
+            <Settings className="w-5 h-5 text-amber-600" />
+            <span>ตั้งค่าระบบร้านค้าและหน้าจอ</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            ปรับแต่งชื่อร้าน อัตลักษณ์เรือนโคราชเฉลิมวัฒนา ธีมจอฝั่งลูกค้า ระบบภาษี VAT สลิปใบเสร็จ และจัดการพนักงาน
+            ปรับแต่งข้อมูลร้านค้า อัตลักษณ์แบรนด์ จอฝั่งลูกค้า ภาษีมูลค่าเพิ่ม สลิปใบเสร็จ และสิทธิ์พนักงาน
           </p>
         </div>
 
         {saveSuccess && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold animate-in fade-in">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold animate-in fade-in duration-200">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>บันทึกการตั้งค่าเรียบร้อย!</span>
+            <span>บันทึกการตั้งค่าเรียบร้อย</span>
           </div>
         )}
       </div>
 
       <form onSubmit={handleSaveStoreSettings} className="space-y-6">
         {/* Section 1: Store Branding & Identity */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-5">
           <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-            <Store className="w-5 h-5 text-amber-600" />
-            <h2 className="text-sm font-bold text-slate-800">ข้อมูลร้านค้าและอัตลักษณ์ (Store Identity)</h2>
+            <Store className="w-4 h-4 text-amber-600" />
+            <h2 className="text-sm font-bold text-slate-900">ข้อมูลร้านค้าและอัตลักษณ์แบรนด์</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -627,37 +627,37 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 type="text"
                 value={settings.storeName}
                 onChange={e => setSettings({ ...settings, storeName: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">ชื่อโครงการ / Subtitle</label>
+              <label className="block font-bold text-slate-700 mb-1">ชื่อโครงการ หรือชื่อรอง</label>
               <input
                 type="text"
                 value={settings.subTitle}
                 onChange={e => setSettings({ ...settings, subTitle: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block font-bold text-slate-700 mb-1">สโลแกน / คำอธิบายร้าน</label>
+              <label className="block font-bold text-slate-700 mb-1">สโลแกนและคำอธิบายร้าน</label>
               <input
                 type="text"
                 value={settings.tagline}
                 onChange={e => setSettings({ ...settings, tagline: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block font-bold text-slate-700 mb-1">ที่อยู่สาขา / ร้าน</label>
+              <label className="block font-bold text-slate-700 mb-1">ที่อยู่สาขาหรือหน้าร้าน</label>
               <input
                 type="text"
                 value={settings.address}
                 onChange={e => setSettings({ ...settings, address: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
               />
             </div>
 
@@ -667,32 +667,32 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 type="text"
                 value={settings.phone}
                 onChange={e => setSettings({ ...settings, phone: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono tabular-nums text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">เลขประจำตัวผู้เสียภาษี (Tax ID 13 หลัก)</label>
+              <label className="block font-bold text-slate-700 mb-1">เลขประจำตัวผู้เสียภาษี 13 หลัก</label>
               <input
                 type="text"
                 value={settings.taxId}
                 onChange={e => setSettings({ ...settings, taxId: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono tabular-nums text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
               />
             </div>
 
             {/* Store Logo Uploader */}
             <div className="md:col-span-2">
-              <label className="block font-bold text-slate-700 mb-2">
-                รูปภาพโลโก้ร้าน (แสดงที่แถบเมนูด้านบน, จอฝั่งลูกค้า และหัวใบเสร็จสลิป)
+              <label className="block font-bold text-slate-700 mb-1.5">
+                รูปภาพโลโก้ร้าน (แสดงที่แถบเมนูด้านบน จอฝั่งลูกค้า และหัวสลิปใบเสร็จ)
               </label>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50/70 border border-slate-200 rounded-2xl">
                 {settings.logoUrl ? (
                   <div className="relative group flex-shrink-0">
                     <img
                       src={settings.logoUrl}
                       alt="Store Logo Preview"
-                      className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500 shadow-md bg-white"
+                      className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500 shadow-sm bg-white"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="%23f59e0b" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
                       }}
@@ -700,14 +700,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     <button
                       type="button"
                       onClick={() => setSettings({ ...settings, logoUrl: '' })}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center shadow text-xs font-bold transition"
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center shadow text-xs font-bold transition active:scale-95"
                       title="ลบโลโก้และใช้ไอคอนเริ่มต้น"
+                      aria-label="ลบรูปภาพโลโก้ร้าน"
                     >
                       ✕
                     </button>
                   </div>
                 ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-amber-100/60 border border-amber-300 flex flex-col items-center justify-center text-amber-800 flex-shrink-0 font-bold">
+                  <div className="w-20 h-20 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col items-center justify-center text-amber-800 flex-shrink-0 font-bold">
                     <span className="text-xl font-black font-mono">KC</span>
                     <span className="text-[9px] mt-0.5">ไอคอนเริ่มต้น</span>
                   </div>
@@ -715,9 +716,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                 <div className="space-y-2 flex-1 w-full">
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5 shadow transition">
-                      <Upload className="w-4 h-4" />
-                      <span>เลือกไฟล์ภาพโลโก้จากเครื่อง (PNG, JPG)</span>
+                    <label className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5 shadow-sm transition">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>เลือกไฟล์ภาพโลโก้ (PNG, JPG)</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -730,35 +731,35 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       <button
                         type="button"
                         onClick={() => setSettings({ ...settings, logoUrl: '' })}
-                        className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-semibold transition"
+                        className="px-3 py-2 bg-slate-200/80 hover:bg-slate-300 active:scale-95 text-slate-700 rounded-xl text-xs font-semibold transition"
                       >
                         ใช้ไอคอนเริ่มต้น (KC)
                       </button>
                     )}
                   </div>
 
-                  <div className="text-[11px] text-slate-500">
-                    คำแนะนำ: อัปโหลดไฟล์จากเครื่อง รูปภาพจะถูกบันทึกไว้ในเครื่องแบบ Offline 100% ใช้งานได้ตลอดเวลาแม้ไม่มีอินเทอร์เน็ต
+                  <div className="text-[11px] text-slate-400">
+                    บันทึกภาพลงในเบราว์เซอร์ ใช้งานได้ตลอดเวลาแม้ไม่มีอินเทอร์เน็ต
                   </div>
                   <input
                     type="text"
                     value={settings.logoUrl || ''}
                     onChange={e => setSettings({ ...settings, logoUrl: e.target.value })}
                     placeholder="หรือวางลิงก์รูปภาพโดยตรง เช่น https://..."
-                    className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:ring-1 focus:ring-amber-500 outline-none"
                   />
                 </div>
               </div>
             </div>
 
             {/* POS Display Preferences */}
-            <div className="md:col-span-2 p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+            <div className="md:col-span-2 p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-center justify-between">
               <div>
                 <div className="font-bold text-slate-800 text-xs">
-                  แสดงตัวเลขจำนวนสต็อกคงเหลือบนการ์ดสินค้าในหน้าขาย (POS)
+                  แสดงจำนวนสต็อกคงเหลือบนการ์ดสินค้าในหน้าขาย
                 </div>
                 <div className="text-[11px] text-slate-500 mt-0.5">
-                  หากปิด (แนะนำ): การ์ดสินค้าจะแสดงเฉพาะชื่อและราคา เหมาะกับร้านแฟชั่นบูทีคเรียบหรู (ระบบยังคงบล็อคไม่ให้ขายเมื่อสินค้าหมดเป็น 0 ชิ้น)
+                  หากปิด (แนะนำ): การ์ดสินค้าจะแสดงเฉพาะชื่อและราคา เหมาะกับร้านแฟชั่นบูทีคเรียบหรู (ระบบยังคงบล็อคเมื่อสินค้าหมด 0 ชิ้น)
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
@@ -771,19 +772,41 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
               </label>
             </div>
+
+            {/* Allow Negative Stock Toggle */}
+            <div className="md:col-span-2 p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-center justify-between">
+              <div>
+                <div className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                  <span>อนุญาตให้ขายสินค้าสต็อกติดลบได้</span>
+                  <span className="text-[10px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">ยืดหยุ่น</span>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  เปิดตัวเลือกนี้เมื่อ: สินค้าจริงมาถึงหน้าร้านแล้วแต่ฝ่ายสต็อกยังคีย์รับเข้าไม่ทัน ระบบจะยอมให้คิดเงินได้เพื่อไม่ให้เสียโอกาสปิดการขาย
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
+                <input
+                  type="checkbox"
+                  checked={settings.allowNegativeStock ?? false}
+                  onChange={e => setSettings({ ...settings, allowNegativeStock: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+              </label>
+            </div>
           </div>
         </div>
 
-        {/* Section 2: Customer Facing Display & Themes (แก้ภาพและข้อความที่วงกลมสีแดง) */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+        {/* Section 2: Customer Facing Display & Themes */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-5">
           <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-            <Tv className="w-5 h-5 text-indigo-600" />
+            <Tv className="w-4 h-4 text-amber-600" />
             <div>
-              <h2 className="text-sm font-bold text-slate-800">
-                ปรับแต่งหน้าจอฝั่งลูกค้า 2 จอ (Customer Facing Screen & Themes)
+              <h2 className="text-sm font-bold text-slate-900">
+                หน้าจอฝั่งลูกค้าและธีมสี
               </h2>
               <p className="text-[11px] text-slate-400">
-                ปรับเปลี่ยนรูปภาพต้อนรับกลางจอ ข้อความต้อนรับ และโทนสีธีมระดับ Luxury Boutique สำหรับจัดแสดงที่ร้าน
+                ปรับเปลี่ยนรูปภาพต้อนรับกลางจอ ข้อความ และโทนสีระดับลักชัวรีบูทีคสำหรับจัดแสดงหน้าร้าน
               </p>
             </div>
           </div>
@@ -792,7 +815,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Theme Selector */}
             <div className="md:col-span-2">
               <label className="block font-bold text-slate-700 mb-2">
-                เลือกธีมสีหน้าจอฝั่งลูกค้า (Luxury Boutique Themes)
+                เลือกธีมสีหน้าจอฝั่งลูกค้า
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
@@ -800,69 +823,69 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     id: 'BLACK_GOLD' as CustomerScreenTheme,
                     name: 'Black & Gold',
                     desc: 'เรียบหรู คมเข้ม Haute Couture',
-                    bg: 'bg-slate-950 border-amber-500/40 text-amber-400'
+                    bg: 'bg-slate-950 border-amber-500/50 text-amber-400 ring-2 ring-amber-500/50'
                   },
                   {
                     id: 'BROWN_GOLD' as CustomerScreenTheme,
                     name: 'เรือนโคราช ไม้สักทอง',
                     desc: 'อัตลักษณ์เรือนโคราชเฉลิมวัฒนา',
-                    bg: 'bg-[#24150e] border-amber-600/60 text-amber-300'
+                    bg: 'bg-[#24150e] border-amber-600/70 text-amber-300 ring-2 ring-amber-500/50'
                   },
                   {
                     id: 'WHITE_GOLD' as CustomerScreenTheme,
                     name: 'Royal Ivory & Gold',
                     desc: 'ขาวงาช้าง สะอาด สว่าง นุ่มนวล',
-                    bg: 'bg-slate-100 border-amber-300 text-amber-800'
+                    bg: 'bg-stone-50 border-amber-400 text-amber-900 ring-2 ring-amber-400/50'
                   },
                   {
                     id: 'EMERALD_GOLD' as CustomerScreenTheme,
                     name: 'มรกตทอง มรดกโคราช',
                     desc: 'เขียวมรกตทอง ธรรมชาติและงานคราฟต์',
-                    bg: 'bg-[#042017] border-emerald-500/50 text-emerald-300'
+                    bg: 'bg-[#042017] border-emerald-500/60 text-emerald-300 ring-2 ring-emerald-500/50'
                   }
                 ].map(t => (
                   <button
                     key={t.id}
                     type="button"
                     onClick={() => setSettings({ ...settings, customerScreenTheme: t.id })}
-                    className={`p-3.5 rounded-2xl border-2 text-left transition relative flex flex-col justify-between h-24 ${
+                    className={`p-3.5 rounded-xl border text-left transition relative flex flex-col justify-between h-24 active:scale-95 duration-150 ${
                       settings.customerScreenTheme === t.id
-                        ? `${t.bg} ring-2 ring-amber-500 shadow-md`
+                        ? `${t.bg} shadow-sm font-bold`
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
                     }`}
                   >
                     <div>
-                      <div className="font-extrabold text-xs">{t.name}</div>
+                      <div className="font-bold text-xs">{t.name}</div>
                       <div className="text-[10px] opacity-75 mt-0.5 line-clamp-2">{t.desc}</div>
                     </div>
                     {settings.customerScreenTheme === t.id && (
-                      <span className="text-[10px] font-bold text-amber-400 self-end">✓ กำลังใช้งาน</span>
+                      <span className="text-[10px] font-bold text-amber-400 self-end">✓ ใช้งานอยู่</span>
                     )}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Global Screensaver Mode Selection (เลือกรูปแบบหน้าจอพักสายตา) */}
-            <div className="md:col-span-2 p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent rounded-2xl border-2 border-amber-500/40 shadow-sm">
-              <label className="block font-black text-slate-800 text-sm mb-2 flex items-center gap-2">
-                <span>🖥️ รูปแบบการแสดงผลบนจอฝั่งลูกค้าขณะพักจอ (Screensaver Display Mode)</span>
+            {/* Global Screensaver Mode Selection */}
+            <div className="md:col-span-2 p-4 bg-slate-50/70 rounded-xl border border-slate-200/70 space-y-2">
+              <label className="block font-bold text-slate-800 text-xs">
+                รูปแบบหน้าจอขณะพักสายตา
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <button
                   type="button"
                   onClick={() => persistAndBroadcastSettings({ ...settings, screensaverMode: 'FULL_POSTER', updatedAt: new Date().toISOString() })}
-                  className={`p-3.5 rounded-2xl border-2 text-left transition flex items-center gap-3 ${
+                  className={`p-3.5 rounded-xl border text-left transition flex items-center gap-3 active:scale-95 duration-150 ${
                     settings.screensaverMode === 'FULL_POSTER'
-                      ? 'bg-white border-amber-500 text-slate-900 shadow-md font-bold ring-2 ring-amber-400'
-                      : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-white'
+                      ? 'bg-white border-amber-500 text-slate-900 shadow-sm font-bold ring-2 ring-amber-400/40'
+                      : 'bg-white/80 border-slate-200 text-slate-600 hover:bg-white'
                   }`}
                 >
-                  <span className="text-3xl">🖼️</span>
+                  <span className="text-2xl">🖼️</span>
                   <div>
-                    <div className="font-extrabold text-sm text-slate-900">โหมดที่ 1: ภาพโปสเตอร์เต็มจอ 100% (แนะนำ)</div>
+                    <div className="font-bold text-xs text-slate-900">โปสเตอร์เต็มจอ (แนะนำ)</div>
                     <div className="text-[11px] text-slate-500 font-normal mt-0.5">
-                      แสดงรูปภาพแบนเนอร์/โปสเตอร์เต็มจอ ไร้กล่องข้อความบดบัง สวยงามระดับลักชัวรี ดึงดูดสายตาลูกค้าทันที
+                      แสดงรูปภาพแบนเนอร์เต็มจอ ไร้กล่องข้อความบดบัง สวยงามระดับลักชัวรี
                     </div>
                   </div>
                 </button>
@@ -870,17 +893,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <button
                   type="button"
                   onClick={() => persistAndBroadcastSettings({ ...settings, screensaverMode: 'SLIDESHOW', updatedAt: new Date().toISOString() })}
-                  className={`p-3.5 rounded-2xl border-2 text-left transition flex items-center gap-3 ${
+                  className={`p-3.5 rounded-xl border text-left transition flex items-center gap-3 active:scale-95 duration-150 ${
                     (settings.screensaverMode || 'SLIDESHOW') === 'SLIDESHOW'
-                      ? 'bg-white border-amber-500 text-slate-900 shadow-md font-bold ring-2 ring-amber-400'
-                      : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-white'
+                      ? 'bg-white border-amber-500 text-slate-900 shadow-sm font-bold ring-2 ring-amber-400/40'
+                      : 'bg-white/80 border-slate-200 text-slate-600 hover:bg-white'
                   }`}
                 >
-                  <span className="text-3xl">📑</span>
+                  <span className="text-2xl">📑</span>
                   <div>
-                    <div className="font-extrabold text-sm text-slate-900">โหมดที่ 2: สไลด์โชว์หมุนเวียน 4 รายการ</div>
+                    <div className="font-bold text-xs text-slate-900">สไลด์โชว์หมุนเวียนข้อมูล</div>
                     <div className="text-[11px] text-slate-500 font-normal mt-0.5">
-                      หมุนเวียนข้อความโปรโมชั่นและงานสั่งตัด พร้อม 3 ไฮไลต์จุดเด่นของแต่ละสไลด์
+                      หมุนเวียนโปรโมชั่นและงานสั่งตัด พร้อม 3 ไฮไลต์จุดเด่น
                     </div>
                   </div>
                 </button>
@@ -889,38 +912,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
             {/* Welcome Poster / Crest Uploader */}
             <div className="md:col-span-2">
-              <label className="block font-bold text-slate-700 mb-2">
-                ภาพต้อนรับ / โปสเตอร์แบรนด์กลางจอฝั่งลูกค้า (แสดงเต็มจอในโหมดโปสเตอร์)
+              <label className="block font-bold text-slate-700 mb-1.5">
+                ภาพต้อนรับหรือโปสเตอร์แบรนด์กลางจอ (แสดงเต็มจอในโหมดโปสเตอร์)
               </label>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-slate-50/70 border border-slate-200 rounded-2xl">
                 {settings.welcomeImageUrl ? (
                   <div className="relative group flex-shrink-0">
                     <img
                       src={settings.welcomeImageUrl}
                       alt="Welcome Graphic Preview"
-                      className="w-24 h-24 rounded-2xl object-cover border-2 border-indigo-500 shadow-md bg-white"
+                      className="w-24 h-24 rounded-2xl object-cover border-2 border-amber-500 shadow-sm bg-white"
                     />
                     <button
                       type="button"
                       onClick={() => setSettings({ ...settings, welcomeImageUrl: '' })}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center shadow text-xs font-bold transition"
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-full flex items-center justify-center shadow text-xs font-bold transition"
                       title="ลบภาพและใช้โลโก้ร้านแทน"
+                      aria-label="ลบรูปภาพต้อนรับ"
                     >
                       ✕
                     </button>
                   </div>
                 ) : (
-                  <div className="w-24 h-24 rounded-2xl bg-indigo-50 border border-indigo-200 flex flex-col items-center justify-center text-indigo-600 flex-shrink-0 text-center p-2">
-                    <ImageIcon className="w-8 h-8 text-indigo-400 mb-1" />
+                  <div className="w-24 h-24 rounded-2xl bg-amber-50/60 border border-amber-200 flex flex-col items-center justify-center text-amber-800 flex-shrink-0 text-center p-2">
+                    <ImageIcon className="w-7 h-7 text-amber-600 mb-1" />
                     <span className="text-[9px] font-bold">ใช้โลโก้ / ตราสัญลักษณ์</span>
                   </div>
                 )}
 
                 <div className="space-y-2 flex-1 w-full">
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5 shadow transition">
-                      <Upload className="w-4 h-4" />
-                      <span>อัปโหลดภาพต้อนรับ / โปสเตอร์แบรนด์ (PNG, JPG)</span>
+                    <label className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5 shadow-sm transition">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>อัปโหลดภาพโปสเตอร์ (PNG, JPG)</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -933,21 +957,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       <button
                         type="button"
                         onClick={() => setSettings({ ...settings, welcomeImageUrl: '' })}
-                        className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-semibold transition"
+                        className="px-3 py-2 bg-slate-200/80 hover:bg-slate-300 active:scale-95 text-slate-700 rounded-xl text-xs font-semibold transition"
                       >
                         ใช้โลโก้ร้านแทน
                       </button>
                     )}
                   </div>
-                  <div className="text-[11px] text-slate-500">
-                    ภาพนี้จะแสดงเด่นอยู่กลางจอฝั่งลูกค้าในขณะที่ยังไม่ได้เริ่มสแกนสินค้า
+                  <div className="text-[11px] text-slate-400">
+                    ภาพนี้จะแสดงกลางจอฝั่งลูกค้าขณะพักสายตาหรือยังไม่ได้เริ่มสแกนสินค้า
                   </div>
                   <input
                     type="text"
                     value={settings.welcomeImageUrl || ''}
                     onChange={e => setSettings({ ...settings, welcomeImageUrl: e.target.value })}
                     placeholder="หรือวางลิงก์รูปภาพโดยตรง เช่น https://..."
-                    className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:ring-1 focus:ring-amber-500 outline-none"
                   />
                 </div>
               </div>
@@ -956,70 +980,70 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Welcome Title */}
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                ข้อความหัวข้อต้อนรับ (Welcome Title)
+                ข้อความหัวข้อต้อนรับ
               </label>
               <input
                 type="text"
                 value={settings.welcomeTitle}
                 onChange={e => setSettings({ ...settings, welcomeTitle: e.target.value })}
                 placeholder="เช่น ยินดีต้อนรับสู่ KORAT CAT x เรือนโคราชเฉลิมวัฒนา"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
               />
             </div>
 
             {/* Welcome Subtitle */}
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                ข้อความคำบรรยายต้อนรับ (Welcome Subtitle)
+                ข้อความคำบรรยายต้อนรับ
               </label>
               <input
                 type="text"
                 value={settings.welcomeSubtitle}
                 onChange={e => setSettings({ ...settings, welcomeSubtitle: e.target.value })}
                 placeholder="เช่น สินค้าแฟชั่นอัตลักษณ์แมวโคราช จะแสดงขึ้นที่นี่เมื่อสแกนบาร์โค้ด"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
               />
             </div>
 
             {/* Thank You Message */}
             <div className="md:col-span-2">
               <label className="block font-bold text-slate-700 mb-1">
-                ข้อความขอบคุณหลังชำระเงินเสร็จ (Thank You Screen Banner)
+                ข้อความขอบคุณหลังชำระเงินสำเร็จ
               </label>
               <input
                 type="text"
                 value={settings.thankYouMessage}
                 onChange={e => setSettings({ ...settings, thankYouMessage: e.target.value })}
                 placeholder="เช่น ขอบคุณที่อุดหนุน KORAT CAT x เรือนโคราชเฉลิมวัฒนา ขอให้มีความสุขในการสวมใส่"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
               />
             </div>
 
-            {/* Custom Promo Slides Manager (แก้ไขข้อความ & ภาพสไลด์โชว์ที่วงกลมสีแดง) */}
-            <div className="md:col-span-2 pt-4 border-t border-slate-200 space-y-4">
+            {/* Custom Promo Slides Manager */}
+            <div className="md:col-span-2 pt-4 border-t border-slate-100 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <label className="block font-black text-slate-800 text-sm flex items-center gap-1.5">
-                    <span>🎬 ปรับแต่งเนื้อหาและรูปภาพสไลด์โฆษณาบนจอที่ 2 (Screensaver & Promo Slides)</span>
+                  <label className="block font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                    <span>เนื้อหาและภาพสไลด์โฆษณา</span>
                   </label>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    แก้ไขข้อความหัวข้อ คำบรรยาย รูปภาพ และไฮไลต์ของแต่ละสไลด์ (ที่วนแสดงบนจอฝั่งลูกค้าขณะพักจอ)
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    แก้ไขข้อความหัวข้อ คำบรรยาย รูปภาพ และไฮไลต์ของแต่ละสไลด์บนจอฝั่งลูกค้าขณะพักจอ
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => window.open('/display', '_blank', 'width=1200,height=800')}
-                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition"
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 transition"
                     title="เปิดหน้าจอฝั่งลูกค้าในหน้าต่างใหม่เพื่อดูผลลัพธ์ทันที"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    <span>🖥️ เปิดดูหน้าจอที่ 2 (จอฝั่งลูกค้า)</span>
+                    <span>เปิดดูจอฝั่งลูกค้า</span>
                   </button>
                   <button
                     type="button"
                     onClick={handleResetSlidesToDefault}
-                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold flex items-center gap-1"
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 rounded-xl text-xs font-semibold flex items-center gap-1 transition"
                     title="คืนค่ากลับเป็นสไลด์อัตลักษณ์โคราช 4 สไลด์เริ่มต้น"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -1028,17 +1052,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   <button
                     type="button"
                     onClick={handleAddSlide}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm"
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>เพิ่มสไลด์ใหม่</span>
+                    <span>เพิ่มสไลด์</span>
                   </button>
                 </div>
               </div>
 
               {/* Sync Status Banner */}
               {syncStatusText && (
-                <div className="p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-xl text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-300">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                   <span>{syncStatusText}</span>
                 </div>
@@ -1052,22 +1076,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 const curSlide = slides[activeSlideIndex] || slides[0];
 
                 return (
-                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-4">
+                  <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-200/80 space-y-4">
                     {/* Tabs & Quick Action Bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200/70">
                       <div className="flex flex-wrap gap-1.5">
                         {slides.map((s, idx) => (
                           <button
                             key={s.id || idx}
                             type="button"
                             onClick={() => setActiveSlideIndex(idx)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 duration-150 ${
                               activeSlideIndex === idx
-                                ? 'bg-amber-600 text-white shadow-sm'
+                                ? 'bg-amber-600 text-white shadow-xs'
                                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
                             }`}
                           >
-                            <span>สไลด์ที่ {idx + 1}:</span>
+                            <span>สไลด์ {idx + 1}:</span>
                             <span className="truncate max-w-[120px] font-normal">{s.title || `สไลด์ ${idx + 1}`}</span>
                           </button>
                         ))}
@@ -1077,15 +1101,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         <button
                           type="button"
                           onClick={handleSetAllSlidesFullImage}
-                          className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 rounded-lg font-bold flex items-center gap-1 transition shadow-sm"
+                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg font-bold flex items-center gap-1 transition active:scale-95"
                           title="ปรับทุกสไลด์ให้แสดงเฉพาะรูปภาพเต็มกรอบ 100%"
                         >
-                          <span>🖼️ ตั้งทุกสไลด์เป็นภาพเต็มจอ 100%</span>
+                          <span>🖼️ ทุกสไลด์เป็นภาพเต็มจอ</span>
                         </button>
                         <button
                           type="button"
                           onClick={handleSetAllSlidesSplit}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg font-medium flex items-center gap-1 transition"
+                          className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg font-medium flex items-center gap-1 transition active:scale-95"
                           title="ปรับทุกสไลด์เป็นแบบข้อความ + ภาพ"
                         >
                           <span>📝 เป็นข้อความ+ภาพ</span>
@@ -1095,48 +1119,48 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                     {/* Active Slide Form Fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Layout Mode Selector (แบบที่ 1: ข้อความ+รูป VS แบบที่ 2: ภาพโปสเตอร์เต็มกรอบ) */}
-                      <div className="md:col-span-2 p-3 bg-amber-500/10 rounded-xl border border-amber-500/30">
-                        <label className="block font-black text-slate-800 text-xs mb-1.5 flex items-center gap-1.5">
-                          <span>🖼️ เลือกรูปแบบการแสดงผลของสไลด์ที่ {activeSlideIndex + 1}:</span>
+                      {/* Layout Mode Selector */}
+                      <div className="md:col-span-2 p-3 bg-white rounded-xl border border-slate-200/80">
+                        <label className="block font-bold text-slate-800 text-xs mb-1.5">
+                          รูปแบบการแสดงผลของสไลด์ที่ {activeSlideIndex + 1}
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                           <button
                             type="button"
                             onClick={() => handleUpdateSlideField(activeSlideIndex, 'layoutMode', 'SPLIT')}
-                            className={`p-3 rounded-xl border-2 text-left transition flex items-center gap-3 ${
+                            className={`p-3 rounded-xl border text-left transition flex items-center gap-3 active:scale-95 duration-150 ${
                               (curSlide.layoutMode || 'SPLIT') === 'SPLIT'
-                                ? 'bg-white border-amber-500 text-slate-900 shadow-sm font-bold ring-2 ring-amber-400'
-                                : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-white'
+                                ? 'bg-amber-50/50 border-amber-500 text-slate-900 font-bold ring-1 ring-amber-400'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'
                             }`}
                           >
                             <span className="text-xl">📝</span>
                             <div>
-                              <div className="font-extrabold text-xs">แบบที่ 1: ข้อความ + ภาพ (แบบปัจจุบัน)</div>
-                              <div className="text-[10px] text-slate-500 font-normal">มีกล่องภาพด้านซ้าย พร้อมหัวข้อ คำบรรยาย และ 3 ไฮไลต์</div>
+                              <div className="font-bold text-xs">กล่องภาพพร้อมข้อความ</div>
+                              <div className="text-[10px] text-slate-500 font-normal">กล่องภาพด้านซ้าย พร้อมหัวข้อ คำบรรยาย และ 3 ไฮไลต์</div>
                             </div>
                           </button>
 
                           <button
                             type="button"
                             onClick={() => handleUpdateSlideField(activeSlideIndex, 'layoutMode', 'FULL_IMAGE')}
-                            className={`p-3 rounded-xl border-2 text-left transition flex items-center gap-3 ${
+                            className={`p-3 rounded-xl border text-left transition flex items-center gap-3 active:scale-95 duration-150 ${
                               curSlide.layoutMode === 'FULL_IMAGE'
-                                ? 'bg-white border-amber-500 text-slate-900 shadow-sm font-bold ring-2 ring-amber-400'
-                                : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-white'
+                                ? 'bg-amber-50/50 border-amber-500 text-slate-900 font-bold ring-1 ring-amber-400'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'
                             }`}
                           >
                             <span className="text-xl">🖼️</span>
                             <div>
-                              <div className="font-extrabold text-xs">แบบที่ 2: ภาพโปสเตอร์เต็มกรอบ 100%</div>
-                              <div className="text-[10px] text-slate-500 font-normal">แสดงรูปภาพแบนเนอร์/โปสเตอร์เต็มพื้นที่ ไม่มีข้อความมาบดบัง</div>
+                              <div className="font-bold text-xs">ภาพโปสเตอร์เต็มกรอบ</div>
+                              <div className="text-[10px] text-slate-500 font-normal">แสดงภาพแบนเนอร์เต็มพื้นที่ ไม่มีกล่องข้อความบดบัง</div>
                             </div>
                           </button>
                         </div>
                       </div>
 
-                      {/* Left: Image / Poster for this slide */}
-                      <div className="md:col-span-2 p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                      {/* Image / Poster for this slide */}
+                      <div className="md:col-span-2 p-3 bg-white rounded-xl border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                         {curSlide.imageUrl ? (
                           <div className="relative group flex-shrink-0">
                             <img
@@ -1147,8 +1171,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             <button
                               type="button"
                               onClick={() => handleUpdateSlideField(activeSlideIndex, 'imageUrl', '')}
-                              className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow"
+                              className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow transition active:scale-95"
                               title="ลบภาพสไลด์นี้"
+                              aria-label="ลบรูปภาพสไลด์"
                             >
                               ✕
                             </button>
@@ -1163,11 +1188,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         <div className="space-y-1.5 flex-1 w-full text-xs">
                           <div className="font-bold text-slate-700">
                             {curSlide.layoutMode === 'FULL_IMAGE'
-                              ? `🖼️ รูปภาพโปสเตอร์/แบนเนอร์ของสไลด์ที่ ${activeSlideIndex + 1} (จะแสดงแบบเต็มกรอบ 100% บนจอที่ 2)`
-                              : `รูปภาพประกอบสไลด์ที่ ${activeSlideIndex + 1} (แสดงในกรอบ BOUTIQUE DISPLAY ด้านซ้าย)`}
+                              ? `รูปภาพโปสเตอร์ของสไลด์ที่ ${activeSlideIndex + 1} (แสดงเต็มกรอบบนจอฝั่งลูกค้า)`
+                              : `รูปภาพประกอบสไลด์ที่ ${activeSlideIndex + 1}`}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <label className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5 shadow transition">
+                            <label className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5 shadow-sm transition">
                               <Upload className="w-3.5 h-3.5" />
                               <span>{curSlide.layoutMode === 'FULL_IMAGE' ? 'อัปโหลดภาพโปสเตอร์เต็มกรอบ (PNG, JPG)' : 'อัปโหลดภาพสำหรับสไลด์นี้ (PNG, JPG)'}</span>
                               <input
@@ -1181,7 +1206,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateSlideField(activeSlideIndex, 'imageUrl', '')}
-                                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold"
+                                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 rounded-xl text-xs font-semibold transition"
                               >
                                 ใช้โลโก้เริ่มต้น
                               </button>
@@ -1192,16 +1217,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             value={curSlide.imageUrl || ''}
                             onChange={e => handleUpdateSlideField(activeSlideIndex, 'imageUrl', e.target.value)}
                             placeholder="หรือวางลิงก์รูปภาพ เช่น https://..."
-                            className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono"
+                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:ring-1 focus:ring-amber-500 outline-none"
                           />
                         </div>
                       </div>
 
                       {curSlide.layoutMode === 'FULL_IMAGE' && (
-                        <div className="md:col-span-2 p-3 bg-sky-50 rounded-xl border border-sky-200 text-sky-900 text-xs flex items-center gap-2">
+                        <div className="md:col-span-2 p-3 bg-amber-50/60 rounded-xl border border-amber-200/80 text-amber-900 text-xs flex items-center gap-2">
                           <span>💡</span>
                           <span>
-                            <b>โหมดภาพโปสเตอร์เต็มกรอบ 100%:</b> ระบบจะดึงรูปภาพด้านบนไปขยายแสดงเต็มกรอบสวยงามบนจอที่ 2 โดยไม่ต้องมีกรอบข้อความมาบดบัง
+                            <b>โหมดภาพโปสเตอร์เต็มกรอบ:</b> ระบบจะดึงรูปภาพด้านบนไปขยายแสดงเต็มกรอบสวยงามบนจอที่ 2 โดยไม่ต้องมีกรอบข้อความมาบดบัง
                           </span>
                         </div>
                       )}
@@ -1209,80 +1234,80 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       {/* Tag & Badge Color */}
                       <div>
                         <label className="block font-bold text-slate-700 mb-1">
-                          ข้อความป้ายหัวเรื่อง (Tag Badge)
+                          ข้อความป้ายหัวเรื่อง
                         </label>
                         <input
                           type="text"
                           value={curSlide.tag}
                           onChange={e => handleUpdateSlideField(activeSlideIndex, 'tag', e.target.value)}
                           placeholder="เช่น HAUTE COUTURE SERVICES • งานสั่งตัด"
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-xs"
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
                         />
                       </div>
 
                       <div>
                         <label className="block font-bold text-slate-700 mb-1">
-                          สีป้ายหัวเรื่อง (Badge Color)
+                          สีป้ายหัวเรื่อง
                         </label>
                         <select
                           value={curSlide.badgeColor || 'AMBER'}
                           onChange={e => handleUpdateSlideField(activeSlideIndex, 'badgeColor', e.target.value)}
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-xs"
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
                         >
-                          <option value="AMBER">🟡 ทองอำพัน (Amber Gold)</option>
-                          <option value="PURPLE">🟣 ม่วงหรูหรา (Haute Purple)</option>
-                          <option value="EMERALD">🟢 เขียวมรกต (Emerald Green)</option>
-                          <option value="SKY">🔵 ฟ้าสดใส (Sky Blue)</option>
-                          <option value="ROSE">🔴 ชมพูกุหลาบ (Rose Red)</option>
+                          <option value="AMBER">ทองอำพัน (Amber Gold)</option>
+                          <option value="PURPLE">ม่วงหรูหรา (Haute Purple)</option>
+                          <option value="EMERALD">เขียวมรกต (Emerald Green)</option>
+                          <option value="SKY">ฟ้าสดใส (Sky Blue)</option>
+                          <option value="ROSE">ชมพูกุหลาบ (Rose Red)</option>
                         </select>
                       </div>
 
                       {/* Title */}
                       <div className="md:col-span-2">
                         <label className="block font-bold text-slate-700 mb-1">
-                          หัวข้อหลักของสไลด์ (Slide Title)
+                          หัวข้อหลักของสไลด์
                         </label>
                         <input
                           type="text"
                           value={curSlide.title}
                           onChange={e => handleUpdateSlideField(activeSlideIndex, 'title', e.target.value)}
                           placeholder="เช่น บริการสั่งตัดเย็บ & สกรีนสั่งผลิตพิเศษ"
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-extrabold text-sm text-slate-900"
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
                         />
                       </div>
 
                       {/* Subtitle */}
                       <div className="md:col-span-2">
                         <label className="block font-bold text-slate-700 mb-1">
-                          คำโปรยรอง (Subtitle)
+                          คำโปรยรอง
                         </label>
                         <input
                           type="text"
                           value={curSlide.subtitle}
                           onChange={e => handleUpdateSlideField(activeSlideIndex, 'subtitle', e.target.value)}
                           placeholder="เช่น รับทำเสื้อทีม ลายปักประณีต และของที่ระลึกองค์กร วางมัดจำเพียง 50%"
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-xs text-amber-900"
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-xs text-amber-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
                         />
                       </div>
 
                       {/* Description */}
                       <div className="md:col-span-2">
                         <label className="block font-bold text-slate-700 mb-1">
-                          คำอธิบายรายละเอียด (Description)
+                          คำอธิบายรายละเอียด
                         </label>
                         <textarea
                           rows={2}
                           value={curSlide.description}
                           onChange={e => handleUpdateSlideField(activeSlideIndex, 'description', e.target.value)}
                           placeholder="คำอธิบายเพิ่มเติมเกี่ยวกับสินค้าหรือบริการที่จะแสดงให้ลูกค้าอ่าน..."
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs"
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
                         />
                       </div>
 
                       {/* 3 Highlights */}
                       <div className="md:col-span-2 space-y-2">
-                        <label className="block font-bold text-slate-700">
-                          จุดเด่น 3 ข้อด้านล่าง (Highlights Pills)
+                        <label className="block font-bold text-slate-700 text-xs">
+                          จุดเด่น 3 ข้อด้านล่าง
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           <input
@@ -1290,21 +1315,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                             value={curSlide.highlight1 || ''}
                             onChange={e => handleUpdateSlideField(activeSlideIndex, 'highlight1', e.target.value)}
                             placeholder="เช่น ✂️ งานปักตราสัญลักษณ์"
-                            className="p-2 bg-white border border-slate-300 rounded-xl text-xs"
+                            className="p-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-amber-500 outline-none"
                           />
                           <input
                             type="text"
                             value={curSlide.highlight2 || ''}
                             onChange={e => handleUpdateSlideField(activeSlideIndex, 'highlight2', e.target.value)}
                             placeholder="เช่น 📜 ใบสั่งผลิตและใบรับมัดจำดิจิทัล"
-                            className="p-2 bg-white border border-slate-300 rounded-xl text-xs"
+                            className="p-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-amber-500 outline-none"
                           />
                           <input
                             type="text"
                             value={curSlide.highlight3 || ''}
                             onChange={e => handleUpdateSlideField(activeSlideIndex, 'highlight3', e.target.value)}
                             placeholder="เช่น 🏪 นัดรับสินค้าที่หน้าร้านเรือนโคราช"
-                            className="p-2 bg-white border border-slate-300 rounded-xl text-xs"
+                            className="p-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-amber-500 outline-none"
                           />
                         </div>
                       </div>
@@ -1315,7 +1340,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           <button
                             type="button"
                             onClick={() => handleDeleteSlide(activeSlideIndex)}
-                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 flex items-center gap-1"
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 flex items-center gap-1 transition"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span>ลบสไลด์นี้ออก</span>
@@ -1331,11 +1356,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
 
         {/* Section 3: VAT & Tax Invoices */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-            <Percent className="w-5 h-5 text-amber-600" />
-            <h2 className="text-sm font-bold text-slate-800">
-              ระบบภาษีมูลค่าเพิ่ม (VAT 7%) และใบกำกับภาษีเต็มรูป
+            <Percent className="w-4 h-4 text-amber-600" />
+            <h2 className="text-sm font-bold text-slate-900">
+              ระบบภาษีมูลค่าเพิ่มและใบกำกับภาษี
             </h2>
           </div>
 
@@ -1345,9 +1370,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <select
                 value={settings.vatType}
                 onChange={e => setSettings({ ...settings, vatType: e.target.value as any })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
               >
-                <option value="NONE">ไม่คิดภาษีมูลค่าเพิ่ม (Non-VAT / ยกเว้นภาษี)</option>
+                <option value="NONE">ไม่คิดภาษีมูลค่าเพิ่ม (Non-VAT)</option>
                 <option value="INCLUSIVE">รวมภาษีในราคาสินค้าแล้ว (Inclusive VAT 7%)</option>
                 <option value="EXCLUSIVE">คิดภาษีแยกเพิ่มต่างหาก (Exclusive VAT +7%)</option>
               </select>
@@ -1365,7 +1390,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 step="0.5"
                 value={settings.vatRate}
                 onChange={e => setSettings({ ...settings, vatRate: parseFloat(e.target.value) || 0 })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono tabular-nums font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
               />
             </div>
 
@@ -1376,35 +1401,35 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 value={settings.taxInvoiceTitle}
                 onChange={e => setSettings({ ...settings, taxInvoiceTitle: e.target.value })}
                 placeholder="เช่น ใบกำกับภาษี / ใบเสร็จรับเงิน (ต้นฉบับ)"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
               />
             </div>
           </div>
         </div>
 
         {/* Section 4: PromptPay Settings (For Customer Screen QR) */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-            <QrCode className="w-5 h-5 text-emerald-600" />
-            <h2 className="text-sm font-bold text-slate-800">
-              การชำระเงิน PromptPay QR (แสดงบนจอฝั่งลูกค้าอัตโนมัติ)
+            <QrCode className="w-4 h-4 text-emerald-600" />
+            <h2 className="text-sm font-bold text-slate-900">
+              การชำระเงิน พร้อมเพย์ QR และเครื่องพิมพ์สลิป
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                หมายเลข PromptPay (เบอร์มือถือ หรือ เลขผู้เสียภาษี 13 หลัก)
+                หมายเลข PromptPay (เบอร์มือถือ หรือเลขประจำตัวผู้เสียภาษี 13 หลัก)
               </label>
               <input
                 type="text"
                 value={settings.promptPayId}
                 onChange={e => setSettings({ ...settings, promptPayId: e.target.value })}
                 placeholder="เช่น 0819998888 หรือ 0305566001234"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-emerald-700 text-sm"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono tabular-nums font-bold text-emerald-700 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
               />
               <span className="text-[11px] text-slate-400 mt-1 block">
-                ระบบจะนำเลขนี้ไปคำนวณสร้าง QR Code พร้อมราคาสุทธิที่ต้องชำระขึ้นจอฝั่งลูกค้าทันที
+                ระบบจะนำเลขนี้ไปคำนวณสร้าง QR Code พร้อมราคาสุทธิขึ้นจอฝั่งลูกค้าทันที
               </span>
             </div>
 
@@ -1418,46 +1443,44 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     setSettings({ ...settings, printerPaperWidth: w });
                     ThermalPrinterService.setStoredPaperWidth(w);
                   }}
-                  className="flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
+                  className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
                 >
-                  <option value="80mm">80 มม. (มาตรฐานเครื่องพิมพ์สลิปความร้อนหน้ากว้าง - EasyPrint / Epson / POS-80)</option>
-                  <option value="58mm">58 มม. (เครื่องพิมพ์สลิปพกพา/ขนาดกะทัดรัด - Xprinter / POS-58)</option>
+                  <option value="80mm">80 มม. (มาตรฐานเครื่องพิมพ์สลิปหน้ากว้าง - EasyPrint / Epson / POS-80)</option>
+                  <option value="58mm">58 มม. (เครื่องพิมพ์สลิปพกพา - Xprinter / POS-58)</option>
                 </select>
                 <button
                   type="button"
                   onClick={handleTestPrintSlip}
-                  className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition flex-shrink-0"
+                  className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition flex-shrink-0"
                   title="ทดสอบสั่งพิมพ์สลิปจริงไปยังเครื่องพิมพ์ เพื่อตรวจเช็คความกว้างและการตัดกระดาษ"
                 >
                   <Printer className="w-4 h-4 text-amber-400" />
-                  <span>🖨️ พิมพ์สลิปทดสอบ</span>
+                  <span>พิมพ์สลิปทดสอบ</span>
                 </button>
               </div>
-              <div className="p-2.5 bg-amber-500/10 border border-amber-300/50 rounded-xl text-[11px] text-amber-900 mt-2 leading-relaxed">
-                <strong>💡 คำแนะนำแก้ปัญหาสลิปตกขอบ/ไม่พอดี (ทำเพียงครั้งเดียว):</strong>
-                <br />ในหน้าต่างสั่งพิมพ์ของเครื่องคอมพิวเตอร์ (หน้าต่าง Print Preview ที่เด้งขึ้นมา):
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 mt-2 leading-relaxed">
+                <strong className="text-slate-800">คำแนะนำตั้งค่าเครื่องพิมพ์ (Print Preview):</strong>
                 <ul className="list-disc list-inside mt-0.5 space-y-0.5 font-medium">
-                  <li><strong>ระยะขอบ (Margins):</strong> ให้เลือกเป็น <strong>"ไม่มี" (None)</strong> เสมอ (ห้ามเลือก Default เพราะคอมจะเพิ่มขอบ 10mm ทำให้สลิปตกขอบ)</li>
-                  <li><strong>ส่วนหัวและส่วนท้าย (Headers and footers):</strong> ให้ <strong>เอาติ๊กถูกออก</strong> เพื่อไม่ให้พิมพ์วันที่หรือลิงก์เว็บไซต์ติดมา</li>
-                  <li><strong>มาตราส่วน (Scale):</strong> เลือกเป็น <strong>"100%" (หรือพอดีหน้ากระดาษ)</strong></li>
+                  <li><strong>Margins:</strong> เลือก "ไม่มี" (None) เสมอ เพื่อไม่ให้สลิปตกขอบ</li>
+                  <li><strong>Headers and footers:</strong> เอาติ๊กถูกออก เพื่อไม่ให้มีวันที่หรือลิงก์เว็บไซต์ติดมา</li>
+                  <li><strong>Scale:</strong> เลือก "100%" (หรือพอดีหน้ากระดาษ)</li>
                 </ul>
               </div>
             </div>
 
             {/* Auto Print Receipt Option */}
-            <div className="md:col-span-2 p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+            <div className="md:col-span-2 p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-center justify-between">
               <div>
                 <div className="font-bold text-slate-800 text-xs flex items-center gap-2">
-                  <span>⚡ พิมพ์สลิปใบเสร็จอัตโนมัติทันทีเมื่อยืนยันชำระเงิน (Auto-Print)</span>
+                  <span>พิมพ์สลิปใบเสร็จอัตโนมัติทันทีเมื่อยืนยันชำระเงิน</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                     settings.autoPrintReceiptOnComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
                   }`}>
-                    {settings.autoPrintReceiptOnComplete ? 'เปิดใช้งานอยู่' : 'ปิด (พิมพ์ทีละขั้นตอน)'}
+                    {settings.autoPrintReceiptOnComplete ? 'เปิดใช้งาน' : 'ปิด'}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                  • <b>หากปิด (ค่าเริ่มต้น):</b> เมื่อคิดเงินเสร็จ ระบบจะเปิดหน้าต่างสลิปให้ตรวจสอบและกดปุ่มพิมพ์ทีละขั้นตอน เหมาะสำหรับช่วงที่กำลังทดสอบปรับจูนเครื่องพิมพ์<br />
-                  • <b>หากเปิด (อัตโนมัติ & โปร):</b> เมื่อแคชเชียร์กดยืนยันชำระเงิน ระบบจะสั่งพิมพ์สลิปไปยังเครื่องพิมพ์ความร้อนทันทีโดยไม่ต้องกดปุ่มพิมพ์สลิปซ้ำ
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  เมื่อเปิด: หลังยืนยันการชำระเงินระบบจะส่งพิมพ์สลิปทันทีโดยไม่ต้องกดยืนยันซ้ำ
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
@@ -1474,10 +1497,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
 
         {/* Section 5: Receipt Customization */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-            <Receipt className="w-5 h-5 text-amber-600" />
-            <h2 className="text-sm font-bold text-slate-800">ข้อความหัวและท้ายใบเสร็จรับเงิน</h2>
+            <Receipt className="w-4 h-4 text-amber-600" />
+            <h2 className="text-sm font-bold text-slate-900">ข้อความหัวและท้ายใบเสร็จ</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -1487,28 +1510,28 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 rows={3}
                 value={settings.receiptHeader}
                 onChange={e => setSettings({ ...settings, receiptHeader: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">ข้อความส่วนท้ายใบเสร็จ (เงื่อนไขการเปลี่ยนสินค้า/ติดต่อ)</label>
+              <label className="block font-bold text-slate-700 mb-1">ข้อความส่วนท้ายใบเสร็จ (เงื่อนไขและนโยบายเปลี่ยนสินค้า)</label>
               <textarea
                 rows={3}
                 value={settings.receiptFooter}
                 onChange={e => setSettings({ ...settings, receiptFooter: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
               />
             </div>
           </div>
         </div>
 
         {/* Section 6: Owner Identity & PIN */}
-        <div className="bg-white rounded-2xl p-6 border border-amber-200 shadow-sm space-y-4 bg-gradient-to-br from-white to-amber-50/20">
-          <div className="flex items-center space-x-2 border-b border-amber-100 pb-3">
-            <Shield className="w-5 h-5 text-amber-600" />
-            <h2 className="text-sm font-bold text-amber-900">
-              ข้อมูลบัญชีแอดมินเจ้าของร้าน (Owner Account)
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
+            <Shield className="w-4 h-4 text-amber-600" />
+            <h2 className="text-sm font-bold text-slate-900">
+              บัญชีแอดมินเจ้าของร้าน
             </h2>
           </div>
 
@@ -1520,7 +1543,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 value={ownerName}
                 onChange={e => setOwnerName(e.target.value)}
                 placeholder="เช่น คุณนพดล (เจ้าของร้าน)"
-                className="w-full p-2.5 bg-white border border-amber-300 rounded-xl font-semibold text-slate-800"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
               />
             </div>
 
@@ -1532,12 +1555,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   maxLength={12}
                   value={ownerPin}
                   onChange={e => setOwnerPin(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-amber-300 rounded-xl font-mono text-center text-sm font-bold tracking-widest pr-10"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono tabular-nums text-center text-sm font-bold tracking-widest pr-10 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => setShowOwnerPin(!showOwnerPin)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  aria-label={showOwnerPin ? 'ซ่อนรหัส PIN' : 'แสดงรหัส PIN'}
                 >
                   {showOwnerPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -1553,16 +1577,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <div className="flex justify-end">
           <button
             type="submit"
-            className={`px-7 py-3.5 text-white font-bold rounded-2xl text-xs shadow-xl flex items-center gap-2 transition duration-300 ${
+            className={`px-7 py-3 text-white font-bold rounded-xl text-xs shadow-md flex items-center gap-2 transition duration-200 ${
               saveSuccess 
-                ? 'bg-emerald-600 ring-4 ring-emerald-300 scale-105' 
+                ? 'bg-emerald-600 ring-2 ring-emerald-300' 
                 : 'bg-amber-600 hover:bg-amber-700 active:scale-95'
             }`}
           >
             {saveSuccess ? (
               <>
                 <CheckCircle2 className="w-4 h-4 text-white animate-bounce" />
-                <span>✓ บันทึกการตั้งค่าสำเร็จเรียบร้อย!</span>
+                <span>บันทึกการตั้งค่าสำเร็จ</span>
               </>
             ) : (
               <>
@@ -1575,25 +1599,25 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       </form>
 
       {/* Section 7: Staff & Role Management */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center space-x-2">
-            <UserCheck className="w-5 h-5 text-emerald-600" />
+            <UserCheck className="w-4 h-4 text-emerald-600" />
             <div>
-              <h2 className="text-sm font-bold text-slate-800">
-                รายชื่อพนักงาน & การแบ่งหน้าที่รับผิดชอบ (Role-Based Access)
+              <h2 className="text-sm font-bold text-slate-900">
+                รายชื่อพนักงานและการจัดการสิทธิ์
               </h2>
               <p className="text-[11px] text-slate-400">
-                เพิ่มพนักงาน กำหนดหน้าที่ (แคชเชียร์หน้าร้าน หรือ เจ้าหน้าที่ดูแลสต็อก) พร้อมรหัส PIN ประจำตัว
+                เพิ่มพนักงาน กำหนดหน้าที่ (แคชเชียร์หน้าร้าน หรือผู้ดูแลสต็อก) พร้อมรหัส PIN ประจำตัว
               </p>
             </div>
           </div>
           <button
             onClick={() => setIsStaffModalOpen(true)}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow transition"
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>+ เพิ่มพนักงาน</span>
+            <span>เพิ่มพนักงาน</span>
           </button>
         </div>
 
@@ -1603,12 +1627,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             .map(staff => (
               <div
                 key={staff.id}
-                className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between"
+                className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-center justify-between"
               >
                 <div>
                   <div className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
                     <span>{staff.name}</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
                       staff.role === 'INVENTORY'
                         ? 'bg-amber-100 text-amber-900 border border-amber-300'
                         : staff.role === 'OWNER'
@@ -1618,12 +1642,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       {staff.role === 'INVENTORY' ? '📦 สต็อกสินค้า' : staff.role === 'OWNER' ? '👑 แอดมิน' : '🛒 แคชเชียร์'}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-400 font-mono mt-0.5">PIN: •••• ({staff.pin})</div>
+                  <div className="text-[11px] text-slate-400 font-mono tabular-nums mt-0.5">PIN: •••• ({staff.pin})</div>
                 </div>
                 <button
                   onClick={() => handleDeleteStaff(staff.id)}
-                  className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                  className="p-1 text-slate-400 hover:text-rose-600 rounded transition active:scale-95"
                   title="ลบพนักงาน"
+                  aria-label={`ลบพนักงาน ${staff.name}`}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -1633,50 +1658,50 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       </div>
 
       {/* Section 8: Data Storage Location & Full Backup */}
-      <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-sm space-y-4">
+      <div className="bg-slate-950 text-white rounded-2xl p-6 shadow-sm space-y-4 border border-slate-800">
         <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
-          <Database className="w-5 h-5 text-amber-400" />
+          <Database className="w-4 h-4 text-amber-400" />
           <h2 className="text-sm font-bold text-white">
-            ที่จัดเก็บข้อมูลและการสำรองข้อมูล (Data Storage & Local Backup)
+            การสำรองและกู้คืนข้อมูล
           </h2>
         </div>
 
         <p className="text-xs text-slate-400 leading-relaxed">
-          ระบบ POS Korat Cat ทำงานแบบ <b>Offline-First</b> โดยบันทึกข้อมูลทั้งหมด (ยอดขาย, สต็อก, ลูกค้าสมาชิก, กะแคชเชียร์) ไว้ใน <b>IndexedDB (Browser Local Storage)</b> บนเครื่องของคุณอย่างปลอดภัย 100% แม้ไม่มีอินเทอร์เน็ตก็ทำงานได้ คุณสามารถสำรองข้อมูล (Backup) ออกมาเป็นไฟล์ JSON ได้ตลอดเวลา
+          ระบบทำงานแบบ <b>Offline-First</b> บันทึกข้อมูลทั้งหมด (ยอดขาย, สต็อก, ลูกค้าสมาชิก, กะแคชเชียร์) ไว้ในเบราว์เซอร์อย่างปลอดภัย 100% สามารถสำรองข้อมูล (Backup) ออกมาเป็นไฟล์ JSON ได้ตลอดเวลา
         </p>
 
         {/* Database Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-2">
-          <div className="p-3 bg-slate-800 rounded-xl text-center">
-            <span className="text-[10px] text-slate-400 uppercase">ยอดขายในระบบ</span>
-            <div className="text-lg font-bold font-mono text-emerald-400 mt-0.5">{dbStats.orders} บิล</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-1">
+          <div className="p-3 bg-slate-900 rounded-xl text-center border border-slate-800/80">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider">ยอดขายในระบบ</span>
+            <div className="text-lg font-bold font-mono tabular-nums text-emerald-400 mt-0.5">{dbStats.orders} บิล</div>
           </div>
-          <div className="p-3 bg-slate-800 rounded-xl text-center">
-            <span className="text-[10px] text-slate-400 uppercase">สมาชิกสะสมแต้ม</span>
-            <div className="text-lg font-bold font-mono text-sky-400 mt-0.5">{dbStats.customers} คน</div>
+          <div className="p-3 bg-slate-900 rounded-xl text-center border border-slate-800/80">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider">สมาชิกสะสมแต้ม</span>
+            <div className="text-lg font-bold font-mono tabular-nums text-sky-400 mt-0.5">{dbStats.customers} คน</div>
           </div>
-          <div className="p-3 bg-slate-800 rounded-xl text-center">
-            <span className="text-[10px] text-slate-400 uppercase">ตัวเลือกสินค้าในคลัง</span>
-            <div className="text-lg font-bold font-mono text-amber-400 mt-0.5">{dbStats.variants} รายการ</div>
+          <div className="p-3 bg-slate-900 rounded-xl text-center border border-slate-800/80">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider">ตัวเลือกในคลัง</span>
+            <div className="text-lg font-bold font-mono tabular-nums text-amber-400 mt-0.5">{dbStats.variants} รายการ</div>
           </div>
-          <div className="p-3 bg-slate-800 rounded-xl text-center">
-            <span className="text-[10px] text-slate-400 uppercase">บันทึกกะพนักงาน</span>
-            <div className="text-lg font-bold font-mono text-purple-400 mt-0.5">{dbStats.shifts} กะ</div>
+          <div className="p-3 bg-slate-900 rounded-xl text-center border border-slate-800/80">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider">บันทึกกะพนักงาน</span>
+            <div className="text-lg font-bold font-mono tabular-nums text-purple-400 mt-0.5">{dbStats.shifts} กะ</div>
           </div>
         </div>
 
         {/* Backup Actions */}
-        <div className="flex flex-wrap gap-3 pt-2">
+        <div className="flex flex-wrap gap-2.5 pt-1">
           <button
             onClick={handleExportBackup}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition"
           >
-            <Download className="w-4 h-4" />
-            <span>ดาวน์โหลดไฟล์สำรองข้อมูลทั้งหมด (Full JSON Backup)</span>
+            <Download className="w-3.5 h-3.5" />
+            <span>ดาวน์โหลดไฟล์สำรองข้อมูล (Full Backup JSON)</span>
           </button>
 
-          <label className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition">
-            <Upload className="w-4 h-4" />
+          <label className="px-4 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-200 border border-slate-750 font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition">
+            <Upload className="w-3.5 h-3.5" />
             <span>กู้คืนข้อมูลจากไฟล์ JSON</span>
             <input
               type="file"
@@ -1689,12 +1714,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       </div>
 
       {/* Section 9: DANGER ZONE - Factory Reset before Grand Opening */}
-      <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <div className="flex items-center space-x-2 border-b border-rose-200 pb-3">
-          <AlertTriangle className="w-5 h-5 text-rose-600" />
+      <div className="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-6 shadow-xs space-y-4">
+        <div className="flex items-center space-x-2 border-b border-rose-200/70 pb-3">
+          <AlertTriangle className="w-4 h-4 text-rose-600" />
           <div>
             <h2 className="text-sm font-bold text-rose-900">
-              พื้นที่ความปลอดภัยขั้นสูง: ล้างข้อมูลการขายและกะทดสอบ (Factory Reset)
+              ล้างข้อมูลทดสอบเพื่อเปิดร้านจริง
             </h2>
             <p className="text-[11px] text-rose-600">
               ใช้สำหรับล้างยอดขายและประวัติกะที่เกิดจากการทดสอบ ก่อนนำระบบไปเปิดใช้งานจริงหน้าร้าน
@@ -1705,15 +1730,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="text-xs text-rose-800 leading-relaxed max-w-xl">
             เมื่อกดล้างข้อมูล ระบบจะลบเฉพาะ <b>ยอดขาย (Orders)</b> และ <b>บันทึกกะ (Shifts)</b> ทั้งหมด<br />
-            ✨ <b>สิ่งที่ยังคงอยู่ไม่หาย:</b> สินค้าในคลัง (Products/Variants), ข้อมูลร้านและโลโก้, รายชื่อพนักงาน และรายชื่อสมาชิก
+            ✨ <b>สิ่งที่ไม่หาย:</b> สินค้าในคลัง (Products/Variants), ข้อมูลร้าน, รายชื่อพนักงาน และรายชื่อสมาชิก
           </div>
 
           <button
             type="button"
             onClick={() => setIsResetModalOpen(true)}
-            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-md transition flex-shrink-0"
+            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-sm transition flex-shrink-0"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
             <span>ล้างยอดขายและกะเพื่อเปิดร้านจริง</span>
           </button>
         </div>

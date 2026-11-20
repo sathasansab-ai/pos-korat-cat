@@ -59,6 +59,7 @@ export interface StoreSettings {
 
   // POS Display Settings
   showStockQuantityOnPos?: boolean; // แสดง/ซ่อนตัวเลขจำนวนสต็อกบนการ์ดสินค้าหน้าขาย
+  allowNegativeStock?: boolean; // อนุญาตให้ขายตัดสต็อกติดลบได้ (สำหรับกรณีสินค้ามาถึงหน้าร้านแล้วแต่ยังไม่ได้กดรับเข้าสต็อกในระบบ)
 
   // Member Tier Rules & Privilege Settings
   goldPointsThreshold?: number; // e.g. 50

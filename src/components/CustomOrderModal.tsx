@@ -452,29 +452,41 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                 </div>
               </td>
 
-              <!-- Mockup Image / Silhouette (Right) -->
-              <td style="width: 45%; text-align: center; vertical-align: top;">
+              <!-- Mockup Image & Vector Mannequin Silhouette (Right) -->
+              <td style="width: 48%; text-align: center; vertical-align: top;">
                 <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 6px; color: #0f172a; text-align: left;">
                   ${order.referenceImageUrl 
-                    ? '🎨 ภาพตัวอย่างลายผ้า / แบบชุดสั่งผลิต (Reference Photo):' 
+                    ? '🎨 ภาพตัวอย่าง & หุ่นสัดส่วน (Reference & Mannequin):' 
                     : `📐 หุ่นจำลองสัดส่วนวัดตัว (${isFem ? 'สตรี' : 'บุรุษ'}):`}
                 </div>
 
                 ${order.referenceImageUrl ? `
-                  <!-- ขยายภาพตัวอย่างลายผ้า/แบบชุด ให้ใหญ่เต็มพื้นที่ ช่างเห็นชัดเจน 100% -->
-                  <div class="mannequin-container">
-                    <img src="${order.referenceImageUrl}" alt="Mockup" class="media-photo" />
-                    <div class="media-caption">
-                      ภาพตัวอย่างลายผ้า / แบบชุดอ้างอิงสำหรับฝ่ายผลิต
-                    </div>
-                  </div>
+                  <!-- กรณีมีภาพถ่าย: แสดงทั้งภาพตัวอย่าง และหุ่นวัดตัวเวกเตอร์ เคียงข้างกันอย่างลงตัว -->
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="width: 46%; vertical-align: top; padding-right: 5px;">
+                        <div class="mannequin-container" style="padding: 6px; min-height: 240px; display: flex; flex-direction: column; justify-content: space-between;">
+                          <img src="${order.referenceImageUrl}" alt="Mockup" class="media-photo" style="max-height: 190px;" />
+                          <div class="media-caption">ภาพแบบอ้างอิง / ลายผ้า</div>
+                        </div>
+                      </td>
+                      <td style="width: 54%; vertical-align: top; padding-left: 5px;">
+                        <div class="mannequin-container" style="padding: 6px; min-height: 240px;">
+                          <div style="font-size: 10px; font-weight: bold; color: #334155; margin-bottom: 3px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px;">
+                            ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'}
+                          </div>
+                          ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
                 ` : `
-                  <!-- กรณีไม่มีรูปถ่าย ให้แสดงหุ่นวัดตัวเวกเตอร์พร้อมเส้นสัดส่วน เต็มพื้นที่ สวยงามสง่างาม -->
-                  <div class="mannequin-container">
-                    <div style="font-size: 10.5px; font-weight: bold; color: #334155; margin-bottom: 4px;">
+                  <!-- กรณีไม่มีรูปถ่าย ให้แสดงหุ่นวัดตัวเวกเตอร์พร้อมเส้นสัดส่วน เต็มพื้นที่ กว้างขวาง คมชัด 100% -->
+                  <div class="mannequin-container" style="padding: 8px;">
+                    <div style="font-size: 11px; font-weight: bold; color: #334155; margin-bottom: 4px;">
                       ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'} - ${order.categoryType === 'PANTS' ? 'เน้นสัดส่วนช่วงล่าง (กางเกง)' : 'เน้นสัดส่วนช่วงบน (เสื้อ/แจ็กเก็ต)'}
                     </div>
-                    <div style="max-height: 230px; display: flex; justify-content: center; align-items: center;">
+                    <div style="width: 100%; display: flex; justify-content: center; align-items: center;">
                       ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
                     </div>
                   </div>

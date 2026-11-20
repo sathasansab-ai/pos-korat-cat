@@ -870,14 +870,14 @@ export const ReportsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-amber-500" />
-            <span>รายงานการเงิน, สรุปกะ, บัญชี และกำไรสุทธิ (แอดมินเจ้าของร้าน)</span>
+            <BarChart3 className="w-5 h-5 text-amber-600" />
+            <span>รายงานการเงินและบัญชีร้านค้า</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            วิเคราะห์ยอดขาย กำไรขั้นต้น (Gross Profit) สรุปกะพนักงาน สรุปรายวัน บัญชีแจกแจงรายการ และพิมพ์ใบกำกับภาษีย้อนหลัง
+            วิเคราะห์ยอดขาย กำไรขั้นต้น สรุปกะพนักงาน สรุปรายวัน บัญชีแจกแจงรายการ และภาษีขาย
           </p>
           {syncMessage && (
-            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold animate-in fade-in duration-150">
               <span>{syncMessage}</span>
             </div>
           )}
@@ -889,100 +889,156 @@ export const ReportsPage: React.FC = () => {
             type="button"
             onClick={handleSyncFromCloud}
             disabled={isSyncingCloud}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition disabled:opacity-50"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
             title="ดึงยอดขาย บิล และกะล่าสุดจากหน้าร้านผ่าน Supabase Cloud เพื่อให้แอดมินที่บ้านเห็นยอดสดตรงกัน"
           >
-            <RefreshCw className={`w-4 h-4 ${isSyncingCloud ? 'animate-spin' : ''}`} />
-            <span>{isSyncingCloud ? 'กำลังดึงยอด...' : '🔄 ดึงยอดขายล่าสุดจากหน้าร้าน (Cloud)'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+            <span>{isSyncingCloud ? 'กำลังดึงยอด...' : 'ดึงยอดล่าสุด (Cloud)'}</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportOrdersCsv}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
             title="ดาวน์โหลดสมุดรายวันขายและกำไรแบบละเอียดทุกบิล สำหรับนำเข้า Excel"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Excel: สมุดรายวันขาย & กำไร</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>สมุดรายวันขาย</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportDailyCsv}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
             title="ดาวน์โหลดสรุปยอดขายและกำไรสุทธิรายวัน"
           >
-            <Download className="w-4 h-4" />
-            <span>Excel: สรุปรายวัน</span>
+            <Download className="w-3.5 h-3.5 text-slate-600" />
+            <span>สรุปรายวัน</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportShiftsCsv}
-            className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
             title="ดาวน์โหลดรายงานสรุปกะและการส่งมอบเงินสดของแคชเชียร์"
           >
-            <Clock className="w-4 h-4 text-amber-600" />
-            <span>Excel: สรุปกะแคชเชียร์</span>
+            <Clock className="w-3.5 h-3.5 text-amber-600" />
+            <span>สรุปกะ</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportVatReportCsv}
-            className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
             title="ดาวน์โหลดรายงานภาษีขาย (ภ.พ.30) ประจำงวดตามมาตรฐานสรรพากร"
           >
-            <FileText className="w-4 h-4 text-amber-200" />
-            <span>📑 ภ.พ.30 (ภาษีขาย)</span>
+            <FileText className="w-3.5 h-3.5 text-amber-600" />
+            <span>ภ.พ.30 ภาษีขาย</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportStockCsv}
-            className="px-3.5 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
             title="ดาวน์โหลดรายงานสรุปสต็อกสินค้าและมูลค่าคลัง 2 สาขา"
           >
-            <Boxes className="w-4 h-4 text-teal-200" />
-            <span>📦 สต็อก & มูลค่าคลัง</span>
+            <Boxes className="w-3.5 h-3.5 text-teal-600" />
+            <span>สต็อก & มูลค่าคลัง</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportCustomOrdersCsv}
-            className="px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
             title="ดาวน์โหลดรายงานสรุปงานสั่งผลิตและเงินมัดจำทั้งหมด"
           >
-            <Scissors className="w-4 h-4 text-purple-200" />
-            <span>✂️ สั่งผลิต & มัดจำ</span>
+            <Scissors className="w-3.5 h-3.5 text-purple-600" />
+            <span>สั่งผลิต & มัดจำ</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportTransfersCsv}
-            className="px-3.5 py-2 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
             title="ดาวน์โหลดประวัติการโอนย้ายสต็อกข้ามคลัง (โกดัง ➔ หน้าร้าน)"
           >
-            <Truck className="w-4 h-4 text-sky-200" />
-            <span>🚚 ประวัติการโอนย้าย</span>
+            <Truck className="w-3.5 h-3.5 text-sky-600" />
+            <span>โอนย้ายสต็อก</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportDemographicsCsv}
-            className="px-3.5 py-2 bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
             title="ดาวน์โหลดรายงานสรุปพฤติกรรมลูกค้าตามเพศและช่วงอายุ (Excel/CSV)"
           >
-            <Users className="w-4 h-4 text-indigo-200" />
-            <span>👥 ข้อมูลประชากรลูกค้า</span>
+            <Users className="w-3.5 h-3.5 text-indigo-600" />
+            <span>ประชากรลูกค้า</span>
           </button>
         </div>
       </div>
 
       {/* FILTER BAR (เลือกช่วงเวลา: วันนี้, 7 วัน, เดือนนี้, เลือกเดือน, กำหนดวันเอง) */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
-            <Calendar className="w-4 h-4 text-amber-600" /> เลือกช่วงสรุปผล:
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-bold text-slate-700 flex items-center gap-1 mr-1">
+            <Calendar className="w-3.5 h-3.5 text-amber-600" /> ช่วงเวลา:
+          </span>
+
+          <button
+            onClick={() => setDateFilterMode('TODAY')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              dateFilterMode === 'TODAY' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            วันนี้
+          </button>
+
+          <button
+            onClick={() => setDateFilterMode('7DAYS')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              dateFilterMode === '7DAYS' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            7 วันล่าสุด
+          </button>
+
+          <button
+            onClick={() => setDateFilterMode('THIS_MONTH')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              dateFilterMode === 'THIS_MONTH' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            เดือนนี้
+          </button>
+
+          <button
+            onClick={() => setDateFilterMode('LAST_MONTH')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              dateFilterMode === 'LAST_MONTH' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            เดือนที่แล้ว
+          </button>
+
+          <button
+            onClick={() => setDateFilterMode('ALL')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              dateFilterMode === 'ALL' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            ทั้งหมด
+          </button>
+
+          <button
+            onClick={() => setDateFilterMode('CUSTOM')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              dateFilterMode === 'CUSTOM' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            กำหนดวันเอง
+          </button>
+        </div>
           </span>
 
           <button
@@ -1105,7 +1161,7 @@ export const ReportsPage: React.FC = () => {
       </div>
 
       {/* TODAY'S LIVE SALES HIGHLIGHT BANNER */}
-      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-4 text-slate-950 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-4 text-slate-950 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 bg-slate-950 text-amber-300 font-black text-[10px] rounded-full uppercase tracking-wider">
@@ -1116,29 +1172,29 @@ export const ReportsPage: React.FC = () => {
             </span>
           </div>
           <div className="mt-1 flex items-baseline gap-3">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-slate-950">
+            <span className="text-2xl sm:text-3xl font-black font-mono tabular-nums text-slate-950">
               ฿{todayRevenue.toLocaleString()}
             </span>
-            <span className="text-xs font-bold text-amber-950">
+            <span className="text-xs font-bold text-amber-950 font-mono tabular-nums">
               ({todayBills} บิลสำเร็จ)
             </span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <div className="px-3 py-1.5 bg-white/80 rounded-xl border border-white/60 text-xs">
+          <div className="px-3 py-1.5 bg-white/85 rounded-xl border border-white/60 text-xs shadow-2xs">
             <span className="text-slate-600 font-medium">💵 เงินสด:</span>{' '}
-            <span className="font-mono font-bold text-slate-900">฿{todayCash.toLocaleString()}</span>
+            <span className="font-mono tabular-nums font-bold text-slate-900">฿{todayCash.toLocaleString()}</span>
           </div>
-          <div className="px-3 py-1.5 bg-white/80 rounded-xl border border-white/60 text-xs">
+          <div className="px-3 py-1.5 bg-white/85 rounded-xl border border-white/60 text-xs shadow-2xs">
             <span className="text-slate-600 font-medium">📱 PromptPay:</span>{' '}
-            <span className="font-mono font-bold text-slate-900">฿{todayPromptPay.toLocaleString()}</span>
+            <span className="font-mono tabular-nums font-bold text-slate-900">฿{todayPromptPay.toLocaleString()}</span>
           </div>
           {dateFilterMode !== 'TODAY' && (
             <button
               type="button"
               onClick={() => setDateFilterMode('TODAY')}
-              className="px-3 py-1.5 bg-slate-950 hover:bg-slate-900 text-amber-300 rounded-xl text-xs font-black shadow-xs transition"
+              className="px-3 py-1.5 bg-slate-950 hover:bg-slate-900 active:scale-95 text-amber-300 rounded-xl text-xs font-bold shadow-xs transition duration-150"
             >
               ดูบิลเฉพาะวันนี้ ➔
             </button>
@@ -1148,47 +1204,47 @@ export const ReportsPage: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold">ยอดขายรวมสุทธิ</span>
+            <span className="text-xs font-semibold text-slate-600">ยอดขายรวมสุทธิ</span>
             <DollarSign className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-black font-mono text-slate-900">
+          <div className="text-2xl font-black font-mono tabular-nums text-slate-900">
             ฿{totalRevenue.toLocaleString()}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">จาก {totalBills} ใบเสร็จ</div>
+          <div className="text-[11px] text-slate-400 font-mono tabular-nums mt-1">จาก {totalBills} ใบเสร็จ</div>
         </div>
 
-        <div className="p-5 bg-white rounded-2xl border border-amber-200 shadow-sm bg-gradient-to-br from-white to-amber-50/30">
+        <div className="p-5 bg-white rounded-2xl border border-amber-200/80 shadow-xs bg-gradient-to-br from-white to-amber-50/20">
           <div className="flex items-center justify-between text-amber-800 mb-2">
-            <span className="text-xs font-bold">กำไรขั้นต้น (Gross Profit)</span>
+            <span className="text-xs font-bold text-amber-900">กำไรขั้นต้น (Gross Profit)</span>
             <TrendingUp className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-2xl font-black font-mono text-amber-700">
+          <div className="text-2xl font-black font-mono tabular-nums text-amber-700">
             ฿{grossProfit.toLocaleString()}
           </div>
-          <div className="text-[11px] text-amber-800 font-semibold mt-1">
+          <div className="text-[11px] text-amber-800 font-mono tabular-nums font-semibold mt-1">
             Margin: {grossMarginPercent.toFixed(1)}%
           </div>
         </div>
 
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold">ต้นทุนรวม (COGS)</span>
+            <span className="text-xs font-semibold text-slate-600">ต้นทุนรวม (COGS)</span>
             <ShoppingBag className="w-4 h-4 text-slate-500" />
           </div>
-          <div className="text-2xl font-black font-mono text-slate-700">
+          <div className="text-2xl font-black font-mono tabular-nums text-slate-700">
             ฿{totalCogs.toLocaleString()}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">หักต้นทุน ณ วันขายจริง</div>
         </div>
 
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold">ยอดเฉลี่ยต่อบิล</span>
+            <span className="text-xs font-semibold text-slate-600">ยอดเฉลี่ยต่อบิล</span>
             <Receipt className="w-4 h-4 text-sky-600" />
           </div>
-          <div className="text-2xl font-black font-mono text-slate-900">
+          <div className="text-2xl font-black font-mono tabular-nums text-slate-900">
             ฿{avgBasket.toFixed(0)}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">Average Ticket Size</div>
@@ -1196,58 +1252,77 @@ export const ReportsPage: React.FC = () => {
       </div>
 
       {/* SUB-TABS: ภาพรวม / สรุปกะ / สรุปรายวัน / บัญชีแจกแจงละเอียด / ประวัติบิล */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-2 bg-slate-50 border-b border-slate-200 flex flex-wrap gap-1">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div className="p-2 bg-slate-50 border-b border-slate-200/70 flex flex-wrap gap-1">
           <button
             onClick={() => setReportTab('OVERVIEW')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-              reportTab === 'OVERVIEW' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              reportTab === 'OVERVIEW' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
             📊 สรุปภาพรวม
           </button>
           <button
             onClick={() => setReportTab('SHIFTS')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-              reportTab === 'SHIFTS' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              reportTab === 'SHIFTS' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
             ⏱️ สรุปกะพนักงาน ({shifts.length})
           </button>
           <button
             onClick={() => setReportTab('DAILY')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-              reportTab === 'DAILY' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              reportTab === 'DAILY' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
             📅 สรุปยอดรายวัน ({dailyMap.size})
           </button>
           <button
             onClick={() => setReportTab('ACCOUNTING')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-              reportTab === 'ACCOUNTING' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              reportTab === 'ACCOUNTING' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            📑 บัญชีและรายการขายละเอียด ({filteredOrders.length})
+            📑 บัญชีและรายการขาย ({filteredOrders.length})
           </button>
           <button
             onClick={() => setReportTab('ORDERS')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-              reportTab === 'ORDERS' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition active:scale-95 duration-150 ${
+              reportTab === 'ORDERS' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            🧾 ประวัติการขาย & ออกใบกำกับภาษี ({filteredOrders.length})
+            🧾 ประวัติการขาย ({filteredOrders.length})
           </button>
           <button
             onClick={() => setReportTab('CONSIGNMENT')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 duration-150 ${
               reportTab === 'CONSIGNMENT' 
-                ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md font-black' 
+                ? 'bg-amber-600 text-white shadow-xs font-black' 
                 : 'text-amber-800 hover:bg-amber-100/60 font-bold'
             }`}
           >
             <span>🤝 ฝากขาย & ส่งมอบเงิน</span>
             {consignmentSales.length > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono tabular-nums ${
+                reportTab === 'CONSIGNMENT' ? 'bg-white text-amber-900 font-black' : 'bg-amber-200 text-amber-900 font-bold'
+              }`}>
+                {totalConsignmentQty} ชิ้น
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setReportTab('DEMOGRAPHICS')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 duration-150 ${
+              reportTab === 'DEMOGRAPHICS' 
+                ? 'bg-slate-900 text-amber-300 shadow-xs font-black' 
+                : 'text-slate-600 hover:bg-slate-200/60'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>👥 ข้อมูลลูกค้า (เพศ & ช่วงอายุ)</span>
+          </button>
+        </div>
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                 reportTab === 'CONSIGNMENT' ? 'bg-white text-amber-900 font-black' : 'bg-amber-200 text-amber-900 font-bold'
               }`}>

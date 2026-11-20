@@ -55,7 +55,7 @@ export const LoginLockScreen: React.FC<LoginLockScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#130f0a] to-slate-950 flex flex-col items-center justify-center p-4 select-none">
+    <div className="min-h-dvh h-dvh bg-gradient-to-br from-slate-950 via-[#130f0a] to-slate-950 flex flex-col items-center justify-center p-4 select-none overflow-hidden">
       <div className="w-full max-w-sm bg-slate-900/90 border border-amber-500/30 rounded-3xl p-8 shadow-2xl backdrop-blur-md text-white flex flex-col items-center animate-in zoom-in-95">
         
         {/* Brand Header */}

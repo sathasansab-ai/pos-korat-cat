@@ -618,6 +618,155 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
     }
   };
 
+  // Upgrade 2: Physical Stocktake Sheet A4 (ใบนับสต็อกสินค้าจริงสำหรับให้ทีมงานเดินตรวจนับหน้าร้าน/โกดัง)
+  const handlePrintStocktakeSheet = () => {
+    const listToPrint = filteredVariants.length > 0 ? filteredVariants : variants;
+    if (listToPrint.length === 0) {
+      alert('ไม่มีรายการสินค้าสำหรับพิมพ์ใบนับสต็อก');
+      return;
+    }
+
+    const todayStr = new Date().toLocaleDateString('th-TH', { 
+      year: 'numeric', month: 'long', day: 'numeric' 
+    });
+
+    const rowsHtml = listToPrint.map((v, i) => {
+      const size = v.attributes?.['ไซส์'] || v.attributes?.['Size'] || v.attributes?.['ขนาด'] || '-';
+      const color = v.attributes?.['สี'] || v.attributes?.['Color'] || '';
+      const shopQty = v.shopStock ?? v.stockQuantity ?? 0;
+      const whQty = v.warehouseStock ?? 0;
+      const totalQty = v.stockQuantity ?? (shopQty + whQty);
+
+      return `
+        <tr>
+          <td style="text-align: center; font-size: 11px;">${i + 1}</td>
+          <td style="font-family: monospace; font-size: 11px; font-weight: bold;">${v.barcode}</td>
+          <td style="font-family: monospace; font-size: 11px;">${v.sku}</td>
+          <td>
+            <div style="font-weight: bold; font-size: 11.5px;">${v.productName}</div>
+            <div style="font-size: 10px; color: #475569;">
+              ไซส์: <b>${size}</b> ${color ? `| สี: ${color}` : ''} | หมวด: ${v.category || '-'}
+            </div>
+          </td>
+          <td style="text-align: center; font-size: 11px; font-weight: bold; background: #f8fafc;">
+            ${shopQty}
+          </td>
+          <td style="text-align: center; font-size: 11px; font-weight: bold; background: #f8fafc;">
+            ${whQty}
+          </td>
+          <td style="text-align: center; font-size: 11px; font-weight: bold; background: #f1f5f9;">
+            ${totalQty}
+          </td>
+          <td style="border: 1.5px solid #0f172a; width: 65px; height: 28px; background: #ffffff;"></td>
+          <td style="border: 1px solid #cbd5e1; width: 55px; background: #ffffff;"></td>
+          <td style="font-size: 10px; color: #94a3b8;"></td>
+        </tr>
+      `;
+    }).join('');
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('กรุณาอนุญาตป็อปอัป (Pop-up) ในเบราว์เซอร์เพื่อเปิดเอกสารพิมพ์');
+      return;
+    }
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>ใบนับสต็อกสินค้าจริง (Physical Stocktake Sheet) - ${todayStr}</title>
+          <style>
+            @page { size: A4 landscape; margin: 10mm 12mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; color: #0f172a; margin: 0; padding: 0; }
+            .header-table { width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 8px; margin-bottom: 10px; }
+            .brand-title { font-size: 16px; font-weight: 800; color: #78350f; text-transform: uppercase; }
+            .doc-title { font-size: 15px; font-weight: 800; color: #0f172a; text-align: right; }
+            
+            .meta-bar { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 12px; margin-bottom: 10px; font-size: 11px; }
+            
+            table.sheet { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+            table.sheet th, table.sheet td { border: 1px solid #cbd5e1; padding: 5px 6px; text-align: left; vertical-align: middle; }
+            table.sheet th { background: #f1f5f9; font-weight: 700; font-size: 10.5px; color: #334155; text-align: center; }
+            
+            .sig-table { width: 100%; margin-top: 15px; border-collapse: collapse; page-break-inside: avoid; }
+            .sig-table td { width: 33.33%; text-align: center; vertical-align: bottom; font-size: 10.5px; padding: 0 15px; }
+            .sig-line { border-bottom: 1px solid #64748b; width: 75%; margin: 30px auto 4px auto; }
+          </style>
+        </head>
+        <body>
+          <table class="header-table">
+            <tr>
+              <td>
+                <div class="brand-title">${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}</div>
+                <div style="font-size: 10px; color: #64748b;">ระบบบริหารคลังสินค้า & สต็อกหน้าร้าน (Retail Inventory System)</div>
+              </td>
+              <td style="text-align: right;">
+                <div class="doc-title">ใบนับสต็อกสินค้าจริง (PHYSICAL STOCKTAKE SHEET)</div>
+                <div style="font-size: 10.5px; color: #64748b;">วันที่พิมพ์เอกสาร: ${todayStr} | หมวด: ${selectedCategoryFilter === 'ALL' ? 'ทุกหมวดหมู่' : selectedCategoryFilter} (${listToPrint.length} รายการ)</div>
+              </td>
+            </tr>
+          </table>
+
+          <div class="meta-bar">
+            <div><b>ผู้ทำการตรวจนับ:</b> ............................................................</div>
+            <div><b>สถานที่ตรวจนับ:</b> [ &nbsp; ] หน้าร้าน &nbsp;&nbsp;&nbsp; [ &nbsp; ] คลังสินค้า/โกดัง &nbsp;&nbsp;&nbsp; [ &nbsp; ] รวมทั้งหมด</div>
+            <div><b>เวลาที่เริ่มนับ:</b> ................... น. &nbsp;&nbsp; <b>เวลานับเสร็จ:</b> ................... น.</div>
+          </div>
+
+          <table class="sheet">
+            <thead>
+              <tr>
+                <th style="width: 30px;">#</th>
+                <th style="width: 105px;">บาร์โค้ด</th>
+                <th style="width: 95px;">รหัส SKU</th>
+                <th>รายการสินค้า & ตัวเลือก/ไซส์</th>
+                <th style="width: 60px;">หน้าร้าน<br>(ระบบ)</th>
+                <th style="width: 60px;">โกดัง<br>(ระบบ)</th>
+                <th style="width: 65px;">รวมระบบ<br>(ชิ้น)</th>
+                <th style="width: 70px; background: #fef3c7; color: #92400e;">นับได้จริง<br>(ชิ้น) ✍️</th>
+                <th style="width: 55px;">ผลต่าง<br>(+/-)</th>
+                <th style="width: 90px;">หมายเหตุ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <table class="sig-table">
+            <tr>
+              <td>
+                <div class="sig-line"></div>
+                <div>( ............................................................ )</div>
+                <div style="color: #64748b; font-size: 9.5px; margin-top: 2px;">พนักงานผู้นับสต็อกสินค้า</div>
+              </td>
+              <td>
+                <div class="sig-line"></div>
+                <div>( ............................................................ )</div>
+                <div style="color: #64748b; font-size: 9.5px; margin-top: 2px;">พยาน / ผู้ช่วยตรวจนับ</div>
+              </td>
+              <td>
+                <div class="sig-line"></div>
+                <div>( ............................................................ )</div>
+                <div style="color: #64748b; font-size: 9.5px; margin-top: 2px;">ผู้จัดการร้าน / ผู้มีอำนาจอนุมัติ</div>
+              </td>
+            </tr>
+          </table>
+
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
   const allCategories = Array.from(new Set(variants.map(v => v.category).filter(Boolean)));
 
   const filteredVariants = variants.filter(v => {
@@ -638,80 +787,82 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Boxes className="w-6 h-6 text-amber-500" />
+            <Boxes className="w-5 h-5 text-amber-600" />
             <span>
               คลังสินค้า & สติ๊กเกอร์บาร์โค้ด
               {currentUser?.role === 'INVENTORY' ? (
-                <span className="ml-2 text-xs font-bold text-amber-950 bg-amber-400 px-2.5 py-0.5 rounded-full shadow-xs">
-                  📦 ผู้ดูแลสต็อก: {currentUser.name}
+                <span className="ml-2 text-xs font-bold text-amber-950 bg-amber-400 px-2.5 py-0.5 rounded-full shadow-2xs">
+                  ผู้ดูแลสต็อก: {currentUser.name}
                 </span>
               ) : (
-                <span className="ml-2 text-xs font-bold text-slate-500 font-normal">
+                <span className="ml-2 text-xs text-slate-400 font-normal">
                   (ระดับผู้ดูแลระบบ)
                 </span>
               )}
             </span>
           </h1>
-          <p className="text-xs text-slate-500">
-            จัดการสินค้าและสต็อกแยกตามไซส์ (S, M, L, XL...) อัปโหลดภาพ และสั่งพิมพ์สติ๊กเกอร์บาร์โค้ด
+          <p className="text-xs text-slate-500 mt-0.5">
+            จัดการสต็อกสินค้าแยกตามไซส์ พิมพ์สติ๊กเกอร์บาร์โค้ด และติดตามการโอนย้ายข้ามคลัง
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Cloud Sync Tools */}
           <button
             type="button"
             onClick={handlePushMasterStock}
             disabled={isPushingMaster}
-            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0 disabled:opacity-50"
-            title="ส่งสินค้าและสต็อกทั้งหมดในเครื่องนี้ขึ้นไปเก็บเป็นข้อมูลหลักบน Cloud (ทำหลังจากจัดสต็อกที่บ้านเสร็จ)"
+            className="px-3 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 flex-shrink-0 disabled:opacity-50"
+            title="ส่งสินค้าและสต็อกทั้งหมดในเครื่องนี้ขึ้นไปเก็บเป็นข้อมูลหลักบน Cloud"
           >
-            <UploadCloud className={`w-4 h-4 ${isPushingMaster ? 'animate-bounce' : ''}`} />
-            <span>{isPushingMaster ? 'กำลังส่งขึ้น Cloud...' : '🚀 ดันสต็อกขึ้น Cloud'}</span>
+            <UploadCloud className={`w-3.5 h-3.5 ${isPushingMaster ? 'animate-bounce' : ''}`} />
+            <span>{isPushingMaster ? 'กำลังส่ง...' : 'ดันขึ้น Cloud'}</span>
           </button>
 
           <button
             type="button"
             onClick={handleMirrorStock}
             disabled={isSyncingStock}
-            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0 disabled:opacity-50"
-            title="ดึงแคตตาล็อกสินค้าจาก Cloud มาแทนที่ในเครื่องนี้ให้ตรงกัน 100% (เหมาะสำหรับเครื่องหน้าร้าน)"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 flex-shrink-0 disabled:opacity-50"
+            title="ดึงแคตตาล็อกสินค้าจาก Cloud มาแทนที่ในเครื่องนี้ให้ตรงกัน 100%"
           >
-            <RefreshCw className={`w-4 h-4 ${isSyncingStock ? 'animate-spin' : ''}`} />
-            <span>{isSyncingStock ? 'กำลังปรับสต็อก...' : '⚡ ดึงสต็อกตรงกับ Cloud 100%'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isSyncingStock ? 'animate-spin' : ''}`} />
+            <span>{isSyncingStock ? 'กำลังปรับ...' : 'ดึงตรง Cloud'}</span>
           </button>
 
           <button
             type="button"
             onClick={handleSyncStock}
             disabled={isSyncingStock}
-            className="px-3 py-2 sm:px-3.5 sm:py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow transition flex-shrink-0 disabled:opacity-50 border border-slate-700"
+            className="px-2.5 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-600 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1 shadow-xs transition duration-150 flex-shrink-0 disabled:opacity-50"
             title="ดึงสต็อกและรายการสินค้าล่าสุดจาก Cloud แบบ Safe Merge"
           >
-            <RefreshCw className={`w-4 h-4 ${isSyncingStock ? 'animate-spin' : ''}`} />
-            <span>{isSyncingStock ? 'กำลังดึง...' : '🔄 ซิงค์ปกติ'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isSyncingStock ? 'animate-spin' : ''}`} />
+            <span>ซิงค์</span>
           </button>
 
+          {/* Workflow Actions */}
           <button
             type="button"
             onClick={() => setIsProductionModalOpen(true)}
-            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 flex-shrink-0"
             title="ตรวจดูรายการสั่งผลิตพิเศษ เสื้อสกรีน/มัดจำ 50% สำหรับคลังและช่างผลิต"
           >
-            <Scissors className="w-4 h-4 text-purple-200" />
-            <span>✂️ คิวงานสั่งผลิต (Production)</span>
+            <Scissors className="w-3.5 h-3.5 text-purple-600" />
+            <span>คิวสั่งผลิต</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsTransferModalOpen(true)}
-            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 flex-shrink-0"
             title="โอนย้ายสต็อกระหว่างโกดัง/โรงงานผลิต เข้าหน้าร้าน"
           >
-            <Truck className="w-4 h-4 text-emerald-200" />
-            <span>🚚 โอนย้ายสต็อกข้ามคลัง</span>
+            <Truck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>โอนย้ายสต็อก</span>
             {pendingTransferCount > 0 && (
-              <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black text-[10px] ml-1 shadow animate-pulse">
-                รอรับ {pendingTransferCount}
+              <span className="bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-full font-black text-[10px] ml-0.5">
+                {pendingTransferCount}
               </span>
             )}
           </button>
@@ -719,30 +870,41 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
           <button
             type="button"
             onClick={() => handleOpenRestock()}
-            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0 border border-emerald-400/40"
-            title="นำสต็อกมาเติมต่อในสินค้าเดิมที่มีอยู่แล้ว (เช่น กางเกงแมว XL เพิ่ม 20 ตัว) และสั่งพิมพ์สติ๊กเกอร์เฉพาะส่วนที่เติม"
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 flex-shrink-0"
+            title="นำสต็อกมาเติมต่อในสินค้าเดิมที่มีอยู่แล้ว"
           >
-            <ArrowDownToLine className="w-4 h-4 text-emerald-200" />
-            <span>📥 เติมสต็อกสินค้าเดิม (+พิมพ์แท็ก)</span>
+            <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-600" />
+            <span>เติมสต็อกเดิม</span>
           </button>
 
+          <button
+            type="button"
+            onClick={handlePrintStocktakeSheet}
+            className="px-3 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-200/90 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 flex-shrink-0"
+            title="พิมพ์ใบนับสต็อกสินค้าจริง A4 สำหรับตรวจนับสินค้าหน้าร้านและโกดัง"
+          >
+            <Printer className="w-3.5 h-3.5 text-slate-600" />
+            <span>ใบนับสต็อก A4</span>
+          </button>
+
+          {/* Primary Create Actions */}
           <button
             onClick={() => {
               resetSingleForm();
               setIsSingleModalOpen(true);
             }}
-            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow transition flex-shrink-0"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 flex-shrink-0"
           >
-            <Plus className="w-4 h-4" />
-            <span>+ เพิ่มสินค้า (แยกสต็อกตามไซส์)</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ เพิ่มสินค้า</span>
           </button>
 
           <button
             onClick={() => setIsMatrixModalOpen(true)}
-            className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl text-xs flex items-center gap-1.5 shadow-lg transition flex-shrink-0"
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 flex-shrink-0"
           >
-            <Sparkles className="w-4 h-4" />
-            <span>+ สร้าง Matrix Variants (DTF/Flex)</span>
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>+ สร้าง Matrix</span>
           </button>
         </div>
       </div>

@@ -177,27 +177,27 @@ export const Navbar: React.FC<NavbarProps> = ({
               <>
                 <button
                   onClick={() => onSelectTab('pos')}
-                  className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 flex-shrink-0 ${
                     activeTab === 'pos' 
-                      ? 'bg-amber-600 text-white shadow' 
-                      : 'text-slate-300 hover:bg-slate-800'
+                      ? 'bg-amber-600 text-white shadow-md' 
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                   }`}
                 >
-                  <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span>หน้าร้าน (POS)</span>
+                  <ShoppingCart className="w-4 h-4 text-amber-300" />
+                  <span>หน้าขาย POS</span>
                 </button>
 
                 <button
                   onClick={() => onSelectTab('shift')}
-                  className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 flex-shrink-0 ${
                     activeTab === 'shift' 
-                      ? 'bg-amber-600 text-white shadow' 
-                      : 'text-slate-300 hover:bg-slate-800'
+                      ? 'bg-amber-600 text-white shadow-md' 
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                   }`}
                 >
-                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span>กะ</span>
-                  <span className={`w-2 h-2 rounded-full ml-0.5 ${activeShift ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span>กะการขาย</span>
+                  <span className={`w-2 h-2 rounded-full ml-0.5 ${activeShift ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 'bg-slate-500'}`} />
                 </button>
               </>
             )}
@@ -206,13 +206,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             {(isOwner || isInventory) && (
               <button
                 onClick={() => onSelectTab('inventory')}
-                className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
+                className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 flex-shrink-0 ${
                   activeTab === 'inventory' 
-                    ? 'bg-amber-600 text-white shadow' 
-                    : 'text-slate-300 hover:bg-slate-800'
+                    ? 'bg-amber-600 text-white shadow-md' 
+                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                 }`}
               >
-                <Boxes className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <Boxes className="w-4 h-4 text-amber-300" />
                 <span>คลังสินค้า</span>
               </button>
             )}
@@ -222,32 +222,32 @@ export const Navbar: React.FC<NavbarProps> = ({
               <>
                 <button
                   onClick={() => onSelectTab('reports')}
-                  className={`flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 flex-shrink-0 ${
                     activeTab === 'reports' 
-                      ? 'bg-amber-600 text-white shadow' 
-                      : 'text-slate-300 hover:bg-slate-800'
+                      ? 'bg-amber-600 text-white shadow-md' 
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                   }`}
                 >
-                  <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span>รายงาน</span>
+                  <BarChart3 className="w-4 h-4 text-amber-300" />
+                  <span>รายงานสรุป</span>
                 </button>
 
                 {/* On 2XL screens: show all 4 extra tabs directly */}
                 <div className="hidden 2xl:flex items-center space-x-1">
                   <button
                     onClick={() => onSelectTab('promotions')}
-                    className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
-                      activeTab === 'promotions' ? 'bg-amber-600 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                    className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 flex-shrink-0 ${
+                      activeTab === 'promotions' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                     }`}
                   >
-                    <Tag className="w-3.5 h-3.5" />
+                    <Tag className="w-3.5 h-3.5 text-amber-300" />
                     <span>โปรโมชั่น</span>
                   </button>
 
                   <button
                     onClick={() => onSelectTab('members')}
-                    className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
-                      activeTab === 'members' ? 'bg-amber-600 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                    className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 flex-shrink-0 ${
+                      activeTab === 'members' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                     }`}
                   >
                     <Users className="w-3.5 h-3.5 text-amber-300" />
@@ -256,8 +256,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <button
                     onClick={() => onSelectTab('sheets')}
-                    className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
-                      activeTab === 'sheets' ? 'bg-amber-600 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                    className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 flex-shrink-0 ${
+                      activeTab === 'sheets' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                     }`}
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
@@ -266,12 +266,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <button
                     onClick={() => onSelectTab('settings')}
-                    className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
-                      activeTab === 'settings' ? 'bg-amber-600 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                    className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 flex-shrink-0 ${
+                      activeTab === 'settings' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                     }`}
                   >
                     <Settings className="w-3.5 h-3.5 text-amber-400" />
-                    <span>ตั้งค่า</span>
+                    <span>ตั้งค่าร้าน</span>
                   </button>
                 </div>
 
@@ -280,46 +280,46 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsMoreMenuOpen(prev => !prev)}
-                    className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
+                    className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95 flex-shrink-0 ${
                       isSecondaryActive
-                        ? 'bg-amber-600 text-white shadow'
-                        : 'text-slate-300 hover:bg-slate-800 bg-slate-900 border border-slate-800'
+                        ? 'bg-amber-600 text-white shadow-md'
+                        : 'text-slate-300 hover:bg-slate-800/80 bg-slate-900 border border-slate-800'
                     }`}
                   >
-                    <Layers className="w-3.5 h-3.5 text-amber-400" />
+                    <Layers className="w-4 h-4 text-amber-400" />
                     <span>{getSecondaryTabName()}</span>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {isMoreMenuOpen && (
-                    <div className="absolute left-0 mt-1.5 w-56 bg-slate-900 border border-amber-500/30 rounded-2xl shadow-2xl p-1.5 z-50 divide-y divide-slate-800 animate-in fade-in zoom-in-95">
+                    <div className="absolute left-0 mt-1.5 w-56 bg-slate-900 border border-amber-500/30 rounded-2xl shadow-2xl p-1.5 z-50 divide-y divide-slate-800 animate-in fade-in duration-150">
                       <div className="py-1 space-y-0.5">
                         <button
                           type="button"
                           onClick={() => { onSelectTab('promotions'); setIsMoreMenuOpen(false); }}
-                          className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition text-left ${
+                          className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition text-left active:scale-95 ${
                             activeTab === 'promotions' ? 'bg-amber-600 text-white' : 'text-slate-300 hover:bg-slate-800'
                           }`}
                         >
                           <Tag className="w-4 h-4 text-amber-400" />
-                          <span>โปรโมชั่นอัจฉริยะ (Promotions)</span>
+                          <span>โปรโมชั่นอัจฉริยะ</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => { onSelectTab('members'); setIsMoreMenuOpen(false); }}
-                          className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition text-left ${
+                          className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition text-left active:scale-95 ${
                             activeTab === 'members' ? 'bg-amber-600 text-white' : 'text-slate-300 hover:bg-slate-800'
                           }`}
                         >
                           <Users className="w-4 h-4 text-amber-300" />
-                          <span>จัดการสมาชิก & บัตรดิจิทัล</span>
+                          <span>สมาชิกร้าน & บัตรดิจิทัล</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => { onSelectTab('sheets'); setIsMoreMenuOpen(false); }}
-                          className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition text-left ${
+                          className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition text-left active:scale-95 ${
                             activeTab === 'sheets' ? 'bg-amber-600 text-white' : 'text-slate-300 hover:bg-slate-800'
                           }`}
                         >
@@ -330,12 +330,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <button
                           type="button"
                           onClick={() => { onSelectTab('settings'); setIsMoreMenuOpen(false); }}
-                          className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition text-left ${
+                          className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition text-left active:scale-95 ${
                             activeTab === 'settings' ? 'bg-amber-600 text-white' : 'text-slate-300 hover:bg-slate-800'
                           }`}
                         >
                           <Settings className="w-4 h-4 text-amber-400" />
-                          <span>ตั้งค่าร้าน & รหัสพนักงาน</span>
+                          <span>ตั้งค่าร้านค้า & รหัส PIN</span>
                         </button>
                       </div>
                     </div>
@@ -361,29 +361,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Customer Facing Dual Screen */}
             <button
               onClick={openCustomerDisplay}
-              title="เปิดหน้าจอที่สองสำหรับลูกค้า (Dual Monitor with PromptPay QR)"
-              className="flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition border border-slate-700"
+              title="เปิดหน้าจอที่สองฝั่งลูกค้า (พร้อม PromptPay QR)"
+              aria-label="เปิดจอฝั่งลูกค้า"
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 text-xs font-bold transition border border-slate-700 shadow-xs"
             >
-              <Monitor className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">จอฝั่งลูกค้า (QR)</span>
+              <Monitor className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden xl:inline">จอฝั่งลูกค้า</span>
             </button>
 
             {/* Sales Staff iPad Stock Checker */}
             <button
               onClick={() => setIsStockModalOpen(true)}
-              title="เปิดคิวอาร์โค้ด / ลิงก์สำหรับพนักงานขายเปิดดูสต็อกบน iPad หรือโทรศัพท์มือถือ"
-              className="flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition border border-slate-700"
+              title="เปิด QR Code สำหรับพนักงานขายดูสต็อกบนแท็บเล็ต iPad"
+              aria-label="เปิดคลังสต็อกบนไอแพด"
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 text-xs font-bold transition border border-slate-700 shadow-xs"
             >
               <Tablet className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden xl:inline">เช็คสต็อก (iPad)</span>
+              <span className="hidden xl:inline">สต็อกบนไอแพด</span>
             </button>
 
             {/* Unified Cloud Sync + Online Status Pill */}
             <button
               type="button"
               onClick={() => setIsCloudSyncOpen(true)}
-              title={isOnline ? 'เชื่อมต่อออนไลน์ และ Supabase Cloud สำเร็จ' : 'ออฟไลน์ (กำลังทำงานแบบ Offline-First)'}
-              className={`flex items-center space-x-1 px-2 py-1.5 rounded-xl text-xs font-bold transition border shadow-xs ${
+              title={isOnline ? 'เชื่อมต่อออนไลน์ และ Cloud สำเร็จ' : 'ออฟไลน์ (กำลังทำงานแบบ Offline-First)'}
+              aria-label="สถานะ Cloud และซิงค์ข้อมูล"
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 border shadow-xs ${
                 isOnline 
                   ? 'bg-sky-950/60 hover:bg-sky-900/80 text-sky-300 border-sky-800/80' 
                   : 'bg-amber-950/60 text-amber-400 border-amber-800 animate-pulse'
@@ -398,12 +401,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={() => setIsTransferModalOpen(true)}
-              className={`flex items-center space-x-1 px-2 py-1.5 rounded-xl text-xs font-bold transition border shadow-xs ${
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 border shadow-xs ${
                 pendingTransfersCount > 0
                   ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black animate-pulse border-2 border-amber-300 shadow-lg'
                   : 'bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border-emerald-800/80'
               }`}
-              title={pendingTransfersCount > 0 ? `มีสินค้าส่งมาจากโกดัง รอตรวจรับ ${pendingTransfersCount} รายการ` : 'โอนย้ายสต็อก 2 คลัง'}
+              title={pendingTransfersCount > 0 ? `มีสินค้าส่งมาจากโกดัง รอตรวจรับ ${pendingTransfersCount} รายการ` : 'โอนย้ายสต็อกระหว่างคลัง'}
+              aria-label="โอนย้ายสต็อก"
             >
               <Truck className={`w-3.5 h-3.5 ${pendingTransfersCount > 0 ? 'text-slate-950' : 'text-emerald-400'}`} />
               <span className="hidden xl:inline">โอนสต็อก</span>
@@ -415,7 +419,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* User Profile & Lock */}
-            <div className="flex items-center space-x-1 pl-1.5 border-l border-slate-800">
+            <div className="flex items-center space-x-1.5 pl-1.5 border-l border-slate-800">
               <div className="hidden sm:block text-right">
                 <div className="text-[11px] font-bold text-white flex items-center justify-end gap-1">
                   {isOwner ? (
@@ -441,8 +445,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onLockScreen}
-                  title="สลับกะ / ออกจากระบบ (ล็อคหน้าจอเพื่อความปลอดภัย)"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/60 text-slate-200 border border-slate-700 hover:border-rose-500/50 text-xs font-bold transition shadow-xs"
+                  title="สลับกะ / ล็อคหน้าจอเพื่อความปลอดภัย"
+                  aria-label="ล็อคหน้าจอ"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/60 active:scale-95 text-slate-200 border border-slate-700 hover:border-rose-500/50 text-xs font-bold transition shadow-xs"
                 >
                   <Lock className="w-3.5 h-3.5 text-amber-400" />
                   <span className="hidden lg:inline">ล็อค</span>

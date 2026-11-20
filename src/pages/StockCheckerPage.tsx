@@ -149,7 +149,7 @@ export const StockCheckerPage: React.FC = () => {
   const outOfStockCount = variants.filter(v => v.stockQuantity <= 0).length;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 pb-12">
+    <div className="min-h-dvh bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 pb-12">
       {/* Top Floating App Bar */}
       <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-amber-500/20 px-4 py-3 sm:px-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
@@ -441,16 +441,16 @@ export const StockCheckerPage: React.FC = () => {
 
                   {/* Bottom row: Stock Breakdown and Price */}
                   <div className="mt-3 pt-2.5 border-t border-slate-700/60 flex items-end justify-between gap-2">
-                    {/* 2-Location Stock Breakdown */}
-                    <div className="flex items-center gap-2 text-[11px] font-mono">
-                      <div className="px-2 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 flex items-center gap-1" title="สต็อกพร้อมขายหน้าร้าน">
+                    {/* 2-Location Stock Breakdown (High Contrast for iPad Floor Viewing) */}
+                    <div className="flex items-center gap-1.5 text-xs font-mono">
+                      <div className="px-2.5 py-1 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 flex items-center gap-1.5 shadow-2xs" title="สต็อกพร้อมขายหน้าร้าน">
                         <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>หน้าร้าน: <b className="text-emerald-300 font-black">{shopStock}</b></span>
+                        <span>หน้าร้าน: <b className="text-emerald-300 font-black text-sm">{shopStock}</b></span>
                       </div>
 
-                      <div className="px-2 py-1 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-200 flex items-center gap-1" title="สต็อกสำรองในโกดัง">
+                      <div className="px-2.5 py-1 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 flex items-center gap-1.5 shadow-2xs" title="สต็อกสำรองในโกดัง">
                         <Warehouse className="w-3.5 h-3.5 text-amber-400" />
-                        <span>โกดัง: <b>{warehouseStock}</b></span>
+                        <span>โกดัง: <b className="font-bold text-sm">{warehouseStock}</b></span>
                       </div>
                     </div>
 

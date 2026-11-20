@@ -164,20 +164,20 @@ export const PromotionsPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Tag className="w-6 h-6 text-amber-500" />
-            <span>ระบบโปรโมชั่นอัจฉริยะ (Dynamic Promotions)</span>
+            <Tag className="w-5 h-5 text-amber-600" />
+            <span>ระบบโปรโมชั่นและการส่งเสริมการขาย</span>
           </h1>
-          <p className="text-xs text-slate-500">
-            ตั้งค่าโปรโมชั่น Mix & Match กำหนดเฉพาะหมวดหมู่ และกำหนดสิทธิ์ (ทั่วไป vs เฉพาะสมาชิก)
+          <p className="text-xs text-slate-500 mt-0.5">
+            ตั้งค่าโปรโมชั่นเซ็ตสุดคุ้ม Mix & Match กำหนดตามหมวดหมู่ และสิทธิ์สมาชิก
           </p>
         </div>
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+          className="px-4 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150"
         >
-          <Plus className="w-4 h-4" />
-          <span>+ สร้างโปรโมชั่นใหม่</span>
+          <Plus className="w-3.5 h-3.5" />
+          <span>+ สร้างโปรโมชั่น</span>
         </button>
       </div>
 
@@ -186,8 +186,8 @@ export const PromotionsPage: React.FC = () => {
         {promotions.map((promo) => (
           <div
             key={promo.id}
-            className={`p-5 rounded-2xl border transition shadow-sm bg-white flex flex-col justify-between ${
-              promo.isActive ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-200 opacity-60'
+            className={`p-5 rounded-2xl border transition shadow-xs bg-white flex flex-col justify-between ${
+              promo.isActive ? 'border-amber-300 ring-1 ring-amber-200/60' : 'border-slate-200 opacity-60'
             }`}
           >
             <div>
@@ -199,12 +199,12 @@ export const PromotionsPage: React.FC = () => {
 
                   {/* Target Audience Badge */}
                   {promo.targetAudience === 'MEMBER_ONLY' ? (
-                    <span className="px-2.5 py-0.5 bg-purple-100 text-purple-800 border border-purple-200 text-[10px] font-bold rounded-full flex items-center gap-1">
-                      <span>เฉพาะสมาชิก (Member Only)</span>
+                    <span className="px-2.5 py-0.5 bg-purple-50 text-purple-900 border border-purple-200 text-[10px] font-bold rounded-full flex items-center gap-1">
+                      <span>เฉพาะสมาชิก</span>
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full flex items-center gap-1">
-                      <span>ลูกค้าทุกคน (All Customers)</span>
+                    <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-900 border border-emerald-200 text-[10px] font-bold rounded-full flex items-center gap-1">
+                      <span>ลูกค้าทุกคน</span>
                     </span>
                   )}
                 </div>
@@ -212,15 +212,16 @@ export const PromotionsPage: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleTogglePromo(promo.id, promo.isActive)}
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-lg ${
-                      promo.isActive ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-500'
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-lg active:scale-95 transition ${
+                      promo.isActive ? 'bg-amber-50 text-amber-800 border border-amber-200/80' : 'bg-slate-100 text-slate-500'
                     }`}
                   >
-                    {promo.isActive ? '✓ กำลังใช้งาน' : '✕ ปิดใช้งาน'}
+                    {promo.isActive ? '✓ เปิดใช้งาน' : '✕ ปิดใช้งาน'}
                   </button>
                   <button
                     onClick={() => handleDeletePromo(promo.id)}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                    className="p-1 text-slate-400 hover:text-rose-600 rounded active:scale-95 transition"
+                    aria-label={`ลบโปรโมชั่น ${promo.name}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -229,20 +230,20 @@ export const PromotionsPage: React.FC = () => {
 
               <h3 className="font-bold text-slate-900 text-sm mt-3">{promo.name}</h3>
 
-              <div className="mt-3 p-3 bg-slate-50 rounded-xl space-y-1.5 text-xs">
+              <div className="mt-3 p-3 bg-slate-50/70 rounded-xl space-y-1.5 text-xs border border-slate-200/60">
                 <div className="flex justify-between">
                   <span className="text-slate-500">จำนวนที่ต้องซื้อครบ:</span>
-                  <span className="font-mono font-bold text-slate-800">{promo.requiredQty} ชิ้น</span>
+                  <span className="font-mono tabular-nums font-bold text-slate-800">{promo.requiredQty} ชิ้น</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">ราคาเหมาจ่ายพิเศษ:</span>
-                  <span className="font-mono font-bold text-amber-700 text-sm">
+                  <span className="font-mono tabular-nums font-bold text-amber-700 text-sm">
                     ฿{promo.bundlePrice.toLocaleString()}
                   </span>
                 </div>
 
                 {/* Eligible Categories display */}
-                <div className="pt-1.5 border-t border-slate-200">
+                <div className="pt-1.5 border-t border-slate-200/70">
                   <span className="text-[11px] font-bold text-slate-600">หมวดหมู่ที่เข้าร่วม:</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {promo.eligibleCategories && promo.eligibleCategories.length > 0 ? (
@@ -272,20 +273,20 @@ export const PromotionsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-              <Gift className="w-5 h-5 text-rose-500" />
-              <span>ของสมนาคุณตัดสต็อกฟรีตามยอดบิล (Gift With Purchase - GWP)</span>
+              <Gift className="w-5 h-5 text-amber-600" />
+              <span>ของสมนาคุณตามยอดซื้อ (Gift With Purchase)</span>
             </h2>
-            <p className="text-xs text-slate-500">
-              กำหนดเกณฑ์ยอดซื้อขั้นต่ำ (เช่น ซื้อครบ ฿1,000 หรือ ฿2,000) รับของสมนาคุณฟรีในสต็อก โดยตัดสต็อกจริงแต่ไม่คิดเงินลูกค้า
+            <p className="text-xs text-slate-500 mt-0.5">
+              กำหนดเกณฑ์ยอดซื้อขั้นต่ำ (เช่น ซื้อครบ ฿1,000) รับของสมนาคุณฟรีในสต็อก โดยตัดสต็อกจริงแต่ไม่คิดเงินลูกค้า
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => setIsGiftModalOpen(true)}
-            className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition self-start sm:self-auto"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-400 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 self-start sm:self-auto"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span>+ เพิ่มเกณฑ์ของสมนาคุณ</span>
           </button>
         </div>
@@ -308,21 +309,21 @@ export const PromotionsPage: React.FC = () => {
               return (
                 <div
                   key={tier.id}
-                  className={`p-5 rounded-2xl border transition shadow-sm bg-white flex flex-col justify-between ${
-                    tier.isActive ? 'border-rose-300 ring-1 ring-rose-200' : 'border-slate-200 opacity-60'
+                  className={`p-5 rounded-2xl border transition shadow-xs bg-white flex flex-col justify-between ${
+                    tier.isActive ? 'border-amber-300 ring-1 ring-amber-200/60' : 'border-slate-200 opacity-60'
                   }`}
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="px-3 py-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white font-black text-xs rounded-full shadow-xs">
+                      <span className="px-3 py-1 bg-slate-900 text-amber-300 font-black font-mono tabular-nums text-xs rounded-full shadow-2xs">
                         🎁 ยอดซื้อครบ ฿{tier.minSpend.toLocaleString()} ขึ้นไป
                       </span>
                       <div className="flex items-center space-x-2">
                         <button
                           type="button"
                           onClick={() => handleToggleGiftTier(tier.id, tier.isActive)}
-                          className={`text-xs font-semibold px-2 py-0.5 rounded-lg ${
-                            tier.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-lg active:scale-95 transition ${
+                            tier.isActive ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-500'
                           }`}
                         >
                           {tier.isActive ? '✓ เปิดใช้งาน' : '✕ ปิดชั่วคราว'}
@@ -330,7 +331,8 @@ export const PromotionsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleDeleteGiftTier(tier.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded active:scale-95 transition"
+                          aria-label={`ลบของสมนาคุณ ${tier.giftProductName}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -338,29 +340,29 @@ export const PromotionsPage: React.FC = () => {
                     </div>
 
                     <h3 className="font-bold text-slate-900 text-sm mt-2">{tier.giftProductName}</h3>
-                    <p className="text-xs text-slate-500 font-mono mt-0.5">SKU: {tier.giftSku}</p>
+                    <p className="text-xs text-slate-500 font-mono tabular-nums mt-0.5">SKU: {tier.giftSku}</p>
 
-                    <div className="mt-3 p-3 bg-rose-50/70 rounded-xl space-y-1.5 text-xs text-rose-950">
+                    <div className="mt-3 p-3 bg-amber-50/40 rounded-xl space-y-1.5 text-xs text-slate-800 border border-amber-200/50">
                       <div className="flex justify-between">
-                        <span>จำนวนที่แจกต่อบิล:</span>
-                        <span className="font-bold font-mono text-rose-700">{tier.giftQty} ชิ้น (มูลค่า ฿0 ในบิล)</span>
+                        <span className="text-slate-600">จำนวนที่แจกต่อบิล:</span>
+                        <span className="font-bold font-mono tabular-nums text-amber-900">{tier.giftQty} ชิ้น (มูลค่า ฿0 ในบิล)</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>สต็อกคงเหลือหน้าร้าน:</span>
-                        <span className={`font-bold font-mono ${currentStock > 5 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        <span className="text-slate-600">สต็อกคงเหลือหน้าร้าน:</span>
+                        <span className={`font-bold font-mono tabular-nums ${currentStock > 5 ? 'text-emerald-700' : 'text-rose-700'}`}>
                           {currentStock} ชิ้น {currentStock <= 5 && '(ใกล้หมด)'}
                         </span>
                       </div>
                       {tier.description && (
-                        <div className="text-[11px] text-slate-600 pt-1 border-t border-rose-200/60">
+                        <div className="text-[11px] text-slate-600 pt-1 border-t border-amber-200/50">
                           {tier.description}
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center text-[11px] text-rose-700 font-medium">
-                    <Sparkles className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center text-[11px] text-amber-800 font-medium">
+                    <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-500" />
                     <span>แจ้งเตือนบนหน้าจอแคชเชียร์และจอลูกค้า พร้อมปุ่มกดเพิ่มลงบิลและตัดสต็อกจริงอัตโนมัติ</span>
                   </div>
                 </div>
@@ -598,7 +600,7 @@ export const PromotionsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleCreateGiftTier}
-                  className="flex-1 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white rounded-xl font-bold shadow"
+                  className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl font-bold shadow-sm transition duration-150"
                 >
                   บันทึกของสมนาคุณ
                 </button>

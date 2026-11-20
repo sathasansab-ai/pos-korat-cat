@@ -29,7 +29,10 @@ import {
   EyeOff,
   Scissors,
   Gift,
-  RefreshCw
+  RefreshCw,
+  History,
+  ShoppingBag,
+  Clock
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
@@ -145,6 +148,16 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [customItemPrice, setCustomItemPrice] = useState<string>('');
   const [customItemQty, setCustomItemQty] = useState<number>(1);
   const [customItemCategory, setCustomItemCategory] = useState<string>('บริการ/สั่งพิเศษ');
+
+  // Upgrade 3: Customer History & Favorite Sizes Modal
+  const [isCustomerHistoryOpen, setIsCustomerHistoryOpen] = useState(false);
+  const [customerOrdersHistory, setCustomerOrdersHistory] = useState<Order[]>([]);
+  const [customerFavSummary, setCustomerFavSummary] = useState<{
+    favSizes: string[];
+    favCategories: string[];
+    totalSpent: number;
+    totalOrders: number;
+  } | null>(null);
 
   // Security Override
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -289,6 +302,47 @@ export const PosPage: React.FC<PosPageProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Upgrade 3: Open Customer History & Favorite Sizes Summary
+  const handleOpenCustomerHistory = async (customer: Customer) => {
+    const orders = await db.orders
+      .filter(o => o.customerId === customer.id || o.customerName === customer.name)
+      .reverse()
+      .sortBy('timestamp');
+
+    const completed = orders.filter(o => o.status === 'COMPLETED');
+    const totalSpent = completed.reduce((sum, o) => sum + (o.netTotal || 0), 0);
+    const sizeCounts: Record<string, number> = {};
+    const catCounts: Record<string, number> = {};
+
+    completed.forEach(o => {
+      o.items.forEach(it => {
+        const size = it.attributes?.['ไซส์'] || it.attributes?.['Size'] || it.attributes?.['ขนาด'];
+        if (size) sizeCounts[size] = (sizeCounts[size] || 0) + it.qty;
+        const cat = it.attributes?.['หมวดหมู่'] || it.category;
+        if (cat) catCounts[cat] = (catCounts[cat] || 0) + it.qty;
+      });
+    });
+
+    const topSizes = Object.entries(sizeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(entry => `${entry[0]} (${entry[1]} ชิ้น)`)
+      .slice(0, 4);
+
+    const topCats = Object.entries(catCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(entry => entry[0])
+      .slice(0, 3);
+
+    setCustomerOrdersHistory(completed);
+    setCustomerFavSummary({
+      favSizes: topSizes,
+      favCategories: topCats,
+      totalSpent,
+      totalOrders: completed.length
+    });
+    setIsCustomerHistoryOpen(true);
+  };
+
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const raw = searchTerm.trim();
@@ -336,12 +390,17 @@ export const PosPage: React.FC<PosPageProps> = ({
     const targetSku = (target.sku || '').trim().toLowerCase();
     const availableStock = target.stockQuantity ?? 0;
 
-    // 2. Out of Stock check
+    // 2. Out of Stock check (Respects Upgrade 4: allowNegativeStock setting)
     if (availableStock <= 0) {
-      SoundEffects.playWarning();
-      setStockNotice(`สินค้า "${target.productName}" หมดสต็อกแล้ว (คงเหลือ 0 ชิ้น) ไม่สามารถเพิ่มลงบิลได้`);
-      setTimeout(() => setStockNotice(null), 4000);
-      return;
+      if (!settings?.allowNegativeStock) {
+        SoundEffects.playWarning();
+        setStockNotice(`สินค้า "${target.productName}" หมดสต็อกแล้ว (คงเหลือ 0 ชิ้น) ไม่สามารถเพิ่มลงบิลได้`);
+        setTimeout(() => setStockNotice(null), 4000);
+        return;
+      } else {
+        setStockNotice(`⚠️ ขายตัดสต็อกติดลบ: "${target.productName}" (โหมด Allow Negative Stock เปิดอยู่)`);
+        setTimeout(() => setStockNotice(null), 3000);
+      }
     }
 
     // 3. Exceeds Stock check
@@ -352,10 +411,12 @@ export const PosPage: React.FC<PosPageProps> = ({
     const currentQtyInCart = existing ? existing.qty : 0;
 
     if (currentQtyInCart + 1 > availableStock) {
-      SoundEffects.playWarning();
-      setStockNotice(`สินค้า "${target.productName}" มีในสต็อกเพียง ${availableStock} ชิ้น (ในบิลมีครบ ${currentQtyInCart} ชิ้นแล้ว ไม่สามารถเพิ่มเกินได้)`);
-      setTimeout(() => setStockNotice(null), 4000);
-      return;
+      if (!settings?.allowNegativeStock) {
+        SoundEffects.playWarning();
+        setStockNotice(`สินค้า "${target.productName}" มีในสต็อกเพียง ${availableStock} ชิ้น (ในบิลมีครบ ${currentQtyInCart} ชิ้นแล้ว ไม่สามารถเพิ่มเกินได้)`);
+        setTimeout(() => setStockNotice(null), 4000);
+        return;
+      }
     }
 
     SoundEffects.playBeep();
@@ -403,10 +464,12 @@ export const PosPage: React.FC<PosPageProps> = ({
       const currentQty = existing ? existing.qty : 0;
 
       if (currentQty + delta > availableStock) {
-        SoundEffects.playWarning();
-        setStockNotice(`สินค้า "${existing?.productName || ''}" ในคลังมีเพียง ${availableStock} ชิ้น ไม่สามารถเพิ่มเกินจำนวนนี้ได้`);
-        setTimeout(() => setStockNotice(null), 4000);
-        return;
+        if (!settings?.allowNegativeStock) {
+          SoundEffects.playWarning();
+          setStockNotice(`สินค้า "${existing?.productName || ''}" ในคลังมีเพียง ${availableStock} ชิ้น ไม่สามารถเพิ่มเกินจำนวนนี้ได้`);
+          setTimeout(() => setStockNotice(null), 4000);
+          return;
+        }
       }
     }
 
@@ -1009,11 +1072,11 @@ export const PosPage: React.FC<PosPageProps> = ({
   };
 
   return (
-    <div className="flex h-[calc(100vh-61px)] overflow-hidden bg-slate-100">
+    <div className="flex h-[calc(100dvh-61px)] overflow-hidden bg-slate-100">
       {/* LEFT: Product Catalog & Quick Keys (60%) */}
-      <div className="flex-1 flex flex-col p-4 overflow-hidden border-r border-slate-200">
+      <div className="flex-1 flex flex-col p-3 sm:p-4 overflow-hidden border-r border-slate-200">
         {/* Omni Search & Barcode input (Split into 2 clean responsive rows) */}
-        <form onSubmit={handleBarcodeSubmit} className="flex flex-col gap-2 mb-3">
+        <form onSubmit={handleBarcodeSubmit} className="flex flex-col gap-2 mb-2.5">
           {/* Row 1: Full-width spacious Search & Barcode Gun Input */}
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -1023,7 +1086,7 @@ export const PosPage: React.FC<PosPageProps> = ({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ยิงบาร์โค้ดสินค้า / หรือยิงบัตรสมาชิก / พิมพ์ชื่อสินค้า หรือ SKU..."
+                placeholder="ยิงบาร์โค้ดสินค้า / บัตรสมาชิก / พิมพ์ชื่อหรือ SKU..."
                 autoFocus
                 className="w-full pl-11 pr-32 py-2.5 sm:py-3 bg-white rounded-2xl border border-slate-300 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-xs sm:text-sm"
               />
@@ -1039,33 +1102,33 @@ export const PosPage: React.FC<PosPageProps> = ({
             </div>
             <button
               type="submit"
-              className="px-5 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-2xl font-bold flex items-center gap-1.5 shadow transition text-xs sm:text-sm flex-shrink-0"
+              className="px-5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-400 rounded-2xl font-bold flex items-center gap-1.5 shadow transition text-xs sm:text-sm flex-shrink-0"
             >
               <Search className="w-4 h-4" />
               <span>ค้นหา</span>
             </button>
           </div>
 
-          {/* Row 2: Quick Action Buttons (Wraps neatly on any laptop) */}
+          {/* Row 2: Quick Action Buttons (Harmonious Boutique Palette, Touch Friendly) */}
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={handleOpenRecentOrders}
-              className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl font-bold flex items-center gap-1 shadow-xs transition text-xs whitespace-nowrap"
+              className="px-3 py-1.5 bg-white hover:bg-slate-50 active:scale-95 text-slate-800 border border-slate-300 rounded-xl font-bold flex items-center gap-1 shadow-2xs transition text-xs whitespace-nowrap"
               title="ดูประวัติสลิปใบเสร็จ / บิลล่าสุด เพื่อพิมพ์ซ้ำ หรือออกใบกำกับภาษี"
             >
               <Receipt className="w-3.5 h-3.5 text-amber-600" />
-              <span>🧾 สลิป/บิลล่าสุด</span>
+              <span>สลิป/บิลล่าสุด</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsCustomItemModalOpen(true)}
-              className="px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-700 hover:from-teal-700 hover:to-emerald-800 text-white rounded-xl font-bold flex items-center gap-1 shadow-xs transition text-xs whitespace-nowrap"
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-300 border border-slate-800 rounded-xl font-bold flex items-center gap-1 shadow-2xs transition text-xs whitespace-nowrap"
               title="ขายสินค้ากำหนดราคาเอง / ค่าจัดส่ง / บริการพิเศษ (กด F7)"
             >
-              <Plus className="w-3.5 h-3.5 text-emerald-200" />
-              <span>➕ ใส่ราคาเอง (F7)</span>
+              <Plus className="w-3.5 h-3.5 text-amber-400" />
+              <span>ใส่ราคาเอง (F7)</span>
             </button>
 
             <button
@@ -1078,37 +1141,37 @@ export const PosPage: React.FC<PosPageProps> = ({
                 }
                 setIsCustomOrderModalOpen(true);
               }}
-              className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl font-bold flex items-center gap-1 shadow-xs transition text-xs whitespace-nowrap"
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl font-bold flex items-center gap-1 shadow-xs transition text-xs whitespace-nowrap"
               title="ออกใบสั่งผลิตงานสั่งทำ / สั่งตัดเย็บ / งานโหล และรับเงินมัดจำ 50%"
             >
               <Scissors className="w-3.5 h-3.5 text-amber-200" />
-              <span>✂️ สั่งผลิต/มัดจำ</span>
+              <span>สั่งตัด/มัดจำ</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsExchangeModalOpen(true)}
-              className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-bold flex items-center gap-1 shadow-xs transition text-xs whitespace-nowrap"
+              className="px-3 py-1.5 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-300 rounded-xl font-bold flex items-center gap-1 shadow-2xs transition text-xs whitespace-nowrap"
               title="เปลี่ยนหรือคืนสินค้าตามเงื่อนไขภายใน 7 วัน (สลับไซส์/แบบ พร้อมตัดและเพิ่มสต็อกอัตโนมัติ)"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-indigo-200" />
-              <span>🔄 เปลี่ยน/คืนสินค้า (7 วัน)</span>
+              <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+              <span>เปลี่ยน/คืน 7 วัน</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsQuotationModalOpen(true)}
-              className="px-3 py-1.5 bg-gradient-to-r from-blue-700 to-cyan-700 hover:from-blue-800 hover:to-cyan-800 text-white rounded-xl font-bold flex items-center gap-1 shadow-xs transition text-xs whitespace-nowrap"
+              className="px-3 py-1.5 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-300 rounded-xl font-bold flex items-center gap-1 shadow-2xs transition text-xs whitespace-nowrap"
               title="ออกใบเสนอราคาขนาด A4 พิมพ์เอกสาร บันทึก PDF หรือส่งอีเมลให้ลูกค้า"
             >
-              <FileText className="w-3.5 h-3.5 text-cyan-200" />
-              <span>📄 ใบเสนอราคา (A4)</span>
+              <FileText className="w-3.5 h-3.5 text-slate-500" />
+              <span>ใบเสนอราคา (A4)</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsHeldBillsModalOpen(true)}
-              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 transition text-xs whitespace-nowrap border ${
+              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 transition active:scale-95 text-xs whitespace-nowrap border ${
                 heldBills.length > 0
                   ? 'bg-amber-100 border-amber-400 text-amber-950 shadow-sm animate-pulse'
                   : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
@@ -1126,7 +1189,7 @@ export const PosPage: React.FC<PosPageProps> = ({
                 setShowCatalogGrid(next);
                 localStorage.setItem('pos_show_catalog_grid', String(next));
               }}
-              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 transition text-xs whitespace-nowrap border ${
+              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 transition active:scale-95 text-xs whitespace-nowrap border ${
                 !showCatalogGrid
                   ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400 shadow-sm'
                   : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
@@ -1136,7 +1199,7 @@ export const PosPage: React.FC<PosPageProps> = ({
               {!showCatalogGrid ? (
                 <>
                   <Eye className="w-3.5 h-3.5 text-slate-950" />
-                  <span>โหมดสแกนเนอร์โปร (ซ่อนตาราง)</span>
+                  <span>โหมดสแกนบาร์โค้ด</span>
                 </>
               ) : (
                 <>
@@ -1355,7 +1418,7 @@ export const PosPage: React.FC<PosPageProps> = ({
                   <button
                     key={item.id}
                     onClick={() => {
-                      if (isOut) {
+                      if (isOut && !settings?.allowNegativeStock) {
                         SoundEffects.playWarning();
                         setStockNotice(`สินค้า "${item.productName}" หมดสต็อกแล้ว (คงเหลือ 0 ชิ้น) ไม่สามารถเพิ่มลงบิลได้`);
                         setTimeout(() => setStockNotice(null), 3500);
@@ -1364,10 +1427,10 @@ export const PosPage: React.FC<PosPageProps> = ({
                       addToCart(item);
                     }}
                     className={`bg-white hover:border-amber-500 active:scale-95 border rounded-2xl p-2.5 flex flex-col justify-between text-left shadow-xs transition group h-36 relative overflow-hidden ${
-                      isOut ? 'border-rose-300 opacity-60 cursor-not-allowed' : 'border-slate-200'
+                      isOut && !settings?.allowNegativeStock ? 'border-rose-300 opacity-60 cursor-not-allowed' : 'border-slate-200'
                     }`}
                   >
-                    {isOut && (
+                    {isOut && !settings?.allowNegativeStock && (
                       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[0.5px] z-10 flex flex-col items-center justify-center text-white p-2 text-center">
                         <span className="px-2 py-1 bg-rose-600 rounded-lg text-[10px] font-black tracking-wider uppercase shadow">
                           สินค้าหมดสต็อก
@@ -1375,6 +1438,11 @@ export const PosPage: React.FC<PosPageProps> = ({
                         {settings?.showStockQuantityOnPos && (
                           <span className="text-[9px] text-slate-200 mt-1">คลัง: 0 ชิ้น</span>
                         )}
+                      </div>
+                    )}
+                    {isOut && settings?.allowNegativeStock && (
+                      <div className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] rounded-full shadow">
+                        ⚡ ขายติดลบได้
                       </div>
                     )}
 
@@ -1461,6 +1529,16 @@ export const PosPage: React.FC<PosPageProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                {/* Upgrade 3: Customer History & Favorite Sizes Button */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenCustomerHistory(selectedCustomer)}
+                  className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
+                  title="ดูประวัติการซื้อย้อนหลัง และไซส์เสื้อ/กางเกงที่ลูกค้าชอบซื้อ"
+                >
+                  <History className="w-3 h-3 text-slate-600" />
+                  <span>ประวัติ & ไซส์</span>
+                </button>
                 <button 
                   type="button"
                   onClick={() => {
@@ -1637,22 +1715,51 @@ export const PosPage: React.FC<PosPageProps> = ({
                         `฿${item.unitPrice.toLocaleString()} x ${item.qty}`
                       )}
                     </div>
+                    {/* Upgrade 1: Live Low-Stock & Warehouse Indicator on Cart Item */}
+                    {(() => {
+                      const vMatch = allVariants.find(v => v.id === item.variantId || (item.sku && v.sku === item.sku));
+                      if (!vMatch) return null;
+                      const shopQty = vMatch.shopStock ?? vMatch.stockQuantity ?? 0;
+                      const whQty = vMatch.warehouseStock ?? 0;
+                      const alertLimit = vMatch.minStockAlert || 2;
+                      if (shopQty <= 0) {
+                        return (
+                          <div className="text-[9.5px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded mt-0.5 inline-flex items-center gap-1">
+                            <span>❌ สต็อกหน้าร้าน: 0 (ติดลบ)</span>
+                            {whQty > 0 && <span className="text-slate-600 font-normal">| ในโกดังมี {whQty}</span>}
+                          </div>
+                        );
+                      }
+                      if (shopQty <= alertLimit) {
+                        return (
+                          <div className="text-[9.5px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-1.5 py-0.5 rounded mt-0.5 inline-flex items-center gap-1 animate-pulse">
+                            <span>⚠️ เหลือ {shopQty} ชิ้นสุดท้ายหน้าร้าน</span>
+                            {whQty > 0 && <span className="text-amber-950 font-normal">(ในโกดังมี {whQty})</span>}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1 flex-shrink-0">
                   {!item.isFreeGift && (
                     <>
                       <button
+                        type="button"
                         onClick={() => updateQty(item.variantId, -1)}
-                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 font-bold"
+                        aria-label={`ลดจำนวน ${item.productName}`}
+                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-90 flex items-center justify-center text-slate-700 font-bold transition shadow-2xs"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="w-7 text-center font-mono font-bold text-xs">{item.qty}</span>
+                      <span className="w-7 text-center font-mono font-bold text-xs sm:text-sm tabular-nums text-slate-900">{item.qty}</span>
                       <button
+                        type="button"
                         onClick={() => updateQty(item.variantId, 1)}
-                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 font-bold"
+                        aria-label={`เพิ่มจำนวน ${item.productName}`}
+                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-90 flex items-center justify-center text-slate-700 font-bold transition shadow-2xs"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -1664,8 +1771,10 @@ export const PosPage: React.FC<PosPageProps> = ({
                     </span>
                   )}
                   <button
+                    type="button"
                     onClick={() => removeItem(item.variantId)}
-                    className="w-7 h-7 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center ml-1"
+                    aria-label={`ลบรายการ ${item.productName}`}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl hover:bg-rose-50 active:scale-90 text-slate-400 hover:text-rose-600 flex items-center justify-center ml-1 transition"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -1815,9 +1924,10 @@ export const PosPage: React.FC<PosPageProps> = ({
           </button>
 
           <button
+            type="button"
             onClick={openCheckout}
             disabled={cart.length === 0}
-            className="py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-xl text-sm flex items-center justify-center space-x-1 shadow-lg disabled:opacity-40 transition"
+            className="py-3.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-black rounded-2xl text-sm flex items-center justify-center space-x-1.5 shadow-lg shadow-amber-600/20 disabled:opacity-40 transition"
           >
             <span>ชำระเงิน</span>
           </button>
@@ -2658,6 +2768,172 @@ export const PosPage: React.FC<PosPageProps> = ({
           SoundEffects.playSuccess();
         }}
       />
+
+      {/* Upgrade 3: Customer History & Favorite Sizes Modal */}
+      {isCustomerHistoryOpen && selectedCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-300">
+                  <User className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-base text-amber-300">
+                      {selectedCustomer.name}
+                    </h3>
+                    <span className="text-[10px] bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black uppercase tracking-wide">
+                      {selectedCustomer.tier || 'MEMBER'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5 font-mono">
+                    โทร: {selectedCustomer.phone} | เพศ: {GENDER_CONFIG[selectedCustomer.gender || 'FEMALE'].label}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomerHistoryOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* VIP Insights & Favorite Sizes Card */}
+            <div className="p-4 bg-amber-50/70 border-b border-amber-200/80">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-center">
+                <div className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-xs">
+                  <div className="text-[10px] text-slate-500 font-bold">ยอดซื้อสะสมรวม</div>
+                  <div className="text-sm font-black font-mono text-amber-700 mt-0.5">
+                    ฿{(customerFavSummary?.totalSpent || 0).toLocaleString()}
+                  </div>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-xs">
+                  <div className="text-[10px] text-slate-500 font-bold">จำนวนครั้งที่ซื้อ</div>
+                  <div className="text-sm font-black font-mono text-slate-800 mt-0.5">
+                    {customerFavSummary?.totalOrders || 0} บิล
+                  </div>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-xs">
+                  <div className="text-[10px] text-slate-500 font-bold">แต้มสะสมปัจจุบัน</div>
+                  <div className="text-sm font-black font-mono text-emerald-600 mt-0.5">
+                    {selectedCustomer.rewardPoints || 0} pt
+                  </div>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-xs">
+                  <div className="text-[10px] text-slate-500 font-bold">ส่วนลดตามระดับ</div>
+                  <div className="text-sm font-black font-mono text-purple-700 mt-0.5">
+                    {selectedCustomer.tier === 'BLACK_WISDOM' ? 'ลด 10%' : selectedCustomer.tier === 'GOLD' ? 'ลด 5%' : 'สะสมแต้ม'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Proactive Selling Insight (ไซส์ประจำตัว) */}
+              <div className="bg-white p-3 rounded-2xl border border-amber-300 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div className="text-xs">
+                  <div className="font-extrabold text-amber-900 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span>ข้อมูลไซส์ประจำตัวสำหรับพนักงานขายแนะนำสินค้า:</span>
+                  </div>
+                  <div className="text-slate-700 mt-1 flex flex-wrap gap-1.5 text-[11px]">
+                    <span className="font-bold text-slate-500">ไซส์ที่เคยซื้อ:</span>
+                    {customerFavSummary?.favSizes && customerFavSummary.favSizes.length > 0 ? (
+                      customerFavSummary.favSizes.map((s, idx) => (
+                        <span key={idx} className="bg-amber-100 text-amber-950 font-bold px-2 py-0.5 rounded-md border border-amber-300">
+                          👕 {s}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-slate-400 italic">ยังไม่มีข้อมูลไซส์ (เพิ่งเปิดบิล)</span>
+                    )}
+                  </div>
+                </div>
+                {customerFavSummary?.favCategories && customerFavSummary.favCategories.length > 0 && (
+                  <div className="text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200 shrink-0">
+                    หมวดโปรด: <b>{customerFavSummary.favCategories.join(', ')}</b>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Orders History List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                <span>ประวัติการสั่งซื้อย้อนหลัง ({customerOrdersHistory.length} รายการล่าสุด)</span>
+              </h4>
+
+              {customerOrdersHistory.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  ลูกค้ารายนี้ยังไม่มีประวัติการซื้อในระบบ
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden">
+                  {customerOrdersHistory.map((order) => (
+                    <div key={order.id} className="p-3 bg-white hover:bg-slate-50/80 transition text-xs">
+                      <div className="flex items-center justify-between font-mono mb-1.5">
+                        <span className="font-bold text-slate-800">
+                          {order.localOrderId || order.id}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-sans">
+                          {new Date(order.timestamp).toLocaleDateString('th-TH', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })} {new Date(order.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 mb-2">
+                        {order.items.map((it, idx) => {
+                          const sizeAttr = it.attributes?.['ไซส์'] || it.attributes?.['Size'] || it.attributes?.['ขนาด'];
+                          const colorAttr = it.attributes?.['สี'] || it.attributes?.['Color'];
+                          return (
+                            <div key={idx} className="flex justify-between items-center text-slate-600 text-[11.5px]">
+                              <span className="truncate pr-2">
+                                • {it.productName} x {it.qty}
+                                {(sizeAttr || colorAttr) && (
+                                  <span className="ml-1 text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                    {sizeAttr && `ไซส์ ${sizeAttr}`} {colorAttr && `สี ${colorAttr}`}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="font-mono text-slate-700 shrink-0">฿{it.lineTotal.toLocaleString()}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px]">
+                        <span className="text-slate-400">
+                          ช่องทาง: {order.payments.map(p => p.method === 'CASH' ? 'เงินสด' : 'PromptPay').join(', ')}
+                        </span>
+                        <span className="font-bold text-amber-700 font-mono text-xs">
+                          ยอดรวม: ฿{order.netTotal.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsCustomerHistoryOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
