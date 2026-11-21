@@ -678,7 +678,6 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
       console.warn('Iframe print error', e);
       alert('เกิดข้อผิดพลาดในการเปิดระบบพิมพ์ กรุณาลองใหม่อีกครั้ง');
     }
-    }
   };
 
   // สั่งพิมพ์เอกสารที่กำลังพรีวิวผ่าน Iframe แยกอิสระ 100%
