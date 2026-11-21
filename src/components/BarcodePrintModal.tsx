@@ -110,11 +110,12 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       setPrintCount(initialPrintCount ?? variant.stockQuantity ?? 1);
     }
   }, [variant?.id, initialPrintCount]);
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('tag_45_70');
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('a4_tag_45_65');
   const [widthMm, setWidthMm] = useState<number>(45);
-  const [heightMm, setHeightMm] = useState<number>(70);
-  const [printMode, setPrintMode] = useState<'ROLL' | 'SHEET'>('ROLL');
+  const [heightMm, setHeightMm] = useState<number>(65);
+  const [printMode, setPrintMode] = useState<'ROLL' | 'SHEET'>('SHEET');
   const [barcodeSizeOption, setBarcodeSizeOption] = useState<'GIANT' | 'NORMAL'>('GIANT');
+  const [barcodeFormat, setBarcodeFormat] = useState<'EAN13' | 'CODE128' | 'QR'>('EAN13');
 
   // Display toggles
   const [showStoreName, setShowStoreName] = useState<boolean>(true);
@@ -144,10 +145,19 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     ? Math.max(26, Math.min(38, Math.round(heightMm * 0.52)))
     : Math.max(18, Math.min(26, Math.round(heightMm * 0.38)));
 
-  const barcodeSvgString = BarcodeGenerator.generateSvg(variant.barcode, {
-    height: barcodeSizeOption === 'GIANT' ? 180 : 120,
-    showText: true
-  });
+  const barcodeContent = variant.barcode || variant.sku;
+
+  const barcodeSvgString = barcodeFormat === 'EAN13'
+    ? BarcodeGenerator.generateEan13Svg(barcodeContent, {
+        height: barcodeSizeOption === 'GIANT' ? 180 : 120,
+        showText: true
+      })
+    : barcodeFormat === 'CODE128'
+    ? BarcodeGenerator.generateCode128Svg(barcodeContent, {
+        height: barcodeSizeOption === 'GIANT' ? 180 : 120,
+        showText: true
+      })
+    : `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(barcodeContent)}" alt="QR" style="height:${barcodeHeightMm * 3.5}px;width:${barcodeHeightMm * 3.5}px;object-fit:contain;margin:auto;" />`;
 
   const handlePrint = () => {
     const printEl = document.getElementById('printable-stickers-container');
@@ -486,9 +496,50 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                 <span>รหัส SKU</span>
               </label>
 
+              {/* Barcode Format Selector */}
+              <div className="flex items-center gap-1 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg ml-1">
+                <span className="text-[10px] font-bold text-slate-700">รูปแบบ:</span>
+                <button
+                  type="button"
+                  onClick={() => setBarcodeFormat('EAN13')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                    barcodeFormat === 'EAN13'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="มาตรฐานสากลค้าปลีก 13 หลัก สแกนเนอร์ทุกตัว ทุกยี่ห้อบนโลกยิงติด 100%"
+                >
+                  🌟 EAN-13 (แนะนำ)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBarcodeFormat('CODE128')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                    barcodeFormat === 'CODE128'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="รหัสแท่ง Code 128 คมชัด รองรับตัวอักษรและตัวเลข"
+                >
+                  Code 128
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBarcodeFormat('QR')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                    barcodeFormat === 'QR'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="QR Code สำหรับปืนสแกนเนอร์แบบ 2D และกล้องมือถือ"
+                >
+                  📱 QR Code
+                </button>
+              </div>
+
               {/* Barcode Height Selector (Giant vs Normal) */}
               <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-lg ml-1">
-                <span className="text-[10px] font-bold text-amber-900">ขนาดแท่งบาร์โค้ด:</span>
+                <span className="text-[10px] font-bold text-amber-900">ขนาดแท่ง:</span>
                 <button
                   type="button"
                   onClick={() => setBarcodeSizeOption('GIANT')}
@@ -497,9 +548,9 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                       ? 'bg-amber-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
-                  title="ความสูง 36 มม. เส้นใหญ่ สแกนติดง่าย 100%"
+                  title="ความสูงเส้นใหญ่ สแกนติดง่าย 100%"
                 >
-                  ⚡ ใหญ่พิเศษ ({barcodeHeightMm} มม.)
+                  ⚡ หนาพิเศษ
                 </button>
                 <button
                   type="button"
@@ -509,7 +560,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                       ? 'bg-amber-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
-                  title="ความสูงมาตรฐาน 22 มม."
+                  title="ความสูงมาตรฐาน"
                 >
                   มาตรฐาน
                 </button>
@@ -524,9 +575,11 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                   type="number"
                   min={1}
                   max={500}
-                  value={printCount}
-                  onChange={e => setPrintCount(parseInt(e.target.value, 10) || 1)}
-                  className="w-20 px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl font-mono font-bold text-xs text-center"
+                  value={printCount === 0 ? '' : printCount}
+                  onFocus={e => e.target.select()}
+                  onChange={e => setPrintCount(parseInt(e.target.value, 10) || 0)}
+                  placeholder="1"
+                  className="w-20 px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl font-mono font-bold text-xs text-center focus:ring-2 focus:ring-amber-500"
                 />
                 <button
                   type="button"
@@ -641,7 +694,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         {/* Modal Footer Note */}
         <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 no-print px-6 gap-2">
           <div className="text-[11px] text-slate-600 leading-tight">
-            💡 <b>คำแนะนำการทดสอบสแกน:</b> เครื่องยิงบาร์โค้ดแบบเลเซอร์ (Laser 1D Gun) จะสแกนอ่านจาก <b>กระดาษหรือป้ายแท็กจริง</b> เท่านั้น ไม่สามารถยิงทะลุแสงสะท้อนของหน้าจอมือถือได้ หากต้องการทดสอบโดยยังไม่พิมพ์ ให้ใช้กล้องมือถืออีกเครื่องเปิดแอปกล้อง/สแกนเนอร์ส่อง หรือพิมพ์ใส่กระดาษแล้วยิงจะติดทันทีครับ
+            💡 <b>คำแนะนำการสแกน:</b> หากใช้ปืนยิง 1D (แสงเลเซอร์เส้นตรงสีแดงเส้นเดียว) แนะนำให้เลือกรูปแบบ <b>"🌟 EAN-13"</b> เพราะเป็นมาตรฐานค้าปลีกที่ปืนทุกรุ่นเปิดรับเป็นค่าเริ่มต้น 100% | หากเป็นปืนแบบ 2D (มีไฟส่องเป็นกรอบสี่เหลี่ยม) สามารถยิงได้ทั้ง EAN-13, Code 128 และ QR Code ครับ
           </div>
           <button
             type="button"

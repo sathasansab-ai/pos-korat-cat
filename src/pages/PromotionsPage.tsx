@@ -1,6 +1,6 @@
 // src/pages/PromotionsPage.tsx
-import React, { useState, useEffect } from 'react';
-import { Tag, Plus, CheckCircle, XCircle, Sparkles, Trash2, Users, ShieldAlert, Gift, Check, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Tag, Plus, CheckCircle, XCircle, Sparkles, Trash2, Users, ShieldAlert, Gift, Check, AlertCircle, Search, Layers, ShoppingBag } from 'lucide-react';
 import { db } from '../db';
 import type { PromotionRule, ProductVariant, StoreSettings, FreeGiftTier } from '../types';
 import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
@@ -15,10 +15,14 @@ export const PromotionsPage: React.FC = () => {
   const [requiredQty, setRequiredQty] = useState(2);
   const [bundlePrice, setBundlePrice] = useState(899);
   const [targetAudience, setTargetAudience] = useState<'ALL' | 'MEMBER_ONLY'>('ALL');
+  const [promoScope, setPromoScope] = useState<'BY_CATEGORY' | 'BY_ITEMS'>('BY_CATEGORY');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([
     DEFAULT_PRODUCT_CATEGORIES[0],
     DEFAULT_PRODUCT_CATEGORIES[1]
   ]);
+  const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([]);
+  const [itemSearchQuery, setItemSearchQuery] = useState('');
+  const [itemFilterCategory, setItemFilterCategory] = useState('ALL');
 
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -126,8 +130,37 @@ export const PromotionsPage: React.FC = () => {
     );
   };
 
+  const toggleVariant = (vId: string) => {
+    setSelectedVariantIds(prev =>
+      prev.includes(vId) ? prev.filter(id => id !== vId) : [...prev, vId]
+    );
+  };
+
+  const selectableVariants = useMemo(() => {
+    return variants.filter(v => {
+      if (itemFilterCategory !== 'ALL' && v.category !== itemFilterCategory) return false;
+      if (itemSearchQuery.trim()) {
+        const q = itemSearchQuery.toLowerCase();
+        const matchName = v.productName?.toLowerCase().includes(q);
+        const matchSku = v.sku?.toLowerCase().includes(q);
+        const matchColor = v.attributes?.color?.toLowerCase().includes(q);
+        const matchSize = v.attributes?.size?.toLowerCase().includes(q);
+        return matchName || matchSku || matchColor || matchSize;
+      }
+      return true;
+    });
+  }, [variants, itemFilterCategory, itemSearchQuery]);
+
   const handleCreatePromo = async () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      alert('กรุณากรอกชื่อโปรโมชั่น');
+      return;
+    }
+
+    if (promoScope === 'BY_ITEMS' && selectedVariantIds.length === 0) {
+      alert('กรุณาเลือกสินค้าจากสต็อกอย่างน้อย 1 รายการ');
+      return;
+    }
 
     const newRule: PromotionRule = {
       id: `promo-${Date.now()}`,
@@ -136,7 +169,8 @@ export const PromotionsPage: React.FC = () => {
       requiredQty,
       bundlePrice,
       targetAudience,
-      eligibleCategories: selectedCategories,
+      eligibleCategories: promoScope === 'BY_CATEGORY' ? selectedCategories : [],
+      eligibleVariantIds: promoScope === 'BY_ITEMS' ? selectedVariantIds : [],
       startDate: new Date().toISOString(),
       endDate: '2028-12-31',
       isActive: true
@@ -144,6 +178,8 @@ export const PromotionsPage: React.FC = () => {
 
     await db.promotions.add(newRule);
     setIsModalOpen(false);
+    setSelectedVariantIds([]);
+    setItemSearchQuery('');
     loadPromos();
   };
 
@@ -242,20 +278,49 @@ export const PromotionsPage: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Eligible Categories display */}
-                <div className="pt-1.5 border-t border-slate-200/70">
-                  <span className="text-[11px] font-bold text-slate-600">หมวดหมู่ที่เข้าร่วม:</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {promo.eligibleCategories && promo.eligibleCategories.length > 0 ? (
-                      promo.eligibleCategories.map(cat => (
-                        <span key={cat} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700">
-                          {cat}
+                {/* Eligible Items / Categories display */}
+                <div className="pt-2 border-t border-slate-200/70">
+                  {promo.eligibleVariantIds && promo.eligibleVariantIds.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1">
+                          <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
+                          <span>สินค้าจากสต็อกที่เข้าร่วม:</span>
                         </span>
-                      ))
-                    ) : (
-                      <span className="text-[10px] text-slate-400">ทุกหมวดหมู่ในร้าน</span>
-                    )}
-                  </div>
+                        <span className="px-2 py-0.2 rounded-full bg-amber-100 text-amber-900 font-mono font-bold text-[10px] border border-amber-300">
+                          {promo.eligibleVariantIds.length} รายการ
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-1.5 max-h-24 overflow-y-auto">
+                        {promo.eligibleVariantIds.map(vId => {
+                          const v = variants.find(item => item.id === vId);
+                          return (
+                            <span key={vId} className="px-2 py-0.5 bg-amber-50 border border-amber-200 rounded text-[10px] text-amber-900 flex items-center gap-1">
+                              <span>{v ? `${v.productName} (${v.attributes?.size || ''} ${v.attributes?.color || ''})` : vId}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                        <Layers className="w-3.5 h-3.5 text-slate-500" />
+                        <span>หมวดหมู่ที่เข้าร่วม:</span>
+                      </span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {promo.eligibleCategories && promo.eligibleCategories.length > 0 ? (
+                          promo.eligibleCategories.map(cat => (
+                            <span key={cat} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700">
+                              {cat}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-slate-400">ทุกหมวดหมู่ในร้าน</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -432,56 +497,223 @@ export const PromotionsPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">จำนวนชิ้นที่ต้องซื้อ (Qty)</label>
+                  <label className="block font-bold text-slate-700 mb-1">จำนวนชิ้นที่ต้องซื้อครบ (ชิ้น)</label>
                   <input
                     type="number"
-                    value={requiredQty}
-                    onChange={e => setRequiredQty(parseInt(e.target.value, 10) || 1)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono"
+                    min="1"
+                    value={requiredQty === 0 ? '' : requiredQty}
+                    onFocus={e => e.target.select()}
+                    onChange={e => setRequiredQty(parseInt(e.target.value, 10) || 0)}
+                    placeholder="2"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">ราคาเซ็ตเหมาจ่าย (บาท)</label>
+                  <label className="block font-bold text-slate-700 mb-1">ราคาเซ็ตเหมาจ่ายพิเศษ (บาท)</label>
                   <input
                     type="number"
-                    value={bundlePrice}
+                    min="0"
+                    value={bundlePrice === 0 ? '' : bundlePrice}
+                    onFocus={e => e.target.select()}
                     onChange={e => setBundlePrice(parseFloat(e.target.value) || 0)}
+                    placeholder="899"
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-amber-700"
                   />
                 </div>
               </div>
 
-              {/* Category Checkboxes */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1.5">
-                  เลือกหมวดหมู่ที่เข้าร่วมโปรโมชั่นนี้
+              {/* SCOPE SELECTOR: BY CATEGORY vs BY SPECIFIC STOCK ITEMS */}
+              <div className="space-y-2 pt-1 border-t border-slate-200">
+                <label className="block font-bold text-slate-700 text-xs">
+                  ขอบเขตสินค้าที่เข้าร่วมโปรโมชั่น
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
-                  {DEFAULT_PRODUCT_CATEGORIES.map(cat => {
-                    const isChecked = selectedCategories.includes(cat);
-                    return (
-                      <label
-                        key={cat}
-                        className={`flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition ${
-                          isChecked ? 'bg-amber-100/70 text-amber-900 font-semibold' : 'hover:bg-slate-200/60 text-slate-700'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleCategory(cat)}
-                          className="rounded text-amber-600 focus:ring-amber-500"
-                        />
-                        <span className="text-xs truncate">{cat}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <div className="text-[10px] text-slate-400 mt-1">
-                  * หากไม่ติ๊กเลือกหมวดใดเลย จะถือว่าโปรโมชั่นนี้ใช้ได้กับสินค้าทุกชิ้นในร้าน
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPromoScope('BY_CATEGORY')}
+                    className={`p-2.5 rounded-xl border text-left font-bold transition flex items-center gap-2 ${
+                      promoScope === 'BY_CATEGORY'
+                        ? 'border-amber-500 bg-amber-50 text-amber-900 ring-1 ring-amber-400'
+                        : 'border-slate-200 text-slate-600 bg-slate-50'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 text-amber-600" />
+                    <div>
+                      <div className="text-xs">🏷️ ตามหมวดหมู่สินค้า</div>
+                      <div className="text-[10px] font-normal text-slate-500">คละได้ทุกชิ้นในหมวดที่เลือก</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPromoScope('BY_ITEMS')}
+                    className={`p-2.5 rounded-xl border text-left font-bold transition flex items-center gap-2 ${
+                      promoScope === 'BY_ITEMS'
+                        ? 'border-amber-500 bg-amber-50 text-amber-900 ring-1 ring-amber-400'
+                        : 'border-slate-200 text-slate-600 bg-slate-50'
+                    }`}
+                  >
+                    <ShoppingBag className="w-4 h-4 text-teal-600" />
+                    <div>
+                      <div className="text-xs">📦 เลือกชิ้นสินค้าจากสต็อก</div>
+                      <div className="text-[10px] font-normal text-slate-500">เช่น จับคู่เสื้อ+กางเกง, ไซส์ใหญ่</div>
+                    </div>
+                  </button>
                 </div>
               </div>
+
+              {/* MODE A: Category Checkboxes */}
+              {promoScope === 'BY_CATEGORY' && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1.5">
+                    เลือกหมวดหมู่ที่เข้าร่วมโปรโมชั่นนี้
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
+                    {DEFAULT_PRODUCT_CATEGORIES.map(cat => {
+                      const isChecked = selectedCategories.includes(cat);
+                      return (
+                        <label
+                          key={cat}
+                          className={`flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition ${
+                            isChecked ? 'bg-amber-100/70 text-amber-900 font-semibold' : 'hover:bg-slate-200/60 text-slate-700'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleCategory(cat)}
+                            className="rounded text-amber-600 focus:ring-amber-500"
+                          />
+                          <span className="text-xs truncate">{cat}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">
+                    * หากไม่ติ๊กเลือกหมวดใดเลย จะถือว่าโปรโมชั่นนี้ใช้ได้กับสินค้าทุกชิ้นในร้าน
+                  </div>
+                </div>
+              )}
+
+              {/* MODE B: Specific Stock Items Picker */}
+              {promoScope === 'BY_ITEMS' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 text-xs flex items-center gap-1.5">
+                      <span>เลือกสินค้า/ไซส์จากสต็อกที่ร่วมโปรโมชั่น</span>
+                      <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 font-bold font-mono text-[10px]">
+                        เลือกแล้ว {selectedVariantIds.length} รายการ
+                      </span>
+                    </label>
+
+                    <div className="flex items-center gap-1 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedVariantIds(selectableVariants.map(v => v.id))}
+                        className="text-teal-700 hover:underline font-semibold"
+                      >
+                        เลือกทั้งหมด ({selectableVariants.length})
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedVariantIds([])}
+                        className="text-slate-500 hover:text-slate-700"
+                      >
+                        ล้างการเลือก
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter & Search Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+                      <input
+                        type="text"
+                        value={itemSearchQuery}
+                        onChange={e => setItemSearchQuery(e.target.value)}
+                        placeholder="ค้นหาชื่อสินค้า, SKU, ไซส์, สี..."
+                        className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-teal-500"
+                      />
+                    </div>
+
+                    <select
+                      value={itemFilterCategory}
+                      onChange={e => setItemFilterCategory(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="ALL">-- ทุกหมวดหมู่สินค้า --</option>
+                      {DEFAULT_PRODUCT_CATEGORIES.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Variant List Scroll Area */}
+                  <div className="border border-slate-200 rounded-2xl max-h-56 overflow-y-auto divide-y divide-slate-100 bg-white">
+                    {selectableVariants.length === 0 ? (
+                      <div className="p-6 text-center text-slate-400 text-xs">
+                        ไม่พบสินค้าที่ตรงกับการค้นหา
+                      </div>
+                    ) : (
+                      selectableVariants.map(v => {
+                        const isChecked = selectedVariantIds.includes(v.id);
+                        const stockCount = v.shopStock ?? v.stockQuantity ?? 0;
+                        return (
+                          <div
+                            key={v.id}
+                            onClick={() => toggleVariant(v.id)}
+                            className={`p-2.5 flex items-center justify-between gap-3 cursor-pointer transition ${
+                              isChecked ? 'bg-amber-50/80' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {}} // handled by parent onClick
+                                className="rounded text-amber-600 focus:ring-amber-500 flex-shrink-0"
+                              />
+
+                              {v.imageUrl ? (
+                                <img src={v.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-slate-200 flex-shrink-0" />
+                              ) : (
+                                <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-[10px] flex-shrink-0">
+                                  ภาพ
+                                </div>
+                              )}
+
+                              <div className="min-w-0">
+                                <div className="font-bold text-xs text-slate-900 truncate">{v.productName}</div>
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
+                                  <span className="font-mono">{v.sku}</span>
+                                  {v.attributes?.size && (
+                                    <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-bold">
+                                      {v.attributes.size}
+                                    </span>
+                                  )}
+                                  {v.attributes?.color && (
+                                    <span className="text-slate-600">
+                                      {v.attributes.color}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right flex-shrink-0 text-xs">
+                              <div className="font-bold font-mono text-slate-900">฿{v.salePrice.toLocaleString()}</div>
+                              <div className="text-[10px] font-mono text-slate-500">สต็อก: {stockCount} ชิ้น</div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <button
@@ -531,7 +763,8 @@ export const PromotionsPage: React.FC = () => {
                     type="number"
                     min="1"
                     step="50"
-                    value={giftMinSpend}
+                    value={giftMinSpend === 0 ? '' : giftMinSpend}
+                    onFocus={e => e.target.select()}
                     onChange={e => setGiftMinSpend(parseInt(e.target.value, 10) || 0)}
                     placeholder="เช่น 1000 หรือ 2000"
                     className="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-base text-rose-700 outline-none focus:ring-2 focus:ring-rose-500"
@@ -565,7 +798,12 @@ export const PromotionsPage: React.FC = () => {
                   <input
                     type="number"
                     min="1"
-                    value={giftQty}
+                    value={giftQty === 0 ? '' : giftQty}
+                    onFocus={e => e.target.select()}
+                    onChange={e => setGiftQty(parseInt(e.target.value, 10) || 1)}
+                    placeholder="1"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono"
+                  />
                     onChange={e => setGiftQty(parseInt(e.target.value, 10) || 1)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-sm"
                   />

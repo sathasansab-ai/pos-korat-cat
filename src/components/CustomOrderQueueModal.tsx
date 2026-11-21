@@ -639,7 +639,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                             'bg-slate-800 text-slate-300 border-slate-700'
                           }`}>
                             <Calendar className="w-3 h-3" />
-                            <span>นัดรับ: {order.dueDate}</span>
+                            <span>นัดรับ: {order.dueDate ? `${new Date(order.dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} (${order.dueDate.split('-').reverse().join('/')})` : '-'}</span>
                           </div>
                           {isOverdue && (
                             <span className="text-[9px] text-rose-400 font-bold block mt-0.5">🚨 เกินกำหนดรับ</span>

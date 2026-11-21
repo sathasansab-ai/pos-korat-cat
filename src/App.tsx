@@ -63,6 +63,9 @@ export function App() {
     search.includes('checkin=true');
 
   const refreshShift = async () => {
+    if (navigator.onLine) {
+      await CloudSync.pullShifts().catch(() => {});
+    }
     const shift = await db.shifts.where({ status: 'OPEN' }).last();
     setActiveShift(shift || null);
   };
@@ -79,9 +82,12 @@ export function App() {
     const init = async () => {
       await seedInitialData();
 
-      // ดึงการตั้งค่าล่าสุดรวมถึงรหัส PIN แอดมินและพนักงานจาก Cloud ก่อนแสดงหน้าจอ Login
+      // ดึงการตั้งค่าล่าสุดรวมถึงรหัส PIN แอดมิน กะพนักงาน และพนักงานจาก Cloud ก่อนแสดงหน้าจอ Login
       if (navigator.onLine) {
-        await CloudSync.pullStoreSettings().catch(() => {});
+        await Promise.all([
+          CloudSync.pullStoreSettings().catch(() => {}),
+          CloudSync.pullShifts().catch(() => {})
+        ]);
       }
 
       const settings = await db.settings.get('current_store_settings');

@@ -521,7 +521,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                 <div class="info-box">
                   <h4>ข้อมูลการผลิตและการนัดหมาย</h4>
                   <div><b>ผู้ออกใบสั่ง:</b> ${order.staffName} (สาขาหน้าร้าน)</div>
-                  <div><b>กำหนดส่งมอบ / นัดรับ:</b> <span style="font-size: 12.5px; font-weight: 800; color: #b45309;">${order.dueDate}</span></div>
+                  <div><b>กำหนดส่งมอบ / นัดรับ:</b> <span style="font-size: 12.5px; font-weight: 800; color: #b45309;">${order.dueDate ? `${new Date(order.dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} (${order.dueDate.split('-').reverse().join('/')})` : '-'}</span></div>
                   <div><b>ประเภทสินค้า:</b> ${CATEGORY_OPTIONS.find(c => c.id === order.categoryType)?.label || 'สั่งตัดพิเศษ'}</div>
                   <div><b>ช่องทางชำระมัดจำ:</b> ${order.depositPaymentMethod === 'PROMPTPAY' ? 'สแกนโอน PromptPay QR' : 'เงินสด'}</div>
                 </div>
@@ -1186,14 +1186,43 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                   {/* Delivery & Due Date */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 mb-1">วันกำหนดนัดรับสินค้า *</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-300">วันกำหนดนัดรับสินค้า *</label>
+                        {dueDate && (
+                          <span className="text-[10px] text-amber-300 font-bold font-mono">
+                            {new Date(dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="date"
                         required
                         value={dueDate}
                         onChange={e => setDueDate(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                        className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono"
                       />
+                      {/* Thai Quick Date Presets */}
+                      <div className="flex gap-1.5 mt-2 flex-wrap">
+                        {[
+                          { label: '+3 วัน', days: 3 },
+                          { label: '+7 วัน (1 สัปดาห์)', days: 7 },
+                          { label: '+14 วัน (2 สัปดาห์)', days: 14 },
+                          { label: '+30 วัน (1 เดือน)', days: 30 }
+                        ].map(btn => (
+                          <button
+                            key={btn.days}
+                            type="button"
+                            onClick={() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() + btn.days);
+                              setDueDate(d.toISOString().slice(0, 10));
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-[10px] font-bold transition"
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-300 mb-1">ช่องทางรับสินค้า *</label>
@@ -1230,8 +1259,10 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                           type="number"
                           min={1}
                           required
-                          value={totalPrice}
+                          value={totalPrice === 0 ? '' : totalPrice}
+                          onFocus={e => e.target.select()}
                           onChange={e => handlePriceChange(parseInt(e.target.value, 10) || 0)}
+                          placeholder="0"
                           className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold font-mono text-amber-400"
                         />
                       </div>
@@ -1245,8 +1276,10 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                           min={0}
                           max={totalPrice}
                           required
-                          value={depositAmount}
+                          value={depositAmount === 0 ? '' : depositAmount}
+                          onFocus={e => e.target.select()}
                           onChange={e => setDepositAmount(parseInt(e.target.value, 10) || 0)}
+                          placeholder="0"
                           className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold font-mono text-emerald-400"
                         />
                       </div>

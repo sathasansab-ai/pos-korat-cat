@@ -1243,7 +1243,8 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                   </label>
                   <input
                     type="number"
-                    value={isConsignment ? consignmentVendorPayout : singleCost}
+                    value={isConsignment ? (consignmentVendorPayout === 0 ? '' : consignmentVendorPayout) : (singleCost === 0 ? '' : singleCost)}
+                    onFocus={e => e.target.select()}
                     onChange={e => {
                       const val = parseFloat(e.target.value) || 0;
                       if (isConsignment) {
@@ -1255,6 +1256,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                         setSingleCost(val);
                       }
                     }}
+                    placeholder="0"
                     className={`w-full p-2.5 border rounded-xl font-mono ${isConsignment ? 'bg-emerald-50 border-emerald-300 font-bold text-emerald-800' : 'bg-slate-50 border-slate-300'}`}
                   />
                 </div>
@@ -1262,7 +1264,8 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                   <label className="block font-bold text-slate-700 mb-1">ราคาขายหน้าร้าน (บาท) *</label>
                   <input
                     type="number"
-                    value={singlePrice}
+                    value={singlePrice === 0 ? '' : singlePrice}
+                    onFocus={e => e.target.select()}
                     onChange={e => {
                       const val = parseFloat(e.target.value) || 0;
                       setSinglePrice(val);
@@ -1270,6 +1273,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                         setConsignmentVendorPayout(Math.round(val * (1 - consignmentGpPercent / 100)));
                       }
                     }}
+                    placeholder="0"
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-amber-700"
                   />
                 </div>
@@ -1350,12 +1354,14 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                               type="number"
                               min={0}
                               max={100}
-                              value={consignmentGpPercent}
+                              value={consignmentGpPercent === 0 ? '' : consignmentGpPercent}
+                              onFocus={e => e.target.select()}
                               onChange={e => {
                                 const gp = parseFloat(e.target.value) || 0;
                                 setConsignmentGpPercent(gp);
                                 setConsignmentVendorPayout(Math.round(singlePrice * (1 - gp / 100)));
                               }}
+                              placeholder="0"
                               className="w-full p-2.5 bg-white border border-amber-300 rounded-xl text-xs font-mono font-bold text-center"
                             />
                             <span className="absolute right-2.5 top-2.5 text-xs text-amber-700 font-bold">%</span>
@@ -1369,7 +1375,8 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                           <div className="relative">
                             <input
                               type="number"
-                              value={consignmentVendorPayout}
+                              value={consignmentVendorPayout === 0 ? '' : consignmentVendorPayout}
+                              onFocus={e => e.target.select()}
                               onChange={e => {
                                 const payout = parseFloat(e.target.value) || 0;
                                 setConsignmentVendorPayout(payout);
@@ -1378,6 +1385,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                                   setConsignmentGpPercent(Math.max(0, computedGp));
                                 }
                               }}
+                              placeholder="0"
                               className="w-full p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-mono font-bold text-center text-emerald-800"
                             />
                             <span className="absolute right-2.5 top-2.5 text-xs text-emerald-700 font-bold">฿</span>
@@ -1429,8 +1437,10 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                           <input
                             type="number"
                             min={0}
-                            value={item.qty}
+                            value={item.qty === 0 ? '' : item.qty}
+                            onFocus={e => e.target.select()}
                             onChange={e => handleUpdateSizeQty(item.size, parseInt(e.target.value, 10) || 0)}
+                            placeholder="0"
                             className="w-16 p-1 bg-slate-50 border border-slate-300 rounded-lg text-center font-mono font-bold"
                           />
                           <button
@@ -1475,8 +1485,10 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                     <input
                       type="number"
                       min={1}
-                      value={singleFixedStock}
-                      onChange={e => setSingleFixedStock(parseInt(e.target.value, 10) || 1)}
+                      value={singleFixedStock === 0 ? '' : singleFixedStock}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setSingleFixedStock(parseInt(e.target.value, 10) || 0)}
+                      placeholder="0"
                       className="w-full p-2 bg-white border border-slate-300 rounded-xl font-mono font-bold text-sm"
                     />
                   </div>

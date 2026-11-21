@@ -322,8 +322,8 @@ export const PosPage: React.FC<PosPageProps> = ({
         return;
       }
 
-      // If interval is longer than 90ms, it's slow manual human typing, discard buffer
-      if (now - lastKeyTime > 90) {
+      // If interval is longer than 140ms, it's slow manual human typing, discard buffer
+      if (now - lastKeyTime > 140) {
         scanBuffer = '';
       }
 
@@ -2051,9 +2051,10 @@ export const PosPage: React.FC<PosPageProps> = ({
                 type="number"
                 min={0}
                 max={discountType === 'PERCENT' ? 100 : finalNetTotal}
-                value={discountValue || ''}
+                value={discountValue === 0 ? '' : discountValue}
+                onFocus={e => e.target.select()}
                 onChange={e => setDiscountValue(parseFloat(e.target.value) || 0)}
-                placeholder="ระบุตัวเลขส่วนลด..."
+                placeholder="0"
                 className="w-full text-xl font-mono font-bold p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
                 autoFocus
               />
@@ -2185,7 +2186,9 @@ export const PosPage: React.FC<PosPageProps> = ({
                     <input
                       type="number"
                       value={cashTendered}
+                      onFocus={e => e.target.select()}
                       onChange={e => setCashTendered(e.target.value)}
+                      placeholder="0"
                       className="w-full text-2xl font-mono font-bold text-slate-900 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
                       autoFocus
                     />
@@ -2243,12 +2246,14 @@ export const PosPage: React.FC<PosPageProps> = ({
                     </label>
                     <input
                       type="number"
-                      value={splitCashAmount}
+                      value={splitCashAmount === 0 ? '' : splitCashAmount}
+                      onFocus={e => e.target.select()}
                       onChange={e => {
                         const val = parseFloat(e.target.value) || 0;
                         setSplitCashAmount(val);
                         setSplitPromptPayAmount(Math.max(0, finalNetTotal - val));
                       }}
+                      placeholder="0"
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono text-sm"
                     />
                   </div>
@@ -2259,12 +2264,14 @@ export const PosPage: React.FC<PosPageProps> = ({
                     </label>
                     <input
                       type="number"
-                      value={splitPromptPayAmount}
+                      value={splitPromptPayAmount === 0 ? '' : splitPromptPayAmount}
+                      onFocus={e => e.target.select()}
                       onChange={e => {
                         const val = parseFloat(e.target.value) || 0;
                         setSplitPromptPayAmount(val);
                         setSplitCashAmount(Math.max(0, finalNetTotal - val));
                       }}
+                      placeholder="0"
                       className="w-full px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl font-mono font-bold text-amber-800 text-sm"
                     />
                   </div>
@@ -2793,6 +2800,7 @@ export const PosPage: React.FC<PosPageProps> = ({
                     min="1"
                     required
                     value={customItemPrice}
+                    onFocus={e => e.target.select()}
                     onChange={e => setCustomItemPrice(e.target.value)}
                     placeholder="0.00"
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold text-teal-700"
@@ -2806,8 +2814,10 @@ export const PosPage: React.FC<PosPageProps> = ({
                     type="number"
                     min="1"
                     required
-                    value={customItemQty}
-                    onChange={e => setCustomItemQty(parseInt(e.target.value, 10) || 1)}
+                    value={customItemQty === 0 ? '' : customItemQty}
+                    onFocus={e => e.target.select()}
+                    onChange={e => setCustomItemQty(parseInt(e.target.value, 10) || 0)}
+                    placeholder="1"
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono text-center font-bold"
                   />
                 </div>

@@ -1016,16 +1016,29 @@ class CloudSyncService {
         db.settings.get('current_store_settings')
       ]);
 
-      if (settings) {
-        const updated: StoreSettings = {
-          ...settings,
-          partTimeStaffList: allStaff,
-          partTimeAttendanceList: allAttendance,
-          updatedAt: new Date().toISOString()
-        };
-        await db.settings.put(updated);
-        await this.pushStoreSettings(updated);
-      }
+      const baseSettings = settings || {
+        id: 'current_store_settings',
+        storeName: 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
+        address: 'ถนนจอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000',
+        phone: '044-123456',
+        vatType: 'NONE' as const,
+        vatRate: 7,
+        goldPointsThreshold: 50,
+        goldSpentThreshold: 5000,
+        goldDiscountPercent: 5,
+        blackWisdomPointsThreshold: 150,
+        blackWisdomSpentThreshold: 15000,
+        blackWisdomDiscountPercent: 10
+      };
+
+      const updated: StoreSettings = {
+        ...baseSettings,
+        partTimeStaffList: allStaff,
+        partTimeAttendanceList: allAttendance,
+        updatedAt: new Date().toISOString()
+      };
+      await db.settings.put(updated);
+      await this.pushStoreSettings(updated);
     } catch (e) {
       console.warn('Failed to sync part-time staff to cloud', e);
     }
@@ -1056,9 +1069,53 @@ class CloudSyncService {
   }
 
   /**
-   * ดึงการตั้งค่าร้านค้า รูปภาพ และสไลด์โฆษณาจาก Cloud ลงเครื่อง (สำหรับให้จอฝั่งลูกค้าซิงค์ตรงกัน)
+   * ดึงข้อมูลกะพนักงานจาก Cloud แบบแยกส่วน รวดเร็ว
+   * เพื่อให้เครื่องที่บ้านมองเห็นว่าหน้าร้านเปิดกะอยู่หรือไม่
    */
-  public async pullStoreSettings(): Promise<StoreSettings | null> {
+  public async pullShifts(): Promise<Shift[]> {
+    try {
+      const sRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/shifts?select=*&order=start_time.desc&limit=50`, {
+        headers: this.getHeaders()
+      });
+      if (sRes.ok) {
+        const cloudShifts: any[] = await sRes.json();
+        if (cloudShifts && cloudShifts.length > 0) {
+          const result: Shift[] = [];
+          for (const cs of cloudShifts) {
+            const localShift: Shift = {
+              id: cs.id,
+              branch: cs.branch || 'SHOP',
+              cashierId: cs.cashier_id,
+              cashierName: cs.cashier_name,
+              startTime: cs.start_time,
+              endTime: cs.end_time || undefined,
+              startingCash: Number(cs.starting_cash || 0),
+              closingCashExpected: cs.closing_cash_expected !== null ? Number(cs.closing_cash_expected) : undefined,
+              closingCashActual: cs.closing_cash_actual !== null ? Number(cs.closing_cash_actual) : undefined,
+              cashDifference: cs.cash_difference !== null ? Number(cs.cash_difference) : undefined,
+              totalCashSales: Number(cs.total_cash_sales || 0),
+              totalPromptPaySales: Number(cs.total_promptpay_sales || 0),
+              totalCreditSales: Number(cs.total_credit_sales || 0),
+              totalTransactions: Number(cs.total_transactions || 0),
+              status: cs.status || 'OPEN',
+              notes: cs.notes || undefined
+            };
+            await db.shifts.put(localShift);
+            result.push(localShift);
+          }
+          return result;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to pull shifts from cloud', e);
+    }
+    return db.shifts.toArray();
+  }
+
+  /**
+   * ดึงการตั้งค่าร้านค้า รูปภาพ และสไลด์โฆษณาจาก Cloud ลงเครื่อง (สำหรับให้จอฝั่งลูกค้าและมือถือลงเวลาซิงค์ตรงกัน)
+   */
+  public async pullStoreSettings(isClientReadOnly: boolean = false): Promise<StoreSettings | null> {
     try {
       let cloudSettings: StoreSettings | null = null;
 
@@ -1093,8 +1150,15 @@ class CloudSyncService {
       if (cloudSettings) {
         const local = await db.settings.get('current_store_settings');
 
-        // หากเครื่องนี้มีการแก้ไขที่ใหม่กว่า ให้ส่งค่าของเครื่องนี้ขึ้น Cloud แทนที่จะถูกเขียนทับ
-        if (local && local.updatedAt && cloudSettings.updatedAt) {
+        const isCheckinClient = 
+          isClientReadOnly ||
+          window.location.search.includes('checkin') || 
+          window.location.hash.includes('checkin') || 
+          window.location.pathname.includes('checkin') ||
+          window.location.search.includes('staff_checkin');
+
+        // หากเครื่องนี้มีการแก้ไขที่ใหม่กว่า ให้ส่งค่าของเครื่องนี้ขึ้น Cloud แทนที่จะถูกเขียนทับ (ยกเว้นมือถือลงเวลาหรือ Client อ่านอย่างเดียว)
+        if (!isCheckinClient && local && local.updatedAt && cloudSettings.updatedAt) {
           if (new Date(local.updatedAt) > new Date(cloudSettings.updatedAt)) {
             this.pushStoreSettings(local).catch(() => {});
             return local;

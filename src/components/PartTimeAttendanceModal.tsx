@@ -125,8 +125,14 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
   const [manualOutTime, setManualOutTime] = useState('18:00');
   const [manualNotes, setManualNotes] = useState('บันทึกเวลาโดยแคชเชียร์/ผู้จัดการ');
 
-  // Print Mode State
-  const [printingPayslipStaff, setPrintingPayslipStaff] = useState<PartTimeStaff | null>(null);
+  // Print Document State (แยกส่วนชัดเจนระหว่าง สรุปทั้งร้าน A4 vs สลิปเดี่ยวพนักงาน A4/80mm)
+  const [activePrintDoc, setActivePrintDoc] = useState<{
+    type: 'SUMMARY_A4';
+  } | {
+    type: 'INDIVIDUAL_PAYSLIP';
+    staff: PartTimeStaff;
+    format: 'A4' | '80MM';
+  } | null>(null);
 
   // Mobile check-in URL
   const mobileCheckinUrl = useMemo(() => {
@@ -668,219 +674,37 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
     }
   };
 
-  // พิมพ์ใบสรุปรายงานและคำนวณค่าจ้างพาร์ทไทม์ A4 (รวมทุกคน)
+  // เปิดหน้าต่างตัวอย่างและสั่งพิมพ์ใบสรุปค่าจ้างรวมทั้งร้าน A4
   const handlePrintPayrollSummary = () => {
-    const storeName = settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา';
-    const storeAddress = settings?.address || 'ถนนจอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000';
-    const storePhone = settings?.phone || '044-123456 / 081-999-8888';
-    const printDate = new Date().toLocaleDateString('th-TH', { 
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
-    });
-
-    const rowsHtml = staffPayrollSummary.map((item, idx) => `
-      <tr>
-        <td class="text-center font-mono">${idx + 1}</td>
-        <td>
-          <strong>${item.staff.name}</strong>
-          ${item.staff.nickname ? `<span style="color:#0f766e;font-size:10.5px;"> (${item.staff.nickname})</span>` : ''}
-        </td>
-        <td class="font-mono text-center">${item.staff.phone || '-'}</td>
-        <td class="font-mono text-center">฿${item.staff.hourlyRate || 40}</td>
-        <td class="text-center font-bold font-mono">${item.daysWorked.size} วัน</td>
-        <td class="text-center font-bold font-mono" style="color:#0f766e;">${parseFloat(item.totalPayableHours.toFixed(2))} ชม.</td>
-        <td class="text-right font-mono font-bold" style="color:#047857;font-size:13px;">฿${item.totalWage.toLocaleString()}</td>
-        <td style="min-width:110px;height:32px;"></td>
-      </tr>
-    `).join('');
-
-    const html = `
-      <div class="header">
-        ${settings?.logoUrl ? `<img src="${settings.logoUrl}" class="logo" alt="Logo" />` : ''}
-        <h1 class="store-name">${storeName}</h1>
-        <p class="store-sub">${storeAddress} &bull; โทร: ${storePhone}</p>
-        <div class="doc-title">ใบสรุปรายงานและคำนวณค่าจ้างพนักงานพาร์ทไทม์</div>
-        <div class="period-badge">รอบการคำนวณ: ${periodLabel}</div>
-        <div style="font-size:10px;color:#64748b;margin-top:3px;">พิมพ์เมื่อ: ${printDate}</div>
-      </div>
-
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">ยอดจ่ายค่าจ้างสุทธิ</div>
-          <div class="kpi-val font-mono" style="color:#047857;">฿${totalKpis.totalWage.toLocaleString()}</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">ชั่วโมงทำงานสุทธิรวม</div>
-          <div class="kpi-val font-mono" style="color:#0f766e;">${totalKpis.totalHours} ชม.</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">จำนวนกะ/ครั้งที่มาทำ</div>
-          <div class="kpi-val font-mono">${totalKpis.totalShifts} ครั้ง</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">จำนวนพนักงานพาร์ทไทม์</div>
-          <div class="kpi-val font-mono">${totalKpis.activeWorkers} คน</div>
-        </div>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th class="text-center" style="width:40px;">ลำดับ</th>
-            <th>ชื่อพนักงาน</th>
-            <th class="text-center">เบอร์โทรศัพท์</th>
-            <th class="text-center">อัตรา/ชม.</th>
-            <th class="text-center">จำนวนวัน</th>
-            <th class="text-center">ชั่วโมงสุทธิ</th>
-            <th class="text-right">ยอดเงินค่าจ้าง</th>
-            <th class="text-center">ลายเซ็นผู้รับเงิน</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml || '<tr><td colspan="8" class="text-center" style="padding:16px;">ไม่พบข้อมูลการลงเวลาในรอบนี้</td></tr>'}
-          <tr class="total-highlight">
-            <td colspan="4" class="text-right"><strong>รวมทั้งสิ้น</strong></td>
-            <td class="text-center font-mono"><strong>${staffPayrollSummary.reduce((acc, i) => acc + i.daysWorked.size, 0)} วัน-คน</strong></td>
-            <td class="text-center font-mono"><strong>${totalKpis.totalHours} ชม.</strong></td>
-            <td class="text-right font-mono" style="color:#047857;font-size:14px;"><strong>฿${totalKpis.totalWage.toLocaleString()}</strong></td>
-            <td></td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="notes-box">
-        <strong>หมายเหตุเงื่อนไขการคิดค่าจ้าง:</strong> คำนวณในอัตราเริ่มต้น ฿40/ชม. โดยระบบคำนวณหักเวลาพักเบรก 1 ชั่วโมงโดยอัตโนมัติเมื่อพนักงานปฏิบัติงานกะยาวตั้งแต่ 6 ชั่วโมงขึ้นไป (เช่น กะ 09:00 - 18:00 น. รวม 9 ชม. หักพัก 1 ชม. คิดเงิน 8 ชม. = ฿320)
-      </div>
-
-      <div class="signatures">
-        <div>
-          <div class="sig-line"></div>
-          <div>(......................................................)</div>
-          <div style="font-weight:bold;margin-top:2px;">ผู้จัดทำรายงาน / ผู้จัดการร้าน</div>
-          <div style="color:#64748b;font-size:10px;">วันที่: ....../....../......</div>
-        </div>
-        <div>
-          <div class="sig-line"></div>
-          <div>(......................................................)</div>
-          <div style="font-weight:bold;margin-top:2px;">ผู้ตรวจสอบ / เจ้าของร้าน (แอดมิน)</div>
-          <div style="color:#64748b;font-size:10px;">วันที่: ....../....../......</div>
-        </div>
-      </div>
-    `;
-
-    printIsolatedHtml(`สรุปค่าจ้างพาร์ทไทม์-${periodLabel}`, html);
+    setActivePrintDoc({ type: 'SUMMARY_A4' });
   };
 
-  // พิมพ์ใบแจ้งค่าจ้างรายบุคคล A4 (Payslip)
-  const handlePrintIndividualPayslip = (staff: PartTimeStaff) => {
-    const storeName = settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา';
-    const storeAddress = settings?.address || 'ถนนจอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000';
-    const storePhone = settings?.phone || '044-123456 / 081-999-8888';
-    const printDate = new Date().toLocaleDateString('th-TH', { 
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
+  // เปิดหน้าต่างตัวอย่างและสั่งพิมพ์ใบแจ้งค่าจ้างรายบุคคล (Payslip A4 หรือ สลิป 80mm)
+  const handlePrintIndividualPayslip = (staff: PartTimeStaff, format: 'A4' | '80MM' = 'A4') => {
+    setActivePrintDoc({
+      type: 'INDIVIDUAL_PAYSLIP',
+      staff,
+      format
     });
-
-    const staffSummary = staffPayrollSummary.find(s => s.staff.id === staff.id);
-    const staffRecords = filteredAttendance.filter(r => r.staffId === staff.id);
-
-    const recordsHtml = staffRecords.map(rec => {
-      const inTime = new Date(rec.checkInTime);
-      const outTime = rec.checkOutTime ? new Date(rec.checkOutTime) : null;
-      const rawText = rec.rawDurationMinutes !== undefined 
-        ? `${Math.floor(rec.rawDurationMinutes / 60)} ชม. ${rec.rawDurationMinutes % 60} น.`
-        : '-';
-      const breakText = rec.breakDeductionMinutes && rec.breakDeductionMinutes > 0 ? '-1 ชม.' : '0';
-
-      return `
-        <tr>
-          <td class="font-mono">${rec.date}</td>
-          <td class="font-mono text-center" style="color:#047857;">${inTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</td>
-          <td class="font-mono text-center">${outTime ? outTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : 'กำลังทำ'}</td>
-          <td class="font-mono text-center">${rawText}</td>
-          <td class="font-mono text-center" style="color:#b45309;">${breakText}</td>
-          <td class="font-mono text-center font-bold" style="color:#0f766e;">${rec.payableHours !== undefined ? `${rec.payableHours} ชม.` : '-'}</td>
-          <td class="font-mono text-right font-bold" style="color:#047857;">${rec.totalWage !== undefined ? `฿${rec.totalWage.toLocaleString()}` : '-'}</td>
-          <td style="font-size:10px;color:#64748b;">${rec.notes || rec.verifiedByCashierName || '-'}</td>
-        </tr>
-      `;
-    }).join('');
-
-    const html = `
-      <div class="header">
-        ${settings?.logoUrl ? `<img src="${settings.logoUrl}" class="logo" alt="Logo" />` : ''}
-        <h1 class="store-name">${storeName}</h1>
-        <p class="store-sub">${storeAddress} &bull; โทร: ${storePhone}</p>
-        <div class="doc-title">ใบแจ้งค่าจ้างพนักงานพาร์ทไทม์ (Payslip)</div>
-        <div class="period-badge">รอบการคำนวณ: ${periodLabel}</div>
-        <div style="font-size:10px;color:#64748b;margin-top:3px;">พิมพ์เมื่อ: ${printDate}</div>
-      </div>
-
-      <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:12px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11.5px;">
-        <div>
-          <div>ชื่อพนักงาน: <strong>${staff.name}</strong> ${staff.nickname ? `<span style="color:#0f766e;">(${staff.nickname})</span>` : ''}</div>
-          <div style="margin-top:4px;">เบอร์โทรศัพท์: <span class="font-mono">${staff.phone || '-'}</span></div>
-        </div>
-        <div style="text-align:right;">
-          <div>อัตราค่าจ้าง: <strong class="font-mono" style="color:#0f766e;">฿${staff.hourlyRate || 40}</strong> / ชั่วโมง</div>
-          <div style="margin-top:4px;">มาทำงานรวม: <strong>${staffSummary?.daysWorked.size || 0} วัน</strong> (${staffSummary?.totalShifts || 0} กะ)</div>
-        </div>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>วันที่</th>
-            <th class="text-center">เวลาเข้า</th>
-            <th class="text-center">เวลาออก</th>
-            <th class="text-center">เวลาจริง</th>
-            <th class="text-center">พักเบรก</th>
-            <th class="text-center">ชม.สุทธิ</th>
-            <th class="text-right">ค่าจ้าง</th>
-            <th>หมายเหตุ / ผู้ตรวจ</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${recordsHtml || '<tr><td colspan="8" class="text-center" style="padding:16px;">ไม่พบประวัติการลงเวลาในรอบนี้</td></tr>'}
-        </tbody>
-      </table>
-
-      <div style="background:#ecfdf5;border:2px solid #a7f3d0;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
-        <div>
-          <div style="font-weight:bold;color:#065f46;font-size:12px;">รวมชั่วโมงทำงานสุทธิ (หลังหักพัก): ${staffSummary?.totalPayableHours || 0} ชั่วโมง</div>
-          <div style="font-size:10px;color:#047857;">คำนวณหักพัก 1 ชม. เมื่อทำงานเกิน 6 ชม. เรียบร้อยแล้ว</div>
-        </div>
-        <div style="text-align:right;">
-          <span style="font-size:11px;color:#065f46;font-weight:bold;margin-right:8px;">รวมยอดเงินค่าจ้างสุทธิ:</span>
-          <span class="font-mono" style="font-size:22px;font-weight:900;color:#047857;">฿${(staffSummary?.totalWage || 0).toLocaleString()}</span>
-        </div>
-      </div>
-
-      <div class="signatures">
-        <div>
-          <div class="sig-line"></div>
-          <div>(......................................................)</div>
-          <div style="font-weight:bold;margin-top:2px;">ผู้จ่ายเงิน / ผู้จัดการร้าน</div>
-          <div style="color:#64748b;font-size:10px;">วันที่: ....../....../......</div>
-        </div>
-        <div>
-          <div class="sig-line"></div>
-          <div>(......................................................)</div>
-          <div style="font-weight:bold;margin-top:2px;">ผู้รับเงิน (${staff.name})</div>
-          <div style="color:#64748b;font-size:10px;">วันที่: ....../....../......</div>
-        </div>
-      </div>
-    `;
-
-    printIsolatedHtml(`สลิปค่าจ้าง-${staff.name}-${periodLabel}`, html);
   };
+
+  // จัดการเพิ่ม/ลบ class บน document.body เพื่อให้เบราว์เซอร์ซ่อนหน้าจอ POS และพิมพ์เฉพาะเอกสารที่เลือก 100%
+  useEffect(() => {
+    if (activePrintDoc) {
+      document.body.classList.add('is-printing-report');
+    } else {
+      document.body.classList.remove('is-printing-report');
+    }
+    return () => {
+      document.body.classList.remove('is-printing-report');
+    };
+  }, [activePrintDoc]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <>
+      <div className={`fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto ${activePrintDoc ? 'no-print-screen' : ''}`}>
       <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-100 animate-in zoom-in-95 duration-200">
         
         {/* MODAL HEADER */}
@@ -1543,21 +1367,19 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {!isOwnerAuthorized && (
+                  {!isOwnerAuthorized ? (
                     <button
                       type="button"
                       onClick={() => executeOwnerAction(() => {})}
                       className="px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
                     >
-                      <Key className="w-3.5 h-3.5" />
-                      <span>ปลดล็อคด้วย PIN เจ้าของร้าน</span>
+                      <Key className="w-3.5 h-3.5 text-amber-400" />
+                      <span>ปลดล็อคด้วย PIN แอดมิน / เจ้าของร้าน</span>
                     </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      executeOwnerAction(() => {
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
                         setEditingStaff(null);
                         setStaffFormName('');
                         setStaffFormNickname('');
@@ -1566,13 +1388,13 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
                         setStaffFormPin('');
                         setStaffFormNotes('');
                         setIsStaffFormOpen(true);
-                      });
-                    }}
-                    className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>เพิ่มพนักงานใหม่</span>
-                  </button>
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>เพิ่มพนักงานใหม่</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1644,20 +1466,20 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
                       )}
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => executeOwnerAction(() => handleToggleStaffActive(staff))}
-                        className="text-[11px] text-slate-400 hover:text-white transition"
-                      >
-                        {staff.isActive ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'}
-                      </button>
-
-                      <div className="flex items-center gap-1.5">
+                    {isOwnerAuthorized ? (
+                      <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            executeOwnerAction(() => {
+                          onClick={() => handleToggleStaffActive(staff)}
+                          className="text-[11px] text-slate-400 hover:text-white transition"
+                        >
+                          {staff.isActive ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'}
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
                               setEditingStaff(staff);
                               setStaffFormName(staff.name);
                               setStaffFormNickname(staff.nickname || '');
@@ -1666,24 +1488,32 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
                               setStaffFormPin(staff.pin || '');
                               setStaffFormNotes(staff.notes || '');
                               setIsStaffFormOpen(true);
-                            });
-                          }}
-                          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
-                        >
-                          <Edit3 className="w-3.5 h-3.5 text-teal-400" />
-                          <span>แก้ไข</span>
-                        </button>
+                            }}
+                            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-teal-400" />
+                            <span>แก้ไข</span>
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => executeOwnerAction(() => handleDeleteStaff(staff))}
-                          className="p-1.5 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg transition"
-                          title="ลบรายชื่อพนักงานคนนี้"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteStaff(staff)}
+                            className="p-1.5 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg transition"
+                            title="ลบรายชื่อพนักงานคนนี้"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="flex items-center gap-1.5 text-slate-400">
+                          <Lock className="w-3.5 h-3.5 text-amber-500/80" />
+                          <span>สงวนสิทธิ์แอดมินเจ้าของร้าน</span>
+                        </span>
+                        <span className="text-slate-500">ล็อกการแก้ไข</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1999,6 +1829,414 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
         </div>
       )}
 
+      {/* SUB-MODAL 4: PROFESSIONAL DEDICATED PRINT PREVIEW & PRINT DIALOG */}
+      {activePrintDoc && (
+        <div className="fixed inset-0 z-80 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-start p-2 sm:p-6 overflow-y-auto">
+          
+          {/* Top Bar for Controls (Hidden during physical print) */}
+          <div className="w-full max-w-4xl bg-slate-900 border border-slate-700/80 rounded-2xl p-3.5 mb-4 flex flex-wrap items-center justify-between gap-3 shadow-xl no-print">
+            <div className="flex items-center gap-2.5">
+              <Printer className="w-5 h-5 text-amber-400" />
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  {activePrintDoc.type === 'SUMMARY_A4'
+                    ? 'ตัวอย่างก่อนพิมพ์: ใบสรุปรายงานค่าจ้างพนักงานพาร์ทไทม์ (A4 รวมทั้งร้าน)'
+                    : `ตัวอย่างก่อนพิมพ์: ใบแจ้งค่าจ้าง (${activePrintDoc.staff.name})`}
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {periodLabel} &bull; แยกรายงานชัดเจน ไม่ปนเปื้อนข้อมูลส่วนอื่น
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {activePrintDoc.type === 'INDIVIDUAL_PAYSLIP' && (
+                <div className="flex items-center bg-slate-800 rounded-xl p-1 border border-slate-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setActivePrintDoc({ ...activePrintDoc, format: 'A4' })}
+                    className={`px-3 py-1 rounded-lg font-bold transition ${
+                      activePrintDoc.format === 'A4'
+                        ? 'bg-teal-500 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    📄 กระดาษ A4
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePrintDoc({ ...activePrintDoc, format: '80MM' })}
+                    className={`px-3 py-1 rounded-lg font-bold transition ${
+                      activePrintDoc.format === '80MM'
+                        ? 'bg-teal-500 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    🧾 สลิปความร้อน 80mm
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-lg transition active:scale-95"
+              >
+                <Printer className="w-4 h-4" />
+                <span>สั่งพิมพ์ทันที (Print)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActivePrintDoc(null)}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+
+          {/* DOCUMENT PAPER PREVIEW CONTAINER: SUMMARY A4 */}
+          {activePrintDoc.type === 'SUMMARY_A4' && (
+            <div
+              id="printable-payroll-summary"
+              className="w-full max-w-[210mm] min-h-[297mm] bg-white text-slate-900 rounded-xl shadow-2xl p-8 sm:p-12 text-xs font-sans print:p-0 print:shadow-none print:rounded-none"
+            >
+              {/* Header */}
+              <div className="text-center border-b-2 border-slate-900 pb-3 mb-4">
+                {settings?.logoUrl && (
+                  <img src={settings.logoUrl} alt="Store Logo" className="max-h-12 mx-auto mb-1.5 object-contain" />
+                )}
+                <h1 className="text-lg font-black uppercase text-slate-950 tracking-wide m-0">
+                  {settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}
+                </h1>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  {settings?.address || 'ถนนจอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000'} &bull; โทร: {settings?.phone || '044-123456'}
+                </p>
+                <div className="text-sm font-black text-teal-800 mt-2 uppercase">
+                  ใบสรุปรายงานและคำนวณค่าจ้างพนักงานพาร์ทไทม์ (Store Payroll Summary)
+                </div>
+                <div className="inline-block px-3 py-0.5 mt-1 rounded bg-teal-50 border border-teal-200 text-teal-900 text-[11px] font-bold">
+                  รอบการคำนวณ: {periodLabel}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  พิมพ์เมื่อ: {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+              </div>
+
+              {/* KPI Grid */}
+              <div className="grid grid-cols-4 gap-2.5 mb-4">
+                <div className="border border-slate-300 rounded-lg p-2.5 bg-slate-50">
+                  <span className="text-[9.5px] font-bold text-slate-500 uppercase block">ยอดจ่ายค่าจ้างสุทธิ</span>
+                  <span className="text-base font-black font-mono text-emerald-800">฿{totalKpis.totalWage.toLocaleString()}</span>
+                </div>
+                <div className="border border-slate-300 rounded-lg p-2.5 bg-slate-50">
+                  <span className="text-[9.5px] font-bold text-slate-500 uppercase block">ชั่วโมงทำงานสุทธิรวม</span>
+                  <span className="text-base font-black font-mono text-teal-800">{totalKpis.totalHours} ชม.</span>
+                </div>
+                <div className="border border-slate-300 rounded-lg p-2.5 bg-slate-50">
+                  <span className="text-[9.5px] font-bold text-slate-500 uppercase block">จำนวนกะ/ครั้งที่มาทำ</span>
+                  <span className="text-base font-black font-mono text-slate-800">{totalKpis.totalShifts} ครั้ง</span>
+                </div>
+                <div className="border border-slate-300 rounded-lg p-2.5 bg-slate-50">
+                  <span className="text-[9.5px] font-bold text-slate-500 uppercase block">จำนวนพนักงาน</span>
+                  <span className="text-base font-black font-mono text-slate-800">{totalKpis.activeWorkers} คน</span>
+                </div>
+              </div>
+
+              {/* Summary Table */}
+              <table className="w-full border-collapse border border-slate-300 text-xs mb-4">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700">
+                    <th className="border border-slate-300 py-2 px-2 text-center w-10">ลำดับ</th>
+                    <th className="border border-slate-300 py-2 px-3 text-left">ชื่อ-นามสกุลพนักงาน</th>
+                    <th className="border border-slate-300 py-2 px-2 text-center">เบอร์โทรศัพท์</th>
+                    <th className="border border-slate-300 py-2 px-2 text-center">อัตรา/ชม.</th>
+                    <th className="border border-slate-300 py-2 px-2 text-center">จำนวนวัน</th>
+                    <th className="border border-slate-300 py-2 px-2 text-center">ชั่วโมงสุทธิ</th>
+                    <th className="border border-slate-300 py-2 px-3 text-right">ยอดเงินค่าจ้าง</th>
+                    <th className="border border-slate-300 py-2 px-3 text-center">ลายเซ็นผู้รับเงิน</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffPayrollSummary.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="border border-slate-300 py-6 text-center text-slate-500">
+                        ไม่พบข้อมูลการลงเวลาในรอบ {periodLabel}
+                      </td>
+                    </tr>
+                  ) : (
+                    staffPayrollSummary.map((item, idx) => (
+                      <tr key={item.staff.id} className="hover:bg-slate-50">
+                        <td className="border border-slate-300 py-1.5 px-2 text-center font-mono">{idx + 1}</td>
+                        <td className="border border-slate-300 py-1.5 px-3">
+                          <strong className="text-slate-900">{item.staff.name}</strong>
+                          {item.staff.nickname && (
+                            <span className="text-teal-700 text-[11px] ml-1">({item.staff.nickname})</span>
+                          )}
+                        </td>
+                        <td className="border border-slate-300 py-1.5 px-2 text-center font-mono text-slate-600">{item.staff.phone || '-'}</td>
+                        <td className="border border-slate-300 py-1.5 px-2 text-center font-mono">฿{item.staff.hourlyRate || 40}</td>
+                        <td className="border border-slate-300 py-1.5 px-2 text-center font-bold font-mono">{item.daysWorked.size} วัน</td>
+                        <td className="border border-slate-300 py-1.5 px-2 text-center font-bold font-mono text-teal-800">{parseFloat(item.totalPayableHours.toFixed(2))} ชม.</td>
+                        <td className="border border-slate-300 py-1.5 px-3 text-right font-black font-mono text-emerald-800 text-[13px]">฿{item.totalWage.toLocaleString()}</td>
+                        <td className="border border-slate-300 py-1.5 px-3 min-w-[120px] h-8"></td>
+                      </tr>
+                    ))
+                  )}
+                  <tr className="bg-emerald-50/70 font-bold">
+                    <td colSpan={4} className="border border-slate-300 py-2 px-3 text-right">
+                      <strong>รวมทั้งสิ้น</strong>
+                    </td>
+                    <td className="border border-slate-300 py-2 px-2 text-center font-mono">
+                      {staffPayrollSummary.reduce((acc, i) => acc + i.daysWorked.size, 0)} วัน-คน
+                    </td>
+                    <td className="border border-slate-300 py-2 px-2 text-center font-mono text-teal-800">
+                      {totalKpis.totalHours} ชม.
+                    </td>
+                    <td className="border border-slate-300 py-2 px-3 text-right font-black font-mono text-emerald-800 text-sm">
+                      ฿{totalKpis.totalWage.toLocaleString()}
+                    </td>
+                    <td className="border border-slate-300"></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Note */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-[10.5px] text-slate-600 mb-6">
+                <strong>เงื่อนไขการคิดค่าจ้าง:</strong> ค่าจ้างพาร์ทไทม์คำนวณในอัตราเริ่มต้น ฿40/ชม. โดยระบบคำนวณหักเวลาพักเบรก 1 ชั่วโมงอัตโนมัติเมื่อพนักงานปฏิบัติงานกะยาวตั้งแต่ 6 ชั่วโมงขึ้นไป (เช่น กะ 09:00 - 18:00 น. รวม 9 ชม. หักพัก 1 ชม. คิด 8 ชม. = ฿320)
+              </div>
+
+              {/* Signatures */}
+              <div className="grid grid-cols-2 gap-12 text-center text-xs mt-10">
+                <div>
+                  <div className="border-b border-dotted border-slate-400 w-3/4 mx-auto mb-2 mt-8"></div>
+                  <div>(......................................................)</div>
+                  <div className="font-bold text-slate-800 mt-1">ผู้จัดทำรายงาน / ผู้จัดการร้าน</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">วันที่: ....../....../......</div>
+                </div>
+                <div>
+                  <div className="border-b border-dotted border-slate-400 w-3/4 mx-auto mb-2 mt-8"></div>
+                  <div>(......................................................)</div>
+                  <div className="font-bold text-slate-800 mt-1">ผู้ตรวจสอบ / เจ้าของร้าน (แอดมิน)</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">วันที่: ....../....../......</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* INDIVIDUAL PAYSLIP: A4 FORMAT */}
+          {activePrintDoc.type === 'INDIVIDUAL_PAYSLIP' && activePrintDoc.format === 'A4' && (() => {
+            const staff = activePrintDoc.staff;
+            const staffSummary = staffPayrollSummary.find(s => s.staff.id === staff.id);
+            const staffRecords = filteredAttendance.filter(r => r.staffId === staff.id);
+
+            return (
+              <div
+                id="printable-individual-payslip"
+                className="w-full max-w-[210mm] min-h-[297mm] bg-white text-slate-900 rounded-xl shadow-2xl p-8 sm:p-12 text-xs font-sans print:p-0 print:shadow-none print:rounded-none"
+              >
+                {/* Header */}
+                <div className="text-center border-b-2 border-slate-900 pb-3 mb-4">
+                  {settings?.logoUrl && (
+                    <img src={settings.logoUrl} alt="Store Logo" className="max-h-12 mx-auto mb-1.5 object-contain" />
+                  )}
+                  <h1 className="text-lg font-black uppercase text-slate-950 tracking-wide m-0">
+                    {settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}
+                  </h1>
+                  <p className="text-[11px] text-slate-600 mt-0.5">
+                    {settings?.address || 'ถนนจอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000'} &bull; โทร: {settings?.phone || '044-123456'}
+                  </p>
+                  <div className="text-sm font-black text-teal-800 mt-2 uppercase">
+                    ใบแจ้งค่าจ้างพนักงานพาร์ทไทม์ (Payslip / Timesheet)
+                  </div>
+                  <div className="inline-block px-3 py-0.5 mt-1 rounded bg-teal-50 border border-teal-200 text-teal-900 text-[11px] font-bold">
+                    รอบการคำนวณ: {periodLabel}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    พิมพ์เมื่อ: {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                </div>
+
+                {/* Staff Info Box */}
+                <div className="bg-slate-50 border border-slate-300 rounded-xl p-3.5 mb-4 grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <div>ชื่อพนักงาน: <strong className="text-sm text-slate-900">{staff.name}</strong> {staff.nickname && <span className="text-teal-700">({staff.nickname})</span>}</div>
+                    <div className="text-slate-600 mt-1">เบอร์โทรศัพท์: <span className="font-mono text-slate-900">{staff.phone || '-'}</span></div>
+                  </div>
+                  <div className="text-right">
+                    <div>อัตราค่าจ้าง: <strong className="font-mono text-teal-800 text-sm">฿{staff.hourlyRate || 40}</strong> / ชั่วโมง</div>
+                    <div className="text-slate-600 mt-1">มาปฏิบัติงานรวม: <strong className="text-slate-900">{staffSummary?.daysWorked.size || 0} วัน</strong> ({staffSummary?.totalShifts || 0} กะ)</div>
+                  </div>
+                </div>
+
+                {/* Timesheet Detail Table for THIS staff ONLY */}
+                <table className="w-full border-collapse border border-slate-300 text-xs mb-4">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700">
+                      <th className="border border-slate-300 py-2 px-2 text-left">วันที่</th>
+                      <th className="border border-slate-300 py-2 px-2 text-center">เวลาเข้า</th>
+                      <th className="border border-slate-300 py-2 px-2 text-center">เวลาออก</th>
+                      <th className="border border-slate-300 py-2 px-2 text-center">เวลาจริง</th>
+                      <th className="border border-slate-300 py-2 px-2 text-center">พักเบรก</th>
+                      <th className="border border-slate-300 py-2 px-2 text-center">ชม.สุทธิ</th>
+                      <th className="border border-slate-300 py-2 px-3 text-right">ค่าจ้าง</th>
+                      <th className="border border-slate-300 py-2 px-3 text-left">หมายเหตุ / ผู้ตรวจ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffRecords.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="border border-slate-300 py-6 text-center text-slate-500">
+                          ไม่พบประวัติการลงเวลาในรอบ {periodLabel}
+                        </td>
+                      </tr>
+                    ) : (
+                      staffRecords.map(rec => {
+                        const inTime = new Date(rec.checkInTime);
+                        const outTime = rec.checkOutTime ? new Date(rec.checkOutTime) : null;
+                        const rawText = rec.rawDurationMinutes !== undefined 
+                          ? `${Math.floor(rec.rawDurationMinutes / 60)} ชม. ${rec.rawDurationMinutes % 60} น.`
+                          : '-';
+                        const breakText = rec.breakDeductionMinutes && rec.breakDeductionMinutes > 0 ? '-1 ชม.' : '0';
+
+                        return (
+                          <tr key={rec.id} className="hover:bg-slate-50">
+                            <td className="border border-slate-300 py-1.5 px-2 font-mono font-bold text-slate-800">{rec.date}</td>
+                            <td className="border border-slate-300 py-1.5 px-2 font-mono text-center text-emerald-800 font-semibold">
+                              {inTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                            </td>
+                            <td className="border border-slate-300 py-1.5 px-2 font-mono text-center">
+                              {outTime ? `${outTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.` : 'กำลังทำ'}
+                            </td>
+                            <td className="border border-slate-300 py-1.5 px-2 font-mono text-center text-slate-600">{rawText}</td>
+                            <td className="border border-slate-300 py-1.5 px-2 font-mono text-center text-amber-700 font-semibold">{breakText}</td>
+                            <td className="border border-slate-300 py-1.5 px-2 font-mono text-center font-bold text-teal-800">
+                              {rec.payableHours !== undefined ? `${rec.payableHours} ชม.` : '-'}
+                            </td>
+                            <td className="border border-slate-300 py-1.5 px-3 font-mono text-right font-black text-emerald-800 text-[13px]">
+                              {rec.totalWage !== undefined ? `฿${rec.totalWage.toLocaleString()}` : '-'}
+                            </td>
+                            <td className="border border-slate-300 py-1.5 px-3 text-[11px] text-slate-600">
+                              {rec.notes || rec.verifiedByCashierName || '-'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Total Net Box */}
+                <div className="bg-emerald-50 border-2 border-emerald-300 rounded-xl p-3.5 mb-6 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-emerald-900 text-xs">
+                      รวมชั่วโมงทำงานสุทธิ (หักเวลาพักเรียบร้อย): {staffSummary?.totalPayableHours || 0} ชั่วโมง
+                    </div>
+                    <div className="text-[10.5px] text-emerald-700 mt-0.5">
+                      หักเวลาพัก 1 ชม. อัตโนมัติเมื่อปฏิบัติงานกะยาวตั้งแต่ 6 ชม. ขึ้นไป
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-emerald-900 mr-2">ยอดเงินค่าจ้างสุทธิ:</span>
+                    <span className="font-mono text-2xl font-black text-emerald-800">
+                      ฿{(staffSummary?.totalWage || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="grid grid-cols-2 gap-12 text-center text-xs mt-10">
+                  <div>
+                    <div className="border-b border-dotted border-slate-400 w-3/4 mx-auto mb-2 mt-8"></div>
+                    <div>(......................................................)</div>
+                    <div className="font-bold text-slate-800 mt-1">ผู้จ่ายเงิน / ผู้จัดการร้าน</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">วันที่: ....../....../......</div>
+                  </div>
+                  <div>
+                    <div className="border-b border-dotted border-slate-400 w-3/4 mx-auto mb-2 mt-8"></div>
+                    <div>(......................................................)</div>
+                    <div className="font-bold text-slate-800 mt-1">ผู้รับเงิน ({staff.name})</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">วันที่: ....../....../......</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* INDIVIDUAL PAYSLIP: 80MM THERMAL SLIP FORMAT */}
+          {activePrintDoc.type === 'INDIVIDUAL_PAYSLIP' && activePrintDoc.format === '80MM' && (() => {
+            const staff = activePrintDoc.staff;
+            const staffSummary = staffPayrollSummary.find(s => s.staff.id === staff.id);
+            const staffRecords = filteredAttendance.filter(r => r.staffId === staff.id);
+
+            return (
+              <div
+                id="printable-thermal-payslip"
+                className="w-full max-w-[80mm] bg-white text-slate-950 rounded-xl shadow-2xl p-4 text-[11px] font-mono leading-tight print:p-0 print:shadow-none print:rounded-none"
+              >
+                <div className="text-center pb-2 mb-2 border-b border-dashed border-slate-400">
+                  <h2 className="text-xs font-black uppercase tracking-tight">{settings?.storeName || 'KORAT CAT BOUTIQUE'}</h2>
+                  <p className="text-[9.5px] text-slate-600">{settings?.phone || '044-123456'}</p>
+                  <p className="text-[10.5px] font-bold mt-1 text-slate-800">*** สลิปค่าจ้างพาร์ทไทม์ ***</p>
+                  <p className="text-[9.5px] text-slate-600">{periodLabel}</p>
+                </div>
+
+                <div className="space-y-1 pb-2 border-b border-dashed border-slate-400 text-[10.5px]">
+                  <div>พนักงาน: <strong>{staff.name}</strong> {staff.nickname ? `(${staff.nickname})` : ''}</div>
+                  <div>โทร: {staff.phone || '-'}</div>
+                  <div>อัตรา: ฿{staff.hourlyRate || 40}/ชม. &bull; ทำงาน: {staffSummary?.daysWorked.size || 0} วัน</div>
+                </div>
+
+                <div className="py-2 border-b border-dashed border-slate-400 space-y-1.5 text-[10px]">
+                  <div className="grid grid-cols-12 font-bold text-slate-600">
+                    <span className="col-span-4">วันที่</span>
+                    <span className="col-span-3 text-center">เข้า-ออก</span>
+                    <span className="col-span-2 text-center">ชม.</span>
+                    <span className="col-span-3 text-right">เงิน</span>
+                  </div>
+                  {staffRecords.map(r => {
+                    const inTime = new Date(r.checkInTime);
+                    const outTime = r.checkOutTime ? new Date(r.checkOutTime) : null;
+                    return (
+                      <div key={r.id} className="grid grid-cols-12">
+                        <span className="col-span-4 font-mono">{r.date.slice(5)}</span>
+                        <span className="col-span-3 text-center font-mono">
+                          {inTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}-{outTime ? outTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : 'ทำ'}
+                        </span>
+                        <span className="col-span-2 text-center font-mono">{r.payableHours || 0}</span>
+                        <span className="col-span-3 text-right font-mono font-bold">฿{r.totalWage || 0}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-2 pb-2 border-b-2 border-slate-900 space-y-1">
+                  <div className="flex justify-between font-bold text-[11px]">
+                    <span>รวมชั่วโมงสุทธิ (หักพัก):</span>
+                    <span>{staffSummary?.totalPayableHours || 0} ชม.</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-black text-slate-950">
+                    <span>รวมค่าจ้างสุทธิ:</span>
+                    <span>฿{(staffSummary?.totalWage || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="pt-4 text-center space-y-3 text-[10px]">
+                  <div>
+                    <div className="border-b border-dotted border-slate-400 w-3/4 mx-auto mb-1"></div>
+                    <span>ลายเซ็นผู้รับเงิน ({staff.name})</span>
+                  </div>
+                  <p className="text-[8.5px] text-slate-500">พิมพ์เมื่อ: {new Date().toLocaleString('th-TH')}</p>
+                </div>
+              </div>
+            );
+          })()}
+
+        </div>
+      )}
+
     </div>
+    </>
   );
 };

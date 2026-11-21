@@ -1,6 +1,7 @@
 // src/services/barcodeScannerHelper.ts
 import { db } from '../db';
 import type { ProductVariant, Customer, CustomMadeOrder } from '../types';
+import { BarcodeGenerator } from './barcodeGenerator';
 
 /**
  * Thai Kedmanee to English QWERTY Keyboard Mapping
@@ -109,15 +110,26 @@ export class BarcodeScannerHelper {
       }
     }
 
-    // 3. Try finding Product Variant (by Barcode, SKU, or Digits-Only sequence)
+    // 3. Try finding Product Variant (by Barcode, SKU, EAN-13, or Digits-Only sequence)
     for (const code of candidates) {
       const lower = code.toLowerCase();
       const numOnly = code.replace(/\D/g, '');
+      const trimmedLeadingZero = numOnly.replace(/^0+/, '');
+
       const variant = await db.variants
         .filter(v => {
           if (v.isActive === false) return false;
+          // Exact or case-insensitive match
           if (v.barcode === code || v.barcode.toLowerCase() === lower || v.sku.toLowerCase() === lower) return true;
-          if (numOnly.length >= 4 && v.barcode.replace(/\D/g, '') === numOnly) return true;
+          // Direct numeric match
+          const vNum = (v.barcode || '').replace(/\D/g, '');
+          if (numOnly.length >= 4 && vNum === numOnly) return true;
+          // Trimmed leading zero match (e.g. scanner sends 0885... instead of 885...)
+          if (trimmedLeadingZero.length >= 4 && (vNum === trimmedLeadingZero || v.barcode === trimmedLeadingZero)) return true;
+          // EAN-13 derived match: if user scanned standard 13-digit EAN-13
+          if (numOnly.length === 13 && vNum.length >= 4) {
+            if (BarcodeGenerator.toValidEan13(v.barcode) === numOnly) return true;
+          }
           return false;
         })
         .first();

@@ -41,6 +41,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   const [livePromptPaySales, setLivePromptPaySales] = useState(0);
   const [liveTxCount, setLiveTxCount] = useState(0);
   const [pastShifts, setPastShifts] = useState<Shift[]>([]);
+  const [allOpenShifts, setAllOpenShifts] = useState<Shift[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [liveSoldItems, setLiveSoldItems] = useState<{ productName: string; sku: string; qty: number; totalRevenue: number }[]>([]);
   const [printedShiftItems, setPrintedShiftItems] = useState<{ productName: string; sku: string; qty: number; totalRevenue: number }[]>([]);
@@ -105,15 +106,22 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
   }, [printedShift]);
 
   const loadPastShifts = async () => {
-    const list = await db.shifts.orderBy('startTime').reverse().limit(10).toArray();
+    const [list, openList] = await Promise.all([
+      db.shifts.orderBy('startTime').reverse().limit(10).toArray(),
+      db.shifts.where({ status: 'OPEN' }).toArray()
+    ]);
     setPastShifts(list);
+    setAllOpenShifts(openList);
   };
 
   const refreshLiveShift = async () => {
     setIsRefreshing(true);
     try {
       if (navigator.onLine) {
-        await CloudSync.pullFromCloud().catch(() => {});
+        await Promise.all([
+          CloudSync.pullFromCloud().catch(() => {}),
+          CloudSync.pullShifts().catch(() => {})
+        ]);
       }
     } finally {
       setIsRefreshing(false);
@@ -379,6 +387,80 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
         </div>
       </div>
 
+      {/* REMOTE SHIFT MONITOR BANNER (แสดงกะที่เปิดอยู่ทั้งหมดในระบบจาก Cloud) */}
+      {allOpenShifts.length > 0 && (
+        <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/80 border border-emerald-500/40 rounded-3xl p-5 shadow-lg text-white space-y-3 no-print">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+              <h3 className="font-bold text-sm text-emerald-300">
+                สถานะกะที่กำลังเปิดให้บริการอยู่ในระบบขณะนี้ ({allOpenShifts.length} กะ)
+              </h3>
+            </div>
+            <span className="text-[11px] text-slate-400">
+              {currentUser.role === 'OWNER' ? '🌟 สิทธิ์เจ้าของร้าน (ติดตามยอดขายเรียลไทม์จากบ้าน)' : 'กะที่กำลังทำงาน'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {allOpenShifts.map(s => {
+              const isCurrentSessionShift = currentShift?.id === s.id;
+              const durationStr = formatShiftDuration(s.startTime);
+              return (
+                <div
+                  key={s.id}
+                  className={`p-3.5 rounded-2xl border transition ${
+                    isCurrentSessionShift
+                      ? 'bg-emerald-900/30 border-emerald-500/60'
+                      : 'bg-slate-950/60 border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-white">{s.cashierName}</span>
+                        {isCurrentSessionShift ? (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-[10px]">
+                            เครื่องนี้
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[10px] font-bold">
+                            สาขา {s.branch || 'หน้าร้าน'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        เปิดกะเมื่อ: {new Date(s.startTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น. ({durationStr})
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 block">เงินทอนตั้งต้น</span>
+                      <span className="font-mono font-bold text-xs text-amber-300">฿{s.startingCash.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-slate-400 text-[10.5px]">ยอดเงินสด: </span>
+                      <span className="font-mono font-bold text-emerald-400">฿{(s.totalCashSales || 0).toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10.5px]">พร้อมเพย์: </span>
+                      <span className="font-mono font-bold text-teal-400">฿{(s.totalPromptPaySales || 0).toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10.5px]">บิล: </span>
+                      <span className="font-mono font-bold text-white">{s.totalTransactions || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Active Shift Card or Open Shift Form */}
       {currentShift ? (
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-amber-200 no-print">
@@ -561,7 +643,9 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               <input
                 type="number"
                 value={startingCash}
+                onFocus={e => e.target.select()}
                 onChange={e => setStartingCash(e.target.value)}
+                placeholder="0"
                 className="w-full text-xl font-mono font-bold px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
               />
             </div>
@@ -634,6 +718,7 @@ export const ShiftPage: React.FC<ShiftPageProps> = ({
               <input
                 type="number"
                 value={closingCash}
+                onFocus={e => e.target.select()}
                 onChange={e => setClosingCash(e.target.value)}
                 placeholder={`กรอกยอดรวม เช่น ${expectedCashInDrawer}`}
                 autoFocus

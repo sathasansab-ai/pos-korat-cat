@@ -46,34 +46,47 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
   const loadData = async () => {
     setIsSyncingCloud(true);
     try {
-      // 1. ตรวจสอบข้อมูลในเครื่องก่อน
-      let [s, st] = await Promise.all([
-        db.settings.get('current_store_settings'),
-        db.partTimeStaff.filter(p => p.isActive !== false).toArray()
-      ]);
+      // 1. ดึงข้อมูลพนักงานและการลงเวลาล่าสุดจาก Supabase Cloud เสมอ (Client Read-Only)
+      if (navigator.onLine) {
+        const cloudSettings = await CloudSync.pullStoreSettings(true);
+        if (cloudSettings) {
+          setSettings(cloudSettings);
 
+          // ซิงค์รายชื่อพนักงานพาร์ทไทม์ทั้งหมดจาก Cloud ลง IndexedDB ในมือถือทันที
+          if (cloudSettings.partTimeStaffList && cloudSettings.partTimeStaffList.length > 0) {
+            for (const pts of cloudSettings.partTimeStaffList) {
+              await db.partTimeStaff.put(pts);
+            }
+          }
+
+          // ซิงค์ประวัติการลงเวลาล่าสุด
+          if (cloudSettings.partTimeAttendanceList && cloudSettings.partTimeAttendanceList.length > 0) {
+            for (const pta of cloudSettings.partTimeAttendanceList) {
+              await db.partTimeAttendance.put(pta);
+            }
+          }
+        }
+      }
+
+      // 2. โหลดรายชื่อพนักงานจาก IndexedDB
+      let st = await db.partTimeStaff.filter(p => p.isActive !== false).toArray();
       if (st.length === 0) {
         await seedInitialData();
         st = await db.partTimeStaff.filter(p => p.isActive !== false).toArray();
       }
 
+      const s = await db.settings.get('current_store_settings');
       if (s) setSettings(s);
       setStaffList(st);
-      if (st.length > 0 && !selectedStaffId) {
-        setSelectedStaffId(st[0].id);
-      }
 
-      // 2. ดึงข้อมูลพนักงานและการลงเวลาล่าสุดจาก Supabase Cloud
-      if (navigator.onLine) {
-        const cloudSettings = await CloudSync.pullStoreSettings();
-        if (cloudSettings) {
-          setSettings(cloudSettings);
-          const freshStaff = await db.partTimeStaff.filter(p => p.isActive !== false).toArray();
-          setStaffList(freshStaff);
-          if (freshStaff.length > 0) {
-            setSelectedStaffId(prev => prev || freshStaff[0].id);
-          }
-        }
+      // ตรวจสอบและเลือกพนักงานคนแรกอัตโนมัติหากยังไม่ได้เลือก หรือ ID เดิมไม่อยู่ในรายชื่อแล้ว
+      if (st.length > 0) {
+        setSelectedStaffId(prev => {
+          if (prev && st.some(staff => staff.id === prev)) return prev;
+          return st[0].id;
+        });
+      } else {
+        setSelectedStaffId('');
       }
     } catch (err) {
       console.warn('Error loading staff data on mobile', err);
@@ -84,6 +97,11 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
 
   useEffect(() => {
     loadData();
+
+    // Auto-refresh when user switches back to the tab/window
+    const onFocus = () => loadData();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   // When selected staff changes, check their attendance status
