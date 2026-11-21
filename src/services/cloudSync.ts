@@ -1016,29 +1016,50 @@ class CloudSyncService {
         db.settings.get('current_store_settings')
       ]);
 
-      const baseSettings = settings || {
-        id: 'current_store_settings',
-        storeName: 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
-        address: 'ถนนจอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000',
-        phone: '044-123456',
-        vatType: 'NONE' as const,
-        vatRate: 7,
-        goldPointsThreshold: 50,
-        goldSpentThreshold: 5000,
-        goldDiscountPercent: 5,
-        blackWisdomPointsThreshold: 150,
-        blackWisdomSpentThreshold: 15000,
-        blackWisdomDiscountPercent: 10
-      };
-
-      const updated: StoreSettings = {
-        ...baseSettings,
-        partTimeStaffList: allStaff,
-        partTimeAttendanceList: allAttendance,
-        updatedAt: new Date().toISOString()
-      };
-      await db.settings.put(updated);
-      await this.pushStoreSettings(updated);
+      const existingSettings = settings || (await db.settings.get('current_store_settings'));
+      if (existingSettings) {
+        const updated: StoreSettings = {
+          ...existingSettings,
+          partTimeStaffList: allStaff,
+          partTimeAttendanceList: allAttendance,
+          updatedAt: new Date().toISOString()
+        };
+        await db.settings.put(updated);
+        await this.pushStoreSettings(updated);
+      } else {
+        const fallback: StoreSettings = {
+          id: 'current_store_settings',
+          storeName: 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
+          subTitle: 'ผสานอัตลักษณ์แมวโคราชและเรือนโคราชเฉลิมวัฒนา',
+          tagline: 'มรดกวัฒนธรรมโคราชสู่แฟชั่นร่วมสมัย',
+          address: 'ถนนจอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000',
+          phone: '044-123456',
+          taxId: '0305566001234',
+          promptPayId: '0812345678',
+          promptPayType: 'MOBILE',
+          receiptHeader: 'KORAT CAT BOUTIQUE',
+          receiptFooter: 'ขอบคุณที่อุดหนุน',
+          printerPaperWidth: '80mm',
+          vatType: 'NONE',
+          vatRate: 7,
+          taxInvoiceTitle: 'ใบเสร็จรับเงิน / ใบกำกับภาษีอย่างย่อ',
+          customerScreenTheme: 'BLACK_GOLD',
+          welcomeTitle: 'ยินดีต้อนรับสู่ KORAT CAT',
+          welcomeSubtitle: 'ผสานอัตลักษณ์แมวโคราชและเรือนโคราชเฉลิมวัฒนา',
+          thankYouMessage: 'ขอบคุณที่อุดหนุน',
+          goldPointsThreshold: 50,
+          goldSpentThreshold: 5000,
+          goldDiscountPercent: 5,
+          blackWisdomPointsThreshold: 150,
+          blackWisdomSpentThreshold: 15000,
+          blackWisdomDiscountPercent: 10,
+          partTimeStaffList: allStaff,
+          partTimeAttendanceList: allAttendance,
+          updatedAt: new Date().toISOString()
+        };
+        await db.settings.put(fallback);
+        await this.pushStoreSettings(fallback);
+      }
     } catch (e) {
       console.warn('Failed to sync part-time staff to cloud', e);
     }
