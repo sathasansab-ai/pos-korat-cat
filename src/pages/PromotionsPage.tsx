@@ -802,9 +802,6 @@ export const PromotionsPage: React.FC = () => {
                     onFocus={e => e.target.select()}
                     onChange={e => setGiftQty(parseInt(e.target.value, 10) || 1)}
                     placeholder="1"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono"
-                  />
-                    onChange={e => setGiftQty(parseInt(e.target.value, 10) || 1)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-sm"
                   />
                 </div>
