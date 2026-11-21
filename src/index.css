@@ -49,7 +49,8 @@
   nav, 
   footer,
   aside,
-  .no-print {
+  .no-print,
+  .no-print-screen {
     display: none !important;
   }
 
@@ -63,6 +64,13 @@
     overflow: visible !important;
   }
 
+  /* When printing any report or document, hide interactive screens and layouts */
+  body.is-printing-report #root > div > header,
+  body.is-printing-report .no-print,
+  body.is-printing-report .no-print-screen {
+    display: none !important;
+  }
+
   main {
     padding: 0 !important;
     margin: 0 !important;
@@ -71,8 +79,8 @@
     background: transparent !important;
   }
 
-  /* Unset modal overlay constraints for print */
-  .fixed.inset-0 {
+  /* Unset modal overlay constraints for print ONLY for printable modals */
+  .fixed.inset-0:not(.no-print):not(.no-print-screen) {
     position: static !important;
     background: transparent !important;
     padding: 0 !important;

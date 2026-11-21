@@ -20,8 +20,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { db } from '../db';
-import type { Customer, StoreSettings, GenderType, AgeRangeType } from '../types';
-import { GENDER_CONFIG, AGE_RANGE_CONFIG } from '../types';
+import type { Customer, StoreSettings, GenderType, AgeRangeType, NationalityType } from '../types';
+import { GENDER_CONFIG, AGE_RANGE_CONFIG, THAI_PROVINCES, FOREIGN_COUNTRIES } from '../types';
 import { DigitalPassModal } from '../components/DigitalPassModal';
 import { SoundEffects } from '../services/soundEffects';
 
@@ -56,6 +56,9 @@ export const MembersPage: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [gender, setGender] = useState<GenderType>('UNSPECIFIED');
   const [ageRange, setAgeRange] = useState<AgeRangeType>('UNSPECIFIED');
+  const [nationalityType, setNationalityType] = useState<NationalityType>('THAI');
+  const [province, setProvince] = useState<string>('นครราชสีมา');
+  const [country, setCountry] = useState<string>('จีน (China 🇨🇳)');
   const [tier, setTier] = useState<'SILVER' | 'GOLD' | 'BLACK_WISDOM'>('BLACK_WISDOM');
   const [rewardPoints, setRewardPoints] = useState<number>(0);
   const [contactChannel, setContactChannel] = useState('');
@@ -111,6 +114,9 @@ export const MembersPage: React.FC = () => {
     setPhone('');
     setGender('UNSPECIFIED');
     setAgeRange('UNSPECIFIED');
+    setNationalityType('THAI');
+    setProvince('นครราชสีมา');
+    setCountry('จีน (China 🇨🇳)');
     setTier('SILVER');
     setRewardPoints(0);
     setContactChannel('');
@@ -124,6 +130,9 @@ export const MembersPage: React.FC = () => {
     setPhone(c.phone);
     setGender(c.gender || 'UNSPECIFIED');
     setAgeRange(c.ageRange || 'UNSPECIFIED');
+    setNationalityType(c.nationalityType || 'THAI');
+    setProvince(c.province || 'นครราชสีมา');
+    setCountry(c.country || 'จีน (China 🇨🇳)');
     setTier(c.tier || 'BLACK_WISDOM');
     setRewardPoints(c.rewardPoints || 0);
     setContactChannel(c.contactChannel || '');
@@ -145,6 +154,9 @@ export const MembersPage: React.FC = () => {
         phone: phone.trim(),
         gender,
         ageRange,
+        nationalityType,
+        province: nationalityType === 'THAI' ? (province || 'นครราชสีมา') : undefined,
+        country: nationalityType === 'FOREIGNER' ? (country || 'จีน (China 🇨🇳)') : undefined,
         tier,
         rewardPoints,
         contactChannel: contactChannel.trim() || undefined,
@@ -162,6 +174,9 @@ export const MembersPage: React.FC = () => {
         phone: phone.trim(),
         gender,
         ageRange,
+        nationalityType,
+        province: nationalityType === 'THAI' ? (province || 'นครราชสีมา') : undefined,
+        country: nationalityType === 'FOREIGNER' ? (country || 'จีน (China 🇨🇳)') : undefined,
         tier,
         rewardPoints,
         totalSpent: 0,
@@ -338,21 +353,30 @@ export const MembersPage: React.FC = () => {
                       </td>
                       <td className="p-3.5">
                         <div className="font-bold text-slate-900">{c.name}</div>
-                        {((c.gender && c.gender !== 'UNSPECIFIED') || (c.ageRange && c.ageRange !== 'UNSPECIFIED')) && (
-                          <div className="flex items-center gap-1.5 mt-1">
-                            {c.gender && c.gender !== 'UNSPECIFIED' && (
-                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${GENDER_CONFIG[c.gender].badgeColor}`}>
-                                <span>{GENDER_CONFIG[c.gender].icon}</span>
-                                <span>{GENDER_CONFIG[c.gender].label}</span>
-                              </span>
-                            )}
-                            {c.ageRange && c.ageRange !== 'UNSPECIFIED' && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                                {AGE_RANGE_CONFIG[c.ageRange].label}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {c.gender && c.gender !== 'UNSPECIFIED' && (
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${GENDER_CONFIG[c.gender].badgeColor}`}>
+                              <span>{GENDER_CONFIG[c.gender].icon}</span>
+                              <span>{GENDER_CONFIG[c.gender].label}</span>
+                            </span>
+                          )}
+                          {c.ageRange && c.ageRange !== 'UNSPECIFIED' && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              {AGE_RANGE_CONFIG[c.ageRange].label}
+                            </span>
+                          )}
+                          {c.nationalityType === 'FOREIGNER' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                              <span>🌏</span>
+                              <span>{c.country ? c.country.split(' ')[0] : 'ต่างชาติ'}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <span>🇹🇭</span>
+                              <span>{c.province || 'นครราชสีมา'}</span>
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3.5 font-mono text-slate-600">{c.phone}</td>
                       <td className="p-3.5">
@@ -487,6 +511,75 @@ export const MembersPage: React.FC = () => {
                     <option value="60_PLUS">60 ปีขึ้นไป</option>
                   </select>
                 </div>
+              </div>
+
+              {/* สัญชาติและจังหวัด/ประเทศ */}
+              <div className="p-3 bg-amber-50/50 rounded-2xl border border-amber-200/60 space-y-2.5">
+                <label className="block font-bold text-slate-800 text-xs">
+                  สัญชาติและภูมิลำเนา (Demographics & Origin)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNationalityType('THAI')}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition border ${
+                      nationalityType === 'THAI'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🇹🇭</span>
+                    <span>ชาวไทย (Thai)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNationalityType('FOREIGNER')}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition border ${
+                      nationalityType === 'FOREIGNER'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🌏</span>
+                    <span>ชาวต่างชาติ (Foreigner)</span>
+                  </button>
+                </div>
+
+                {nationalityType === 'THAI' ? (
+                  <div>
+                    <label className="block font-semibold text-slate-700 text-xs mb-1">
+                      จังหวัดที่พำนัก/ภูมิลำเนา (ค่าเริ่มต้น: นครราชสีมา)
+                    </label>
+                    <select
+                      value={province}
+                      onChange={e => setProvince(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
+                    >
+                      {THAI_PROVINCES.map(p => (
+                        <option key={p} value={p}>
+                          {p === 'นครราชสีมา' ? '★ นครราชสีมา (คนโคราช / ท้องถิ่น)' : p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-semibold text-slate-700 text-xs mb-1">
+                      ประเทศ / ภูมิภาค (Country / Region)
+                    </label>
+                    <select
+                      value={country}
+                      onChange={e => setCountry(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
+                    >
+                      {FOREIGN_COUNTRIES.map(c => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

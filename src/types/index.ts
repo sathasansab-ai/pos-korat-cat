@@ -273,6 +273,40 @@ export interface StockTransfer {
 
 export type GenderType = 'FEMALE' | 'MALE' | 'LGBTQ' | 'UNSPECIFIED';
 
+export type NationalityType = 'THAI' | 'FOREIGNER';
+
+export const THAI_PROVINCES = [
+  'นครราชสีมา', // Default / Local (เรือนโคราช)
+  'กรุงเทพมหานคร',
+  'กระบี่', 'กาญจนบุรี', 'กาฬสินธุ์', 'กำแพงเพชร', 'ขอนแก่น', 'จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี',
+  'ชัยนาท', 'ชัยภูมิ', 'ชุมพร', 'เชียงราย', 'เชียงใหม่', 'ตรัง', 'ตราด', 'ตาก', 'นครนายก',
+  'นครปฐม', 'นครพนม', 'นครศรีธรรมราช', 'นครสวรรค์', 'นนทบุรี', 'นราธิวาส', 'น่าน', 'บึงกาฬ',
+  'บุรีรัมย์', 'ปทุมธานี', 'ประจวบคีรีขันธ์', 'ปราจีนบุรี', 'ปัตตานี', 'พระนครศรีอยุธยา', 'พะเยา',
+  'พังงา', 'พัทลุง', 'พิจิตร', 'พิษณุโลก', 'เพชรบุรี', 'เพชรบูรณ์', 'แพร่', 'ภูเก็ต',
+  'มหาสารคาม', 'มุกดาหาร', 'แม่ฮ่องสอน', 'ยโสธร', 'ยะลา', 'ร้อยเอ็ด', 'ระนอง', 'ระยอง',
+  'ราชบุรี', 'ลพบุรี', 'ลำปาง', 'ลำพูน', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สงขลา', 'สตูล',
+  'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระแก้ว', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย',
+  'สุพรรณบุรี', 'สุราษฎร์ธานี', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อ่างทอง', 'อำนาจเจริญ',
+  'อุดรธานี', 'อุตรดิตถ์', 'อุทัยธานี', 'อุบลราชธานี'
+] as const;
+
+export const FOREIGN_COUNTRIES = [
+  'จีน (China 🇨🇳)',
+  'ยุโรป (Europe 🇪🇺)',
+  'ญี่ปุ่น (Japan 🇯🇵)',
+  'เกาหลีใต้ (South Korea 🇰🇷)',
+  'สหรัฐอเมริกา/แคนาดา (USA/Canada 🇺🇸🇨🇦)',
+  'ลาว (Laos 🇱🇦)',
+  'กัมพูชา (Cambodia 🇰🇭)',
+  'เวียดนาม (Vietnam 🇻🇳)',
+  'สิงคโปร์/มาเลเซีย (SG/MY 🇸🇬🇲🇾)',
+  'ออสเตรเลีย/นิวซีแลนด์ (AU/NZ 🇦🇺🇳🇿)',
+  'รัสเซีย (Russia 🇷🇺)',
+  'ตะวันออกกลาง (Middle East 🇦🇪)',
+  'อินเดีย/เอเชียใต้ (India/South Asia 🇮🇳)',
+  'ต่างชาติอื่นๆ (Other Countries 🌏)'
+] as const;
+
 export type AgeRangeType = 
   | 'UNDER_18'  // ต่ำกว่า 18 ปี
   | '18_24'     // 18 - 24 ปี
@@ -409,6 +443,9 @@ export interface Customer {
   name: string;
   gender?: GenderType;
   ageRange?: AgeRangeType;
+  nationalityType?: NationalityType; // ชาวไทย หรือ ต่างชาติ
+  province?: string; // เช่น นครราชสีมา (Default กรณีชาวไทย)
+  country?: string; // เช่น จีน, ญี่ปุ่น (กรณีชาวต่างชาติ)
   contactChannel?: string; // LINE, FB, Email
   address?: string;
   taxId?: string;
@@ -496,6 +533,9 @@ export interface Order {
   // Customer Demographics (ข้อมูลประชากรผู้ซื้อ)
   customerGender?: GenderType;
   customerAgeRange?: AgeRangeType;
+  customerNationality?: NationalityType; // ชาวไทย หรือ ต่างชาติ
+  customerProvince?: string; // นครราชสีมา (Default กรณีชาวไทย) หรือจังหวัดอื่นๆ
+  customerCountry?: string; // ประเทศต้นทางกรณีชาวต่างชาติ
 
   // Tax Invoice Info
   isTaxInvoiceIssued?: boolean;

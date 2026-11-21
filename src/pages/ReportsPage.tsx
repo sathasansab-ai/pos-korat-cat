@@ -21,10 +21,13 @@ import {
   RefreshCw,
   Users,
   UserCheck,
-  Award
+  Award,
+  MapPin,
+  Globe,
+  Compass
 } from 'lucide-react';
 import { db } from '../db';
-import type { Order, Shift, StoreSettings, ConsignmentVendor, SalesChannel, GenderType, AgeRangeType } from '../types';
+import type { Order, Shift, StoreSettings, ConsignmentVendor, SalesChannel, GenderType, AgeRangeType, NationalityType } from '../types';
 import { SALES_CHANNEL_CONFIG, GENDER_CONFIG, AGE_RANGE_CONFIG } from '../types';
 import { GoogleSheetsBridge } from '../services/googleSheets';
 import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
@@ -228,6 +231,16 @@ export const ReportsPage: React.FC = () => {
 
   const activeVendor = consignors.find(c => c.id === selectedVendorFilter);
 
+  // Customer Origin & Tourist Demographics (ท้องถิ่น vs นักท่องเที่ยวไทย vs ต่างชาติ)
+  const originStats = {
+    local: { label: 'คนโคราช / ท้องถิ่น', count: 0, revenue: 0, itemsCount: 0, icon: '🏠' },
+    domestic: { label: 'นักท่องเที่ยวไทย (ต่างจังหวัด)', count: 0, revenue: 0, itemsCount: 0, icon: '🚗' },
+    foreigner: { label: 'นักท่องเที่ยวต่างชาติ', count: 0, revenue: 0, itemsCount: 0, icon: '✈️' }
+  };
+
+  const provinceStatsMap = new Map<string, { name: string; count: number; revenue: number }>();
+  const countryStatsMap = new Map<string, { name: string; count: number; revenue: number }>();
+
   // Customer Demographics Analytics (วิเคราะห์ยอดขายตามเพศ และช่วงอายุ 5 ปี)
   const genderStats: Record<GenderType, { count: number; revenue: number; itemsCount: number }> = {
     FEMALE: { count: 0, revenue: 0, itemsCount: 0 },
@@ -259,6 +272,41 @@ export const ReportsPage: React.FC = () => {
     const g: GenderType = o.customerGender || 'UNSPECIFIED';
     const a: AgeRangeType = o.customerAgeRange || 'UNSPECIFIED';
     const totalOrderQty = o.items.reduce((s, it) => s + it.qty, 0);
+
+    // Origin / Tourist Classification
+    const nat = o.customerNationality || 'THAI';
+    const prov = o.customerProvince || (nat === 'THAI' ? 'นครราชสีมา' : undefined);
+    const country = o.customerCountry;
+
+    if (nat === 'FOREIGNER') {
+      originStats.foreigner.count += 1;
+      originStats.foreigner.revenue += o.netTotal;
+      originStats.foreigner.itemsCount += totalOrderQty;
+
+      const cName = country || 'ต่างชาติอื่นๆ';
+      const exist = countryStatsMap.get(cName) || { name: cName, count: 0, revenue: 0 };
+      exist.count += 1;
+      exist.revenue += o.netTotal;
+      countryStatsMap.set(cName, exist);
+    } else {
+      // Thai customer
+      if (!prov || prov === 'นครราชสีมา') {
+        originStats.local.count += 1;
+        originStats.local.revenue += o.netTotal;
+        originStats.local.itemsCount += totalOrderQty;
+      } else {
+        originStats.domestic.count += 1;
+        originStats.domestic.revenue += o.netTotal;
+        originStats.domestic.itemsCount += totalOrderQty;
+      }
+
+      if (prov) {
+        const exist = provinceStatsMap.get(prov) || { name: prov, count: 0, revenue: 0 };
+        exist.count += 1;
+        exist.revenue += o.netTotal;
+        provinceStatsMap.set(prov, exist);
+      }
+    }
 
     if (genderStats[g]) {
       genderStats[g].count += 1;
@@ -321,10 +369,39 @@ export const ReportsPage: React.FC = () => {
       ].join(',');
     });
 
+    const originRows = [
+      ['กลุ่มลูกค้า / ถิ่นที่อยู่', 'จำนวนบิล (บิล)', 'ยอดขายรวม (บาท)', 'สัดส่วน (%)', 'เฉลี่ยต่อบิล (บาท)'],
+      [
+        '"ลูกค้าคนโคราช / ท้องถิ่น"',
+        originStats.local.count,
+        originStats.local.revenue.toFixed(2),
+        `"${totalRevenue > 0 ? ((originStats.local.revenue / totalRevenue) * 100).toFixed(1) : 0}%"`,
+        (originStats.local.count > 0 ? originStats.local.revenue / originStats.local.count : 0).toFixed(2)
+      ],
+      [
+        '"นักท่องเที่ยวไทย (ต่างจังหวัด)"',
+        originStats.domestic.count,
+        originStats.domestic.revenue.toFixed(2),
+        `"${totalRevenue > 0 ? ((originStats.domestic.revenue / totalRevenue) * 100).toFixed(1) : 0}%"`,
+        (originStats.domestic.count > 0 ? originStats.domestic.revenue / originStats.domestic.count : 0).toFixed(2)
+      ],
+      [
+        '"นักท่องเที่ยวชาวต่างชาติ"',
+        originStats.foreigner.count,
+        originStats.foreigner.revenue.toFixed(2),
+        `"${totalRevenue > 0 ? ((originStats.foreigner.revenue / totalRevenue) * 100).toFixed(1) : 0}%"`,
+        (originStats.foreigner.count > 0 ? originStats.foreigner.revenue / originStats.foreigner.count : 0).toFixed(2)
+      ]
+    ].map(r => r.join(','));
+
     const csv = [
-      `"รายงานวิเคราะห์ข้อมูลประชากรลูกค้าและพฤติกรรมการซื้อ - ${settings?.storeName || 'KORAT CAT'}"`,
+      `"รายงานวิเคราะห์ข้อมูลประชากรลูกค้า ถิ่นที่อยู่ และพฤติกรรมการซื้อ - ${settings?.storeName || 'KORAT CAT'}"`,
       `"ประจำช่วง: ${dateFilterMode}"`,
       '',
+      `"=== สรุปสัดส่วนยอดขายตามถิ่นที่อยู่และนักท่องเที่ยว ==="`,
+      ...originRows,
+      '',
+      `"=== สรุปพฤติกรรมและการซื้อตามช่วงอายุ 5 ปี ==="`,
       headers.join(','),
       ...rows
     ].join('\r\n');
@@ -1991,10 +2068,171 @@ export const ReportsPage: React.FC = () => {
               </button>
             </div>
 
+            {/* ORIGIN & TOURIST DEMOGRAPHICS */}
+            <div>
+              <div className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                  <span>1. สัดส่วนยอดขายตามถิ่นที่อยู่ & นักท่องเที่ยว (Origin & Tourist Demographics)</span>
+                </span>
+                <span className="text-[11px] text-slate-400 font-normal">
+                  คนโคราช vs นักท่องเที่ยวไทย vs ชาวต่างชาติ
+                </span>
+              </div>
+
+              {/* 3 Main Origin Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                {([
+                  { key: 'local', stat: originStats.local, color: 'emerald', badge: 'bg-emerald-100 text-emerald-800 border-emerald-300', desc: 'ลูกค้าคนโคราช / ท้องถิ่น' },
+                  { key: 'domestic', stat: originStats.domestic, color: 'blue', badge: 'bg-blue-100 text-blue-800 border-blue-300', desc: 'นักท่องเที่ยวไทยต่างจังหวัด' },
+                  { key: 'foreigner', stat: originStats.foreigner, color: 'purple', badge: 'bg-purple-100 text-purple-800 border-purple-300', desc: 'นักท่องเที่ยวชาวต่างชาติ' }
+                ] as const).map(item => {
+                  const percentOfRev = totalRevenue > 0 ? (item.stat.revenue / totalRevenue) * 100 : 0;
+                  const avgPerBill = item.stat.count > 0 ? item.stat.revenue / item.stat.count : 0;
+
+                  return (
+                    <div 
+                      key={item.key} 
+                      className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col justify-between hover:border-amber-400 transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${item.badge}`}>
+                          <span>{item.stat.icon}</span>
+                          <span>{item.desc}</span>
+                        </span>
+                        <span className="text-xs font-bold font-mono text-slate-500">
+                          {percentOfRev.toFixed(1)}%
+                        </span>
+                      </div>
+
+                      <div className="mt-3">
+                        <div className="text-xs text-slate-500">ยอดขายรวม</div>
+                        <div className="text-2xl font-black font-mono text-slate-900">
+                          ฿{item.stat.revenue.toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <div className="text-slate-400">จำนวนบิล</div>
+                          <div className="font-bold text-slate-800 font-mono">{item.stat.count} บิล</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-400">เฉลี่ยต่อบิล</div>
+                          <div className="font-bold text-slate-800 font-mono">฿{avgPerBill.toFixed(0)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Geographic Rankings: Top Provinces & Top Foreign Countries */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-3">
+                {/* Top Thai Provinces */}
+                <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-1.5">
+                      <span>🇹🇭</span>
+                      <span>Top จังหวัดที่มียอดซื้อสูงสุด (Domestic Origins)</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      {provinceStatsMap.size} จังหวัดที่บันทึก
+                    </span>
+                  </div>
+
+                  {provinceStatsMap.size === 0 ? (
+                    <div className="text-center py-4 text-xs text-slate-400 italic">
+                      ยังไม่มีข้อมูลจังหวัดในรอบบิลที่เลือก
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {Array.from(provinceStatsMap.values())
+                        .sort((a, b) => b.revenue - a.revenue)
+                        .slice(0, 5)
+                        .map((p, idx) => {
+                          const pct = totalRevenue > 0 ? (p.revenue / totalRevenue) * 100 : 0;
+                          return (
+                            <div 
+                              key={p.name}
+                              className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200 text-xs"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                  idx === 0 ? 'bg-amber-100 text-amber-900 font-black' : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {idx + 1}
+                                </span>
+                                <span className="font-bold text-slate-800">
+                                  {p.name === 'นครราชสีมา' ? '★ นครราชสีมา (คนท้องถิ่น)' : p.name}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-mono font-bold text-slate-900">฿{p.revenue.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400 ml-1.5 font-mono">({p.count} บิล • {pct.toFixed(1)}%)</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Top Foreign Countries */}
+                <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-1.5">
+                      <span>🌏</span>
+                      <span>Top ประเทศนักท่องเที่ยวต่างชาติ (International Origins)</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      {countryStatsMap.size} ประเทศ/ภูมิภาค
+                    </span>
+                  </div>
+
+                  {countryStatsMap.size === 0 ? (
+                    <div className="text-center py-4 text-xs text-slate-400 italic">
+                      ยังไม่มีข้อมูลนักท่องเที่ยวต่างชาติในรอบบิลนี้ (ระบบพร้อมบันทึกตอนคิดเงิน)
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {Array.from(countryStatsMap.values())
+                        .sort((a, b) => b.revenue - a.revenue)
+                        .slice(0, 5)
+                        .map((c, idx) => {
+                          const pct = totalRevenue > 0 ? (c.revenue / totalRevenue) * 100 : 0;
+                          return (
+                            <div 
+                              key={c.name}
+                              className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200 text-xs"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                  idx === 0 ? 'bg-amber-100 text-amber-900 font-black' : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {idx + 1}
+                                </span>
+                                <span className="font-bold text-slate-800">
+                                  {c.name}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-mono font-bold text-slate-900">฿{c.revenue.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400 ml-1.5 font-mono">({c.count} บิล • {pct.toFixed(1)}%)</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* GENDER BREAKDOWN CARDS */}
             <div>
               <div className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <span>1. สัดส่วนยอดขายแบ่งตามเพศ (Gender Breakdown)</span>
+                <span>2. สัดส่วนยอดขายแบ่งตามเพศ (Gender Breakdown)</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {(['FEMALE', 'MALE', 'LGBTQ', 'UNSPECIFIED'] as const).map(g => {
@@ -2044,7 +2282,7 @@ export const ReportsPage: React.FC = () => {
             {/* AGE RANGE BREAKDOWN & TOP PRODUCTS */}
             <div>
               <div className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <span>2. สรุปพฤติกรรม & สินค้าที่ซื้อเยอะที่สุดตามช่วงอายุ (Age Groups & Best Sellers)</span>
+                <span>3. สรุปพฤติกรรม & สินค้าที่ซื้อเยอะที่สุดตามช่วงอายุ (Age Groups & Best Sellers)</span>
               </div>
 
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">

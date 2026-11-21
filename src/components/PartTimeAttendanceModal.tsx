@@ -42,6 +42,7 @@ import { DualMonitorSync } from '../services/dualMonitorSync';
 import { SoundEffects } from '../services/soundEffects';
 import { AuthService } from '../services/auth';
 import { CloudSync } from '../services/cloudSync';
+import { ThermalPrinterService } from '../services/thermalPrinter';
 
 interface PartTimeAttendanceModalProps {
   isOpen: boolean;
@@ -593,7 +594,9 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
   };
 
   /**
-   * ระบบพิมพ์เอกสาร A4 แบบแยกกรอบ Iframe อิสระ (ไม่ดึงหน้าจอ POS หรือ Modal เข้ามาปน)
+   * ระบบพิมพ์เอกสาร A4 แบบแยกกรอบ Iframe อิสระ 100%
+   * ดึงเฉพาะเอกสารที่ต้องการพิมพ์ไปเรนเดอร์ใน iframe ว่างเปล่า
+   * ไม่ดึงหน้าจอ POS, ปุ่มกด, หรือแท็บเมนูอื่นเข้ามาปนเด็ดขาด
    */
   const printIsolatedHtml = (title: string, htmlContent: string) => {
     try {
@@ -608,6 +611,8 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
       printFrame.style.width = '0';
       printFrame.style.height = '0';
       printFrame.style.border = '0';
+      printFrame.style.opacity = '0';
+      printFrame.style.pointerEvents = 'none';
       document.body.appendChild(printFrame);
 
       const frameDoc = printFrame.contentWindow?.document;
@@ -616,6 +621,11 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
         return;
       }
 
+      // ดึงสไตล์ CSS และ Tailwind ทั้งหมดจากหน้าเว็บหลักมาใช้ประกอบ
+      const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+        .map(el => el.outerHTML)
+        .join('\n');
+
       frameDoc.open();
       frameDoc.write(`
         <!DOCTYPE html>
@@ -623,38 +633,34 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
           <head>
             <meta charset="utf-8" />
             <title>${title}</title>
+            ${styles}
             <style>
-              @page { size: A4 portrait; margin: 12mm 15mm; }
+              @page { size: A4 portrait; margin: 10mm 12mm; }
+              * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                color: #0f172a;
-                background: #ffffff;
-                margin: 0;
-                padding: 0;
-                font-size: 12px;
-                line-height: 1.5;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                color: #0f172a !important;
+                background: #ffffff !important;
+                margin: 0 !important;
+                padding: 10px !important;
+                font-size: 11px;
+                line-height: 1.4;
               }
-              * { box-sizing: border-box; }
-              .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
-              .logo { max-height: 48px; margin-bottom: 6px; }
-              .store-name { font-size: 16px; font-weight: 800; text-transform: uppercase; color: #0f172a; margin: 0; }
-              .store-sub { font-size: 11px; color: #475569; margin: 2px 0; }
-              .doc-title { font-size: 14px; font-weight: 800; color: #0f766e; margin-top: 6px; text-transform: uppercase; }
-              .period-badge { font-size: 11px; font-weight: bold; color: #0f766e; background: #ccfbf1; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-top: 4px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 16px; }
-              th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 7px 8px; font-weight: 700; font-size: 11px; text-align: left; }
-              td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 11.5px; }
-              .text-right { text-align: right; }
-              .text-center { text-align: center; }
-              .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-              .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-              .kpi-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; background: #f8fafc; }
-              .kpi-label { font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase; }
-              .kpi-val { font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 2px; }
-              .total-highlight { background: #ecfdf5 !important; font-weight: bold; }
-              .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 36px; text-align: center; font-size: 11px; page-break-inside: avoid; }
-              .sig-line { border-bottom: 1px dotted #94a3b8; width: 75%; margin: 36px auto 6px auto; }
-              .notes-box { font-size: 10px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; margin-top: 12px; }
+              .no-print { display: none !important; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border: 1px solid #cbd5e1; }
+              th { background-color: #f1f5f9 !important; font-weight: 700; }
+              tr { page-break-inside: avoid; }
+              #printable-payroll-summary,
+              #printable-individual-payslip {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                border: none !important;
+              }
             </style>
           </head>
           <body>
@@ -669,8 +675,33 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
         printFrame.contentWindow?.print();
       }, 350);
     } catch (e) {
-      console.warn('Iframe print fallback error', e);
-      window.print();
+      console.warn('Iframe print error', e);
+      alert('เกิดข้อผิดพลาดในการเปิดระบบพิมพ์ กรุณาลองใหม่อีกครั้ง');
+    }
+    }
+  };
+
+  // สั่งพิมพ์เอกสารที่กำลังพรีวิวผ่าน Iframe แยกอิสระ 100%
+  const handleTriggerPrint = () => {
+    if (!activePrintDoc) return;
+
+    if (activePrintDoc.type === 'SUMMARY_A4') {
+      const el = document.getElementById('printable-payroll-summary');
+      if (el) {
+        printIsolatedHtml(`รายงานสรุปค่าจ้างพนักงานพาร์ทไทม์-${periodLabel}`, el.outerHTML);
+      }
+    } else if (activePrintDoc.type === 'INDIVIDUAL_PAYSLIP') {
+      if (activePrintDoc.format === '80MM') {
+        ThermalPrinterService.printElement('printable-thermal-payslip', {
+          paperWidth: '80mm',
+          title: `สลิปค่าจ้าง-${activePrintDoc.staff.name}`
+        });
+      } else {
+        const el = document.getElementById('printable-individual-payslip');
+        if (el) {
+          printIsolatedHtml(`ใบแจ้งค่าจ้าง-${activePrintDoc.staff.name}-${periodLabel}`, el.outerHTML);
+        }
+      }
     }
   };
 
@@ -700,12 +731,29 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
     };
   }, [activePrintDoc]);
 
+  // ป้องกันการกดปุ่ม Ctrl+P พิมพ์หน้าจอหลักโดยไม่ได้ตั้งใจ (ดักจับเพื่อสั่งพิมพ์เฉพาะเอกสารที่ต้องการ 100%)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        if (activePrintDoc) {
+          e.preventDefault();
+          handleTriggerPrint();
+        } else if (isOpen) {
+          e.preventDefault();
+          alert('กรุณากดปุ่ม "พิมพ์ใบสรุปค่าจ้าง (A4)" หรือปุ่ม "สลิปเงิน" เพื่อสั่งพิมพ์เฉพาะเอกสารที่ต้องการครับ เพื่อป้องกันหน้าจอแคชเชียร์และข้อมูลส่วนอื่นปนเปื้อน');
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activePrintDoc, isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <>
-      <div className={`fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto ${activePrintDoc ? 'no-print-screen' : ''}`}>
-      <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-100 animate-in zoom-in-95 duration-200">
+      <div className={`fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto no-print ${activePrintDoc ? 'hidden' : ''}`}>
+      <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-100 animate-in zoom-in-95 duration-200 no-print">
         
         {/* MODAL HEADER */}
         <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between flex-shrink-0">
@@ -1157,10 +1205,10 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
                   <button
                     type="button"
                     onClick={handlePrintPayrollSummary}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
+                    className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
                   >
-                    <Printer className="w-3.5 h-3.5 text-amber-400" />
-                    <span>พิมพ์ใบสรุปค่าจ้าง (A4)</span>
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>พิมพ์ใบสรุปรวมทั้งร้าน (A4)</span>
                   </button>
                 </div>
 
@@ -1208,17 +1256,17 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
                                   type="button"
                                   onClick={() => setSelectedStaffForDetail(item.staff)}
                                   className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded-lg text-xs font-semibold transition"
-                                  title="ดูประวัติการลงเวลาแต่ละวัน"
+                                  title="ดูประวัติการลงเวลาแต่ละวัน (เปิดหน้าต่างเฉพาะ)"
                                 >
-                                  ดูบันทึก
+                                  ดูบันทึกรายวัน
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handlePrintIndividualPayslip(item.staff)}
                                   className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition"
-                                  title="พิมพ์ใบแจ้งค่าจ้าง (Payslip A4)"
+                                  title="พิมพ์ใบแจ้งค่าจ้าง (Payslip A4) ของพนักงานคนนี้"
                                 >
-                                  สลิปเงิน
+                                  พิมพ์สลิปเงิน
                                 </button>
                               </div>
                             </td>
@@ -1230,114 +1278,6 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
                 </div>
               </div>
 
-              {/* Individual Staff Timesheet Detail Drawer / Modal */}
-              {selectedStaffForDetail && (
-                <div className="bg-slate-950/80 border border-teal-500/40 rounded-3xl p-5 space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                    <div>
-                      <h4 className="text-sm font-bold text-teal-300 flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-teal-400" />
-                        <span>ประวัติการลงเวลารายวัน: {selectedStaffForDetail.name}</span>
-                      </h4>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {periodLabel} &bull; อัตรา ฿{selectedStaffForDetail.hourlyRate || 40}/ชม.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handlePrintIndividualPayslip(selectedStaffForDetail)}
-                        className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-amber-500/30 transition"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>พิมพ์สลิปพนักงานคนนี้</span>
-                      </button>
-
-                      <button
-                        onClick={() => setSelectedStaffForDetail(null)}
-                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs transition"
-                      >
-                        ปิดหน้านี้
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase border-b border-slate-800">
-                        <tr>
-                          <th className="py-2.5 px-3">วันที่</th>
-                          <th className="py-2.5 px-3">เวลาเข้า</th>
-                          <th className="py-2.5 px-3">เวลาออก</th>
-                          <th className="py-2.5 px-3 text-center">เวลาจริง</th>
-                          <th className="py-2.5 px-3 text-center">พักเบรก</th>
-                          <th className="py-2.5 px-3 text-center">ชม.สุทธิ</th>
-                          <th className="py-2.5 px-3 text-right">ค่าจ้าง</th>
-                          <th className="py-2.5 px-3">หมายเหตุ</th>
-                          <th className="py-2.5 px-2 text-center">ลบ</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800 font-sans">
-                        {filteredAttendance
-                          .filter(r => r.staffId === selectedStaffForDetail.id)
-                          .map(rec => {
-                            const inTime = new Date(rec.checkInTime);
-                            const outTime = rec.checkOutTime ? new Date(rec.checkOutTime) : null;
-                            const isStillIn = rec.status === 'CHECKED_IN' || rec.status === 'CLOCKED_IN' || !rec.checkOutTime;
-
-                            return (
-                              <tr key={rec.id} className="hover:bg-slate-900/40">
-                                <td className="py-2.5 px-3 font-mono">{rec.date}</td>
-                                <td className="py-2.5 px-3 font-mono text-emerald-400">
-                                  {inTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
-                                </td>
-                                <td className="py-2.5 px-3 font-mono">
-                                  {outTime ? (
-                                    <span className="text-rose-400">
-                                      {outTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
-                                    </span>
-                                  ) : (
-                                    <span className="text-amber-400 animate-pulse font-bold">กำลังทำงาน</span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3 text-center font-mono text-slate-300">
-                                  {rec.rawDurationMinutes !== undefined ? `${Math.floor(rec.rawDurationMinutes / 60)} ชม. ${rec.rawDurationMinutes % 60} น.` : '-'}
-                                </td>
-                                <td className="py-2.5 px-3 text-center font-mono">
-                                  {rec.breakDeductionMinutes && rec.breakDeductionMinutes > 0 ? (
-                                    <span className="text-amber-400 font-semibold">-1 ชม.</span>
-                                  ) : (
-                                    <span className="text-slate-500">0</span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3 text-center font-mono font-bold text-teal-300">
-                                  {rec.payableHours !== undefined ? `${rec.payableHours} ชม.` : '-'}
-                                </td>
-                                <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-400">
-                                  {rec.totalWage !== undefined ? `฿${rec.totalWage.toLocaleString()}` : '-'}
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-400 text-[11px]">
-                                  {rec.notes || rec.verifiedByCashierName || '-'}
-                                </td>
-                                <td className="py-2.5 px-2 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => executeOwnerAction(() => handleDeleteAttendance(rec.id))}
-                                    className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded transition"
-                                    title={isOwnerAuthorized ? 'ลบรายการนี้' : 'สงวนสิทธิ์เฉพาะเจ้าของร้าน (แอดมิน)'}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -1829,6 +1769,151 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
         </div>
       )}
 
+      </div>
+
+      {/* SUB-MODAL 5: DEDICATED INDIVIDUAL STAFF TIMESHEET MODAL (ดูประวัติรายวันของพนักงานรายบุคคล แยกอิสระ 100% ไม่ปะปนกับตารางรวมร้าน) */}
+      {selectedStaffForDetail && (
+        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 no-print animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-teal-500/40 rounded-3xl w-full max-w-4xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden text-slate-100 animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-950/80 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-teal-400" />
+                  <h4 className="text-base font-bold text-white">
+                    ประวัติการลงเวลารายวัน: {selectedStaffForDetail.name} {selectedStaffForDetail.nickname && <span className="text-amber-400">({selectedStaffForDetail.nickname})</span>}
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  รอบการคำนวณ: <strong className="text-teal-300">{periodLabel}</strong> &bull; อัตราค่าจ้าง: <strong className="text-amber-300">฿{selectedStaffForDetail.hourlyRate || 40} / ชม.</strong> &bull; โทร: {selectedStaffForDetail.phone}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintIndividualPayslip(selectedStaffForDetail, 'A4')}
+                  className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>พิมพ์สลิปเงิน (A4)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrintIndividualPayslip(selectedStaffForDetail, '80MM')}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/30 font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>สลิป 80mm</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStaffForDetail(null)}
+                  className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition"
+                  title="ปิดหน้าต่างนี้ กลับไปหน้ารวม"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Table Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 text-slate-400 text-[10.5px] uppercase border-b border-slate-800">
+                    <tr>
+                      <th className="py-2.5 px-3">วันที่</th>
+                      <th className="py-2.5 px-3">เวลาเข้า</th>
+                      <th className="py-2.5 px-3">เวลาออก</th>
+                      <th className="py-2.5 px-3 text-center">เวลาจริง</th>
+                      <th className="py-2.5 px-3 text-center">พักเบรก</th>
+                      <th className="py-2.5 px-3 text-center">ชม.สุทธิ</th>
+                      <th className="py-2.5 px-3 text-right">ค่าจ้าง</th>
+                      <th className="py-2.5 px-3">หมายเหตุ</th>
+                      <th className="py-2.5 px-2 text-center">ลบ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 font-sans">
+                    {filteredAttendance.filter(r => r.staffId === selectedStaffForDetail.id).length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-8 text-center text-slate-500">
+                          ไม่พบประวัติการลงเวลาของ {selectedStaffForDetail.name} ในรอบ {periodLabel}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAttendance
+                        .filter(r => r.staffId === selectedStaffForDetail.id)
+                        .map(rec => {
+                          const inTime = new Date(rec.checkInTime);
+                          const outTime = rec.checkOutTime ? new Date(rec.checkOutTime) : null;
+                          return (
+                            <tr key={rec.id} className="hover:bg-slate-900/60">
+                              <td className="py-2.5 px-3 font-mono font-bold text-slate-200">{rec.date}</td>
+                              <td className="py-2.5 px-3 font-mono text-emerald-400">
+                                {inTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                              </td>
+                              <td className="py-2.5 px-3 font-mono">
+                                {outTime ? (
+                                  <span className="text-rose-400">
+                                    {outTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-400 animate-pulse font-bold">กำลังทำงาน</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-300">
+                                {rec.rawDurationMinutes !== undefined ? `${Math.floor(rec.rawDurationMinutes / 60)} ชม. ${rec.rawDurationMinutes % 60} น.` : '-'}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono">
+                                {rec.breakDeductionMinutes && rec.breakDeductionMinutes > 0 ? (
+                                  <span className="text-amber-400 font-semibold">-1 ชม.</span>
+                                ) : (
+                                  <span className="text-slate-500">0</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono font-bold text-teal-300">
+                                {rec.payableHours !== undefined ? `${rec.payableHours} ชม.` : '-'}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-400">
+                                {rec.totalWage !== undefined ? `฿${rec.totalWage.toLocaleString()}` : '-'}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-400 text-[11px]">
+                                {rec.notes || rec.verifiedByCashierName || '-'}
+                              </td>
+                              <td className="py-2.5 px-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => executeOwnerAction(() => handleDeleteAttendance(rec.id))}
+                                  className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded transition"
+                                  title={isOwnerAuthorized ? 'ลบรายการนี้' : 'สงวนสิทธิ์เฉพาะเจ้าของร้าน (แอดมิน)'}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 border-t border-slate-800 bg-slate-950/70 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedStaffForDetail(null)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SUB-MODAL 4: PROFESSIONAL DEDICATED PRINT PREVIEW & PRINT DIALOG */}
       {activePrintDoc && (
         <div className="fixed inset-0 z-80 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-start p-2 sm:p-6 overflow-y-auto">
@@ -1879,7 +1964,7 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
 
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={handleTriggerPrint}
                 className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-lg transition active:scale-95"
               >
                 <Printer className="w-4 h-4" />
@@ -2235,8 +2320,6 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
 
         </div>
       )}
-
-    </div>
     </>
   );
 };

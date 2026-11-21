@@ -47,9 +47,10 @@ import type {
   SalesChannel,
   GenderType,
   AgeRangeType,
+  NationalityType,
   CustomMadeOrder
 } from '../types';
-import { DEFAULT_PRODUCT_CATEGORIES, SALES_CHANNEL_CONFIG, GENDER_CONFIG, AGE_RANGE_CONFIG } from '../types';
+import { DEFAULT_PRODUCT_CATEGORIES, SALES_CHANNEL_CONFIG, GENDER_CONFIG, AGE_RANGE_CONFIG, THAI_PROVINCES, FOREIGN_COUNTRIES } from '../types';
 import { PromotionEngine } from '../services/promotionEngine';
 import { DualMonitorSync } from '../services/dualMonitorSync';
 import { AuthService } from '../services/auth';
@@ -110,8 +111,14 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [regAddress, setRegAddress] = useState('');
   const [regGender, setRegGender] = useState<GenderType>('UNSPECIFIED');
   const [regAgeRange, setRegAgeRange] = useState<AgeRangeType>('UNSPECIFIED');
+  const [regNationalityType, setRegNationalityType] = useState<NationalityType>('THAI');
+  const [regProvince, setRegProvince] = useState<string>('นครราชสีมา');
+  const [regCountry, setRegCountry] = useState<string>('จีน (China 🇨🇳)');
   const [customerGender, setCustomerGender] = useState<GenderType>('UNSPECIFIED');
   const [customerAgeRange, setCustomerAgeRange] = useState<AgeRangeType>('UNSPECIFIED');
+  const [customerNationality, setCustomerNationality] = useState<NationalityType>('THAI');
+  const [customerProvince, setCustomerProvince] = useState<string>('นครราชสีมา');
+  const [customerCountry, setCustomerCountry] = useState<string>('จีน (China 🇨🇳)');
   const [newlyRegisteredCustomer, setNewlyRegisteredCustomer] = useState<Customer | null>(null);
   const [isDigitalPassOpen, setIsDigitalPassOpen] = useState(false);
   const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false);
@@ -811,6 +818,9 @@ export const PosPage: React.FC<PosPageProps> = ({
       phone: regPhone.trim(),
       gender: regGender,
       ageRange: regAgeRange,
+      nationalityType: regNationalityType,
+      province: regNationalityType === 'THAI' ? (regProvince || 'นครราชสีมา') : undefined,
+      country: regNationalityType === 'FOREIGNER' ? (regCountry || 'จีน (China 🇨🇳)') : undefined,
       contactChannel: regContactChannel.trim() || undefined,
       address: regAddress.trim() || undefined,
       rewardPoints: 0,
@@ -822,6 +832,9 @@ export const PosPage: React.FC<PosPageProps> = ({
     setSelectedCustomer(newCust);
     if (regGender !== 'UNSPECIFIED') setCustomerGender(regGender);
     if (regAgeRange !== 'UNSPECIFIED') setCustomerAgeRange(regAgeRange);
+    setCustomerNationality(regNationalityType);
+    if (regNationalityType === 'THAI') setCustomerProvince(regProvince || 'นครราชสีมา');
+    if (regNationalityType === 'FOREIGNER') setCustomerCountry(regCountry || 'จีน (China 🇨🇳)');
     setNewlyRegisteredCustomer(newCust);
     setIsRegisterMemberOpen(false);
     setCustomerSearchQuery('');
@@ -829,6 +842,9 @@ export const PosPage: React.FC<PosPageProps> = ({
     setRegPhone('');
     setRegGender('UNSPECIFIED');
     setRegAgeRange('UNSPECIFIED');
+    setRegNationalityType('THAI');
+    setRegProvince('นครราชสีมา');
+    setRegCountry('จีน (China 🇨🇳)');
     setRegContactChannel('');
     setRegAddress('');
     SoundEffects.playSuccess();
@@ -846,6 +862,13 @@ export const PosPage: React.FC<PosPageProps> = ({
     if (selectedCustomer) {
       if (selectedCustomer.gender) setCustomerGender(selectedCustomer.gender);
       if (selectedCustomer.ageRange) setCustomerAgeRange(selectedCustomer.ageRange);
+      if (selectedCustomer.nationalityType) setCustomerNationality(selectedCustomer.nationalityType);
+      if (selectedCustomer.province) setCustomerProvince(selectedCustomer.province);
+      if (selectedCustomer.country) setCustomerCountry(selectedCustomer.country);
+    } else {
+      // Default non-member:
+      setCustomerNationality('THAI');
+      setCustomerProvince('นครราชสีมา');
     }
     setPaymentMode('CASH');
     setCashTendered(finalNetTotal.toString());
@@ -955,6 +978,13 @@ export const PosPage: React.FC<PosPageProps> = ({
         onlineOrderRef: salesChannel !== 'STORE_FRONT' && onlineOrderRef.trim() ? onlineOrderRef.trim() : undefined,
         customerGender: customerGender !== 'UNSPECIFIED' ? customerGender : (selectedCustomer?.gender || 'UNSPECIFIED'),
         customerAgeRange: customerAgeRange !== 'UNSPECIFIED' ? customerAgeRange : (selectedCustomer?.ageRange || 'UNSPECIFIED'),
+        customerNationality: selectedCustomer?.nationalityType || customerNationality || 'THAI',
+        customerProvince: (selectedCustomer?.nationalityType === 'THAI' || (!selectedCustomer?.nationalityType && customerNationality === 'THAI'))
+          ? (selectedCustomer?.province || customerProvince || 'นครราชสีมา')
+          : undefined,
+        customerCountry: (selectedCustomer?.nationalityType === 'FOREIGNER' || (!selectedCustomer?.nationalityType && customerNationality === 'FOREIGNER'))
+          ? (selectedCustomer?.country || customerCountry || 'จีน (China 🇨🇳)')
+          : undefined,
         status: 'COMPLETED',
         isSynced: false
       };
@@ -1096,6 +1126,9 @@ export const PosPage: React.FC<PosPageProps> = ({
       setSelectedCustomer(null);
       setCustomerGender('UNSPECIFIED');
       setCustomerAgeRange('UNSPECIFIED');
+      setCustomerNationality('THAI');
+      setCustomerProvince('นครราชสีมา');
+      setCustomerCountry('จีน (China 🇨🇳)');
       setDiscountValue(0);
       setDiscountReason('');
       setSalesChannel('STORE_FRONT');
@@ -1116,9 +1149,9 @@ export const PosPage: React.FC<PosPageProps> = ({
   };
 
   return (
-    <div className="flex h-[calc(100dvh-61px)] overflow-hidden bg-slate-100">
+    <div className="flex h-[calc(100dvh-61px)] overflow-hidden bg-slate-100 no-print">
       {/* LEFT: Product Catalog & Quick Keys (60%) */}
-      <div className="flex-1 flex flex-col p-3 sm:p-4 overflow-hidden border-r border-slate-200">
+      <div className="flex-1 flex flex-col p-3 sm:p-4 overflow-hidden border-r border-slate-200 no-print">
         {/* Omni Search & Barcode input (Split into 2 clean responsive rows) */}
         <form onSubmit={handleBarcodeSubmit} className="flex flex-col gap-2 mb-2.5">
           {/* Row 1: Full-width spacious Search & Barcode Gun Input */}
@@ -1592,7 +1625,7 @@ export const PosPage: React.FC<PosPageProps> = ({
       </div>
 
       {/* RIGHT: Cart, Member Selector, Calculations & Payments (Responsive width for tablets, laptops & desktops) */}
-      <div className="w-[320px] md:w-[350px] lg:w-[380px] xl:w-[420px] 2xl:w-[460px] flex-shrink-0 bg-white flex flex-col shadow-xl">
+      <div className="w-[320px] md:w-[350px] lg:w-[380px] xl:w-[420px] 2xl:w-[460px] flex-shrink-0 bg-white flex flex-col shadow-xl no-print">
         {/* Customer & Member Live Dropdown Selector */}
         <div className="p-3 bg-slate-50 border-b border-slate-200 relative">
           {selectedCustomer ? (
@@ -2278,11 +2311,11 @@ export const PosPage: React.FC<PosPageProps> = ({
                 </div>
               )}
 
-              {/* Customer Demographics Quick Selector (เพศ & ช่วงอายุ สำหรับสรุปข้อมูลผู้ซื้อ) */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+              {/* Customer Demographics Quick Selector (เพศ, ช่วงอายุ, สัญชาติ & ถิ่นที่อยู่) */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <span>📊 ข้อมูลลูกค้า (เพศ & ช่วงอายุ):</span>
+                    <span>📊 ข้อมูลประชากร & ถิ่นที่อยู่ลูกค้า:</span>
                   </span>
                   {selectedCustomer ? (
                     <span className="text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-bold">
@@ -2290,7 +2323,7 @@ export const PosPage: React.FC<PosPageProps> = ({
                     </span>
                   ) : (
                     <span className="text-[10px] text-slate-500 font-semibold">
-                      (ติ๊กเลือกสำหรับลูกค้าทั่วไป)
+                      (ค่าเริ่มต้น: ไทย / โคราช)
                     </span>
                   )}
                 </div>
@@ -2340,6 +2373,134 @@ export const PosPage: React.FC<PosPageProps> = ({
                       );
                     })}
                   </div>
+                </div>
+
+                {/* Nationality & Origin Quick Selector */}
+                <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold">
+                    <span className="text-slate-700 flex items-center gap-1">
+                      <span>📍 สัญชาติ/ถิ่นที่อยู่:</span>
+                      <span className="text-amber-800 font-mono">
+                        {customerNationality === 'THAI' ? `🇹🇭 ${customerProvince}` : `🌏 ${customerCountry.split(' ')[0]}`}
+                      </span>
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomerNationality('THAI');
+                          setCustomerProvince('นครราชสีมา');
+                        }}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
+                          customerNationality === 'THAI'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        🇹🇭 ไทย
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomerNationality('FOREIGNER');
+                          setCustomerCountry('จีน (China 🇨🇳)');
+                        }}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
+                          customerNationality === 'FOREIGNER'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        🌏 ต่างชาติ
+                      </button>
+                    </div>
+                  </div>
+
+                  {customerNationality === 'THAI' ? (
+                    <div className="space-y-1.5">
+                      {/* Quick Origin Pills for Thai */}
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { label: '★ โคราช', value: 'นครราชสีมา' },
+                          { label: 'กทม.', value: 'กรุงเทพมหานคร' },
+                          { label: 'ขอนแก่น', value: 'ขอนแก่น' },
+                          { label: 'บุรีรัมย์', value: 'บุรีรัมย์' },
+                          { label: 'ชัยภูมิ', value: 'ชัยภูมิ' },
+                          { label: 'สุรินทร์', value: 'สุรินทร์' }
+                        ].map(p => (
+                          <button
+                            key={p.value}
+                            type="button"
+                            onClick={() => setCustomerProvince(p.value)}
+                            className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition border ${
+                              customerProvince === p.value
+                                ? 'bg-amber-100 text-amber-900 border-amber-400 font-black shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Dropdown for 77 provinces */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400 whitespace-nowrap">จังหวัดอื่น:</span>
+                        <select
+                          value={customerProvince}
+                          onChange={e => setCustomerProvince(e.target.value)}
+                          className="flex-1 py-1 px-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                        >
+                          {THAI_PROVINCES.map(p => (
+                            <option key={p} value={p}>
+                              {p === 'นครราชสีมา' ? '★ นครราชสีมา (คนโคราช / ท้องถิ่น)' : p}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {/* Quick Origin Pills for Foreign Tourists */}
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { label: 'จีน 🇨🇳', value: 'จีน (China 🇨🇳)' },
+                          { label: 'ยุโรป 🇪🇺', value: 'ยุโรป (Europe 🇪🇺)' },
+                          { label: 'ญี่ปุ่น 🇯🇵', value: 'ญี่ปุ่น (Japan 🇯🇵)' },
+                          { label: 'เกาหลี 🇰🇷', value: 'เกาหลีใต้ (South Korea 🇰🇷)' },
+                          { label: 'สหรัฐฯ 🇺🇸', value: 'สหรัฐอเมริกา/แคนาดา (USA/Canada 🇺🇸🇨🇦)' },
+                          { label: 'อาเซียน 🇱🇦', value: 'ลาว (Laos 🇱🇦)' }
+                        ].map(c => (
+                          <button
+                            key={c.value}
+                            type="button"
+                            onClick={() => setCustomerCountry(c.value)}
+                            className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition border ${
+                              customerCountry === c.value
+                                ? 'bg-amber-100 text-amber-900 border-amber-400 font-black shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {c.label}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Dropdown for other countries */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400 whitespace-nowrap">ประเทศ/ภูมิภาค:</span>
+                        <select
+                          value={customerCountry}
+                          onChange={e => setCustomerCountry(e.target.value)}
+                          className="flex-1 py-1 px-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                        >
+                          {FOREIGN_COUNTRIES.map(c => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2439,6 +2600,75 @@ export const PosPage: React.FC<PosPageProps> = ({
                     <option value="60_PLUS">60 ปีขึ้นไป</option>
                   </select>
                 </div>
+              </div>
+
+              {/* สัญชาติและถิ่นที่อยู่ (Demographics & Origin) */}
+              <div className="p-3 bg-amber-50/50 rounded-2xl border border-amber-200/60 space-y-2">
+                <label className="block font-bold text-slate-800 text-xs">
+                  สัญชาติและถิ่นที่อยู่ (Origin)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRegNationalityType('THAI')}
+                    className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition border ${
+                      regNationalityType === 'THAI'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🇹🇭</span>
+                    <span>ชาวไทย (Thai)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegNationalityType('FOREIGNER')}
+                    className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition border ${
+                      regNationalityType === 'FOREIGNER'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🌏</span>
+                    <span>ต่างชาติ (Foreigner)</span>
+                  </button>
+                </div>
+
+                {regNationalityType === 'THAI' ? (
+                  <div>
+                    <label className="block font-semibold text-slate-700 text-xs mb-1">
+                      จังหวัดที่พำนัก/ภูมิลำเนา (ค่าเริ่มต้น: นครราชสีมา)
+                    </label>
+                    <select
+                      value={regProvince}
+                      onChange={e => setRegProvince(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
+                    >
+                      {THAI_PROVINCES.map(p => (
+                        <option key={p} value={p}>
+                          {p === 'นครราชสีมา' ? '★ นครราชสีมา (คนโคราช / ท้องถิ่น)' : p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-semibold text-slate-700 text-xs mb-1">
+                      ประเทศ / ภูมิภาค
+                    </label>
+                    <select
+                      value={regCountry}
+                      onChange={e => setRegCountry(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
+                    >
+                      {FOREIGN_COUNTRIES.map(c => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div>

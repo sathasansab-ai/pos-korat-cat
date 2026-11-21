@@ -200,7 +200,14 @@ export const DigitalPassModal: React.FC<DigitalPassModalProps> = ({
               <div className="min-w-0 flex-1">
                 <p className="text-[9px] text-white/60 uppercase tracking-widest font-mono">MEMBER NAME</p>
                 <h3 className="text-base font-extrabold text-white tracking-wide truncate">{customer.name}</h3>
-                <p className="text-[11px] font-mono text-white/80">โทร: {customer.phone}</p>
+                <div className="flex items-center gap-2 text-[11px] font-mono text-white/80">
+                  <span>โทร: {customer.phone}</span>
+                  {(customer.province || customer.country) && (
+                    <span className="text-[10px] text-amber-300 font-bold px-1.5 py-0.2 rounded bg-white/10">
+                      {customer.nationalityType === 'FOREIGNER' ? `🌏 ${customer.country?.split(' ')[0]}` : `🇹🇭 ${customer.province || 'นครราชสีมา'}`}
+                    </span>
+                  )}
+                </div>
                 
                 <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-black/30 border border-white/20">
                   <Sparkles className="w-3 h-3 text-amber-300" />
