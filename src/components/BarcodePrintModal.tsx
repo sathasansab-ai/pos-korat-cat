@@ -8,10 +8,16 @@ import {
   Layers, 
   Settings2, 
   Check, 
-  Maximize2 
+  Maximize2,
+  Download,
+  FileCode,
+  PlusCircle,
+  CheckCircle2
 } from 'lucide-react';
 import type { ProductVariant, StoreSettings } from '../types';
 import { BarcodeGenerator } from '../services/barcodeGenerator';
+import { BarcodeExport } from '../services/barcodeExport';
+import { BarcodeQueueService } from '../services/barcodeQueueService';
 
 interface BarcodePrintModalProps {
   isOpen: boolean;
@@ -123,6 +129,10 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const [showAttributes, setShowAttributes] = useState<boolean>(true);
   const [showSku, setShowSku] = useState<boolean>(true);
 
+  // Download & Queue states
+  const [isAddedToQueue, setIsAddedToQueue] = useState<boolean>(false);
+  const [isDownloadingImage, setIsDownloadingImage] = useState<boolean>(false);
+
   const handleSelectPreset = (presetId: string) => {
     setSelectedPresetId(presetId);
     const p = STICKER_PRESETS.find(item => item.id === presetId);
@@ -159,6 +169,165 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       })
     : `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(barcodeContent)}" alt="QR" style="height:${barcodeHeightMm * 3.5}px;width:${barcodeHeightMm * 3.5}px;object-fit:contain;margin:auto;" />`;
 
+  const getPageStyle = (isRoll: boolean) => isRoll ? `
+    @page { 
+      size: ${widthMm}mm ${heightMm}mm; 
+      margin: 0mm !important; 
+    }
+    body { 
+      background: #ffffff !important; 
+      color: #000000 !important; 
+      padding: 0 !important; 
+      margin: 0 !important; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    }
+    .stickers-print-grid {
+      display: block !important;
+      width: ${widthMm}mm !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+    }
+    .sticker-item {
+      width: ${widthMm}mm !important;
+      height: ${heightMm}mm !important;
+      max-height: ${heightMm}mm !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+      text-align: center !important;
+      background: #ffffff !important;
+      padding: 1.5mm !important;
+      border: none !important;
+      box-sizing: border-box !important;
+      overflow: hidden !important;
+    }
+    .barcode-svg-wrapper {
+      width: 98% !important;
+      height: ${barcodeHeightMm}mm !important;
+      max-height: ${barcodeHeightMm}mm !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin: 1mm 0 !important;
+      overflow: hidden !important;
+    }
+    .barcode-svg-wrapper svg {
+      width: 100% !important;
+      height: 100% !important;
+      max-height: ${barcodeHeightMm}mm !important;
+      display: block !important;
+      shape-rendering: crispEdges !important;
+    }
+  ` : `
+    @page { 
+      size: A4 portrait; 
+      margin: 15mm 12mm 15mm 12mm !important; 
+    }
+    body { 
+      background: #ffffff !important; 
+      color: #000000 !important; 
+      padding: 0 !important; 
+      margin: 0 !important; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    }
+    .stickers-print-grid {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      justify-content: flex-start !important;
+      align-content: flex-start !important;
+      gap: 4mm !important;
+      width: 100% !important;
+      margin: 0 auto !important;
+    }
+    .sticker-item {
+      width: ${widthMm}mm !important;
+      height: ${heightMm}mm !important;
+      max-height: ${heightMm}mm !important;
+      border: 1.5px dashed #64748b !important;
+      border-radius: 4px !important;
+      padding: 2mm !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+      text-align: center !important;
+      background: #ffffff !important;
+      box-sizing: border-box !important;
+      overflow: hidden !important;
+    }
+    .barcode-svg-wrapper {
+      width: 98% !important;
+      height: ${barcodeHeightMm}mm !important;
+      max-height: ${barcodeHeightMm}mm !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin: 1mm 0 !important;
+      overflow: hidden !important;
+    }
+    .barcode-svg-wrapper svg {
+      width: 100% !important;
+      height: 100% !important;
+      max-height: ${barcodeHeightMm}mm !important;
+      display: block !important;
+      shape-rendering: crispEdges !important;
+    }
+  `;
+
+  // Action: Add to Batch Print Queue
+  const handleAddToQueue = () => {
+    BarcodeQueueService.addToQueue(variant, Math.max(1, printCount));
+    setIsAddedToQueue(true);
+    setTimeout(() => setIsAddedToQueue(false), 2500);
+  };
+
+  // Action: Download Single Barcode Image (PNG)
+  const handleDownloadBarcodeImage = async () => {
+    setIsDownloadingImage(true);
+    const filename = `barcode-${variant.sku}-${barcodeContent}`;
+    try {
+      if (barcodeFormat === 'QR') {
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(barcodeContent)}`;
+        await BarcodeExport.downloadQrImage(qrUrl, filename);
+      } else {
+        const svg = barcodeFormat === 'EAN13'
+          ? BarcodeGenerator.generateEan13Svg(barcodeContent, { height: 160, showText: true })
+          : BarcodeGenerator.generateCode128Svg(barcodeContent, { height: 160, showText: true });
+        await BarcodeExport.downloadSvgAsPng(svg, filename, 900, 450);
+      }
+    } finally {
+      setIsDownloadingImage(false);
+    }
+  };
+
+  // Action: Download Single Barcode Vector (SVG)
+  const handleDownloadSvg = () => {
+    const filename = `barcode-${variant.sku}-${barcodeContent}.svg`;
+    const svg = barcodeFormat === 'EAN13'
+      ? BarcodeGenerator.generateEan13Svg(barcodeContent, { height: 160, showText: true })
+      : BarcodeGenerator.generateCode128Svg(barcodeContent, { height: 160, showText: true });
+    BarcodeExport.downloadSvg(svg, filename);
+  };
+
+  // Action: Download Ready-to-Print Sheet (HTML)
+  const handleDownloadHtmlSheet = () => {
+    const printEl = document.getElementById('printable-stickers-container');
+    if (!printEl) return;
+    const isRoll = printMode === 'ROLL';
+    const pageStyle = getPageStyle(isRoll);
+    BarcodeExport.downloadHtmlSheet(
+      `สติ๊กเกอร์บาร์โค้ด - ${variant.productName} (${variant.sku})`,
+      printEl.innerHTML,
+      pageStyle,
+      `stickers-${variant.sku}`
+    );
+  };
+
   const handlePrint = () => {
     const printEl = document.getElementById('printable-stickers-container');
     if (!printEl) {
@@ -191,117 +360,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         .join('\n');
 
       const isRoll = printMode === 'ROLL';
-
-      // CSS for Roll Printer (1 sticker per page) vs Sheet Grid (Multiple stickers on A4)
-      const pageStyle = isRoll ? `
-        @page { 
-          size: ${widthMm}mm ${heightMm}mm; 
-          margin: 0mm !important; 
-        }
-        body { 
-          background: #ffffff !important; 
-          color: #000000 !important; 
-          padding: 0 !important; 
-          margin: 0 !important; 
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-        }
-        .stickers-print-grid {
-          display: block !important;
-          width: ${widthMm}mm !important;
-          margin: 0 auto !important;
-          padding: 0 !important;
-        }
-        .sticker-item {
-          width: ${widthMm}mm !important;
-          height: ${heightMm}mm !important;
-          max-height: ${heightMm}mm !important;
-          page-break-after: always !important;
-          break-after: page !important;
-          display: flex !important;
-          flex-direction: column !important;
-          justify-content: space-between !important;
-          align-items: center !important;
-          text-align: center !important;
-          background: #ffffff !important;
-          padding: 1.5mm !important;
-          border: none !important;
-          box-sizing: border-box !important;
-          overflow: hidden !important;
-        }
-        .barcode-svg-wrapper {
-          width: 98% !important;
-          height: ${barcodeHeightMm}mm !important;
-          max-height: ${barcodeHeightMm}mm !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          margin: 1mm 0 !important;
-          overflow: hidden !important;
-        }
-        .barcode-svg-wrapper svg {
-          width: 100% !important;
-          height: 100% !important;
-          max-height: ${barcodeHeightMm}mm !important;
-          display: block !important;
-          shape-rendering: crispEdges !important;
-        }
-      ` : `
-        @page { 
-          size: A4 portrait; 
-          margin: 15mm 12mm 15mm 12mm !important; 
-        }
-        body { 
-          background: #ffffff !important; 
-          color: #000000 !important; 
-          padding: 0 !important; 
-          margin: 0 !important; 
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-        }
-        .stickers-print-grid {
-          display: flex !important;
-          flex-wrap: wrap !important;
-          justify-content: flex-start !important;
-          align-content: flex-start !important;
-          gap: 4mm !important;
-          width: 100% !important;
-          margin: 0 auto !important;
-        }
-        .sticker-item {
-          width: ${widthMm}mm !important;
-          height: ${heightMm}mm !important;
-          max-height: ${heightMm}mm !important;
-          border: 1.5px dashed #64748b !important;
-          border-radius: 4px !important;
-          padding: 2mm !important;
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-          display: flex !important;
-          flex-direction: column !important;
-          justify-content: space-between !important;
-          align-items: center !important;
-          text-align: center !important;
-          background: #ffffff !important;
-          box-sizing: border-box !important;
-          overflow: hidden !important;
-        }
-        .barcode-svg-wrapper {
-          width: 98% !important;
-          height: ${barcodeHeightMm}mm !important;
-          max-height: ${barcodeHeightMm}mm !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          margin: 1mm 0 !important;
-          overflow: hidden !important;
-        }
-        .barcode-svg-wrapper svg {
-          width: 100% !important;
-          height: 100% !important;
-          max-height: ${barcodeHeightMm}mm !important;
-          display: block !important;
-          shape-rendering: crispEdges !important;
-        }
-      `;
+      const pageStyle = getPageStyle(isRoll);
 
       frameDoc.open();
       frameDoc.write(`
@@ -568,7 +627,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             </div>
 
             {/* Print Quantity & Action */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center space-x-1.5">
                 <span className="text-xs font-bold text-slate-700">จำนวน:</span>
                 <input
@@ -579,7 +638,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                   onFocus={e => e.target.select()}
                   onChange={e => setPrintCount(parseInt(e.target.value, 10) || 0)}
                   placeholder="1"
-                  className="w-20 px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl font-mono font-bold text-xs text-center focus:ring-2 focus:ring-amber-500"
+                  className="w-16 px-2 py-1.5 bg-white border border-slate-300 rounded-xl font-mono font-bold text-xs text-center focus:ring-2 focus:ring-amber-500"
                 />
                 <button
                   type="button"
@@ -605,10 +664,58 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                 )}
               </div>
 
+              {/* Action: Add to Queue */}
+              <button
+                type="button"
+                onClick={handleAddToQueue}
+                className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border ${
+                  isAddedToQueue
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 shadow-2xs'
+                }`}
+                title="เพิ่มรายการนี้ลงในตะกร้ารอพิมพ์รวม เพื่อรวบรวมพิมพ์พร้อมสินค้าอื่นในแผ่นเดียว"
+              >
+                {isAddedToQueue ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>เพิ่มในคิวแล้ว!</span>
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="w-3.5 h-3.5 text-amber-600" />
+                    <span>+ รวมเข้ารอพิมพ์</span>
+                  </>
+                )}
+              </button>
+
+              {/* Action: Download Barcode Image */}
+              <button
+                type="button"
+                onClick={handleDownloadBarcodeImage}
+                disabled={isDownloadingImage}
+                className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
+                title="ดาวน์โหลดรูปภาพบาร์โค้ดลงเครื่อง (ไฟล์ PNG ความละเอียดสูง สำหรับนำไปใช้ในงานออกแบบหรือเอกสาร)"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-700" />
+                <span>{isDownloadingImage ? 'กำลังโหลด...' : 'บันทึกรูป PNG'}</span>
+              </button>
+
+              {/* Action: Download Offline HTML Sheet */}
+              <button
+                type="button"
+                onClick={handleDownloadHtmlSheet}
+                className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
+                title="ดาวน์โหลดแผ่นสติ๊กเกอร์เป็นไฟล์ HTML สำเร็จรูปสำหรับเปิดพิมพ์ออฟไลน์จากเครื่องใดก็ได้"
+              >
+                <FileCode className="w-3.5 h-3.5 text-slate-700" />
+                <span>บันทึกแผ่นพิมพ์ (HTML)</span>
+              </button>
+
+              {/* Action: Direct Print */}
               <button
                 type="button"
                 onClick={handlePrint}
-                className="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg transition"
+                className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg transition"
               >
                 <Printer className="w-4 h-4" />
                 <span>สั่งพิมพ์ {printCount} ดวง</span>
@@ -696,13 +803,25 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           <div className="text-[11px] text-slate-600 leading-tight">
             💡 <b>คำแนะนำการสแกน:</b> หากใช้ปืนยิง 1D (แสงเลเซอร์เส้นตรงสีแดงเส้นเดียว) แนะนำให้เลือกรูปแบบ <b>"🌟 EAN-13"</b> เพราะเป็นมาตรฐานค้าปลีกที่ปืนทุกรุ่นเปิดรับเป็นค่าเริ่มต้น 100% | หากเป็นปืนแบบ 2D (มีไฟส่องเป็นกรอบสี่เหลี่ยม) สามารถยิงได้ทั้ง EAN-13, Code 128 และ QR Code ครับ
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition shrink-0"
-          >
-            ปิด
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {barcodeFormat !== 'QR' && (
+              <button
+                type="button"
+                onClick={handleDownloadSvg}
+                className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs transition flex items-center gap-1"
+                title="ดาวน์โหลดไฟล์เวกเตอร์ SVG (คมชัด 100% ขยายไม่แตก สำหรับนำไปวางในโปรแกรมออกแบบ)"
+              >
+                <span>💎 บันทึกเวกเตอร์ (SVG)</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition"
+            >
+              ปิด
+            </button>
+          </div>
         </div>
       </div>
     </div>

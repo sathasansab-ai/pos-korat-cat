@@ -28,6 +28,8 @@ import type { ProductVariant, StoreSettings, ConsignmentVendor, UserAccount } fr
 import { DEFAULT_PRODUCT_CATEGORIES } from '../types';
 import { MatrixBuilder, type AttributeGroup } from '../services/matrixBuilder';
 import { BarcodePrintModal } from '../components/BarcodePrintModal';
+import { BatchBarcodeModal } from '../components/BatchBarcodeModal';
+import { BarcodeQueueService, type BarcodeQueueItem } from '../services/barcodeQueueService';
 import { StockTransferModal } from '../components/StockTransferModal';
 import { WarehouseProductionModal } from '../components/WarehouseProductionModal';
 import { ImageOptimizer } from '../services/imageOptimizer';
@@ -113,6 +115,11 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
   const [selectedVariantForPrint, setSelectedVariantForPrint] = useState<ProductVariant | null>(null);
   const [selectedPrintCount, setSelectedPrintCount] = useState<number | undefined>(undefined);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  // Batch Barcode Queue State (รวบรวมเพื่อเอาไปพิมพ์)
+  const [isBatchPrintModalOpen, setIsBatchPrintModalOpen] = useState(false);
+  const [barcodeQueue, setBarcodeQueue] = useState<BarcodeQueueItem[]>([]);
+  const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
 
   // Restock Existing Item Modal State (เติมสต็อกสินค้าเดิมที่ลงไว้แล้ว)
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
@@ -280,9 +287,44 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
 
   useEffect(() => {
     loadVariants();
+    setBarcodeQueue(BarcodeQueueService.getQueue());
+    const unsubscribeQueue = BarcodeQueueService.subscribe(q => setBarcodeQueue(q));
     const interval = setInterval(updatePendingCount, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribeQueue();
+    };
   }, []);
+
+  const handleToggleSelectAll = () => {
+    if (selectedVariantIds.size === filteredVariants.length) {
+      setSelectedVariantIds(new Set());
+    } else {
+      setSelectedVariantIds(new Set(filteredVariants.map(v => v.id)));
+    }
+  };
+
+  const handleToggleSelectVariant = (id: string) => {
+    setSelectedVariantIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleAddSelectedToQueue = () => {
+    const selectedVariants = variants.filter(v => selectedVariantIds.has(v.id));
+    if (selectedVariants.length === 0) return;
+    BarcodeQueueService.addMultipleToQueue(
+      selectedVariants.map(v => ({ variant: v, quantity: Math.max(1, v.stockQuantity || 1) }))
+    );
+    alert(`เพิ่ม ${selectedVariants.length} รายการลงในกล่องรวบรวมพิมพ์บาร์โค้ดเรียบร้อย!`);
+    setSelectedVariantIds(new Set());
+  };
 
   // Image Upload Handlers with Automatic Compression
   const handleMatrixImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -887,6 +929,22 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
             <span>ใบนับสต็อก A4</span>
           </button>
 
+          {/* Batch Barcode Button */}
+          <button
+            type="button"
+            onClick={() => setIsBatchPrintModalOpen(true)}
+            className="px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition duration-150 flex-shrink-0"
+            title="กล่องรวบรวมบาร์โค้ดรอพิมพ์ & ดาวน์โหลดลงเครื่อง (รวบรวมหลายสินค้ามาพิมพ์หรือดาวน์โหลดพร้อมกัน)"
+          >
+            <Tag className="w-3.5 h-3.5 text-amber-100" />
+            <span>กล่องรวมพิมพ์บาร์โค้ด</span>
+            {barcodeQueue.length > 0 && (
+              <span className="bg-slate-950 text-amber-300 px-1.5 py-0.2 rounded-full font-black text-[10px] ml-0.5">
+                {barcodeQueue.length}
+              </span>
+            )}
+          </button>
+
           {/* Primary Create Actions */}
           <button
             onClick={() => {
@@ -968,10 +1026,46 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
 
       {/* Inventory Table */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Batch Selection Banner */}
+        {selectedVariantIds.size > 0 && (
+          <div className="bg-amber-500 text-slate-950 p-3 px-5 flex flex-wrap items-center justify-between gap-3 text-xs font-bold border-b border-amber-600 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-slate-950" />
+              <span>เลือกสินค้าอยู่ {selectedVariantIds.size} รายการ</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAddSelectedToQueue}
+                className="px-3.5 py-1.5 bg-slate-950 hover:bg-slate-900 text-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+              >
+                <Tag className="w-3.5 h-3.5 text-amber-300" />
+                <span>+ นำ {selectedVariantIds.size} รายการเข้ากล่องรอพิมพ์</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedVariantIds(new Set())}
+                className="px-2.5 py-1.5 bg-amber-600/30 hover:bg-amber-600/50 text-slate-950 rounded-xl text-xs font-bold transition"
+              >
+                ✕ ยกเลิก
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600">
             <thead className="bg-slate-50 text-slate-500 font-bold uppercase border-b border-slate-200">
               <tr>
+                <th className="p-3.5 text-center w-10">
+                  <input
+                    type="checkbox"
+                    checked={filteredVariants.length > 0 && selectedVariantIds.size === filteredVariants.length}
+                    onChange={handleToggleSelectAll}
+                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 accent-amber-600 cursor-pointer"
+                    title="เลือกทั้งหมด"
+                  />
+                </th>
                 <th className="p-3.5 text-center">รูปภาพ</th>
                 <th className="p-3.5">SKU / บาร์โค้ด</th>
                 <th className="p-3.5">ชื่อสินค้าและไซส์/ตัวเลือก</th>
@@ -991,6 +1085,14 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                 const isLow = item.stockQuantity <= item.minStockAlert;
                 return (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                    <td className="p-3.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedVariantIds.has(item.id)}
+                        onChange={() => handleToggleSelectVariant(item.id)}
+                        className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 accent-amber-600 cursor-pointer"
+                      />
+                    </td>
                     <td className="p-3.5 text-center">
                       {item.imageUrl ? (
                         <img
@@ -1094,10 +1196,22 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                             setIsPrintModalOpen(true);
                           }}
                           className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold text-[11px] inline-flex items-center gap-1 shadow-2xs transition w-full justify-center"
-                          title="พิมพ์สติ๊กเกอร์บาร์โค้ดตามสต็อกปัจจุบันทั้งหมด"
+                          title="พิมพ์สติ๊กเกอร์บาร์โค้ดเฉพาะสินค้านี้ทันที"
                         >
                           <Printer className="w-3.5 h-3.5 text-amber-600" />
                           <span>พิมพ์แท็ก ({item.stockQuantity})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            BarcodeQueueService.addToQueue(item, Math.max(1, item.stockQuantity || 1));
+                            alert(`เพิ่ม "${item.productName}" (+${item.stockQuantity || 1} ดวง) ลงในกล่องรอพิมพ์เรียบร้อย!`);
+                          }}
+                          className="px-2 py-1 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-200 rounded-xl font-bold text-[10.5px] inline-flex items-center gap-1 shadow-2xs transition w-full justify-center"
+                          title="เพิ่มสินค้านี้เข้ากล่องรวบรวมเพื่อเอาไปพิมพ์รวมกับสินค้าอื่นในแผ่น A4 เดียวกัน"
+                        >
+                          <Tag className="w-3 h-3 text-amber-600" />
+                          <span>+ รวมพิมพ์ ({item.stockQuantity})</span>
                         </button>
                       </div>
                     </td>
@@ -2149,6 +2263,60 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
             setSelectedPrintCount(undefined);
           }}
         />
+      )}
+
+      {/* Batch Barcode Sticker Print & Download Modal */}
+      {settings && (
+        <BatchBarcodeModal
+          isOpen={isBatchPrintModalOpen}
+          settings={settings}
+          onClose={() => setIsBatchPrintModalOpen(false)}
+        />
+      )}
+
+      {/* Floating Barcode Print Queue Drawer / Badge */}
+      {barcodeQueue.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-40 bg-slate-950 text-white rounded-2xl shadow-2xl border border-slate-800 p-3.5 px-5 flex items-center gap-4 animate-in slide-in-from-bottom-5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+              <Tag className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <div className="font-extrabold text-xs text-white flex items-center gap-1.5">
+                <span>🏷️ กล่องรวบรวมบาร์โค้ดรอพิมพ์</span>
+                <span className="bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded-full font-black text-[10px]">
+                  {barcodeQueue.length} รายการ
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-400">
+                สะสมสติ๊กเกอร์ไว้ทั้งหมด <b>{BarcodeQueueService.getTotalStickersCount(barcodeQueue)}</b> ดวง
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsBatchPrintModalOpen(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md transition"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>เปิดดู & สั่งพิมพ์รวม</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('คุณแน่ใจว่าต้องการล้างรายการรอพิมพ์ทั้งหมด?')) {
+                  BarcodeQueueService.clearQueue();
+                }
+              }}
+              className="p-2 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-xl transition"
+              title="ล้างรายการทั้งหมด"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Multi-Location Stock Transfer Modal */}
