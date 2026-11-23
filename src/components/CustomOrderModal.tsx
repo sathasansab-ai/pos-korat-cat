@@ -594,7 +594,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
           sku: `${newOrder.orderNo}-${idx + 1}`,
           barcode: newOrder.orderNo,
           attributes: {
-            'ประเภท': it.categoryType,
+            'ประเภท': it.categoryType || 'SHIRT',
             'ไซส์': it.sizeMode === 'STANDARD' ? (it.standardSize || 'M') : 'วัดตัวเฉพาะบุคคล',
             'ผ้า': it.fabricType || '-'
           },
