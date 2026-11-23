@@ -627,9 +627,9 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
   // สร้างเอกสาร HTML ขนาด A4 มาตรฐาน พร้อมอินโฟกราฟิกหุ่นสัดส่วน และ PromptPay QR ชำระเงิน
   const generateA4Html = (order: CustomMadeOrder) => {
     const isFem = order.customerGender === 'FEMALE';
-    const itemsList = order.items && order.items.length > 0 ? order.items : [{
+    const itemsList: CustomOrderItem[] = order.items && order.items.length > 0 ? order.items : [{
       id: 'item-1',
-      categoryType: order.categoryType,
+      categoryType: order.categoryType || 'SHIRT',
       itemDescription: order.itemDescription,
       sizeMode: order.sizeMode || 'STANDARD',
       standardSize: order.standardSize,

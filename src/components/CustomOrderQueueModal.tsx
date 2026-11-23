@@ -460,7 +460,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
     const isFem = order.customerGender === 'FEMALE';
     const itemsList: CustomOrderItem[] = order.items && order.items.length > 0 ? order.items : [{
       id: 'item-1',
-      categoryType: order.categoryType,
+      categoryType: order.categoryType || 'SHIRT',
       itemDescription: order.itemDescription,
       sizeMode: order.sizeMode || 'STANDARD',
       standardSize: order.standardSize,

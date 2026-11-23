@@ -369,7 +369,7 @@ export interface CustomOrderMeasurements {
 
 export interface CustomOrderItem {
   id: string;
-  categoryType: CustomOrderCategory;
+  categoryType?: CustomOrderCategory;
   itemDescription: string;
   sizeMode?: 'STANDARD' | 'CUSTOM';
   standardSize?: string; // S, M, L, XL, 2XL, 3XL, Free Size
