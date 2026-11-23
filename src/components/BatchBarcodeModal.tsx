@@ -219,32 +219,85 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
         align-items: center !important;
         text-align: center !important;
         background: #ffffff !important;
-        padding: 1.5mm !important;
+        padding: 1.2mm 1.5mm !important;
         border: none !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
       }
+      .sticker-header {
+        width: 100% !important;
+        flex-shrink: 0 !important;
+      }
+      .sticker-store-name {
+        font-size: 8px !important;
+        font-weight: 900 !important;
+        line-height: 1.1 !important;
+        text-transform: uppercase !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        border-bottom: 0.5px solid #e2e8f0 !important;
+        padding-bottom: 0.5mm !important;
+        margin-bottom: 0.5mm !important;
+      }
+      .sticker-product-title {
+        font-size: 9.5px !important;
+        font-weight: 800 !important;
+        line-height: 1.15 !important;
+        max-height: 2.3em !important;
+        overflow: hidden !important;
+        word-break: break-word !important;
+      }
+      .sticker-sku {
+        font-size: 8px !important;
+        font-family: monospace !important;
+        color: #334155 !important;
+        line-height: 1 !important;
+        margin-top: 0.5mm !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
       .barcode-svg-wrapper {
         width: 98% !important;
-        height: ${barcodeHeightMm}mm !important;
-        max-height: ${barcodeHeightMm}mm !important;
+        flex: 1 1 auto !important;
+        min-height: 10mm !important;
+        max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.42))}mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 1mm 0 !important;
+        margin: 0.5mm 0 !important;
         overflow: hidden !important;
       }
       .barcode-svg-wrapper svg {
         width: 100% !important;
         height: 100% !important;
-        max-height: ${barcodeHeightMm}mm !important;
+        max-height: 100% !important;
         display: block !important;
         shape-rendering: crispEdges !important;
+      }
+      .sticker-footer {
+        width: 100% !important;
+        flex-shrink: 0 !important;
+        margin-top: auto !important;
+        border-top: 1px solid #94a3b8 !important;
+        padding-top: 0.8mm !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        font-size: 9px !important;
+        box-sizing: border-box !important;
+      }
+      .sticker-footer .sticker-price {
+        font-size: 11px !important;
+        font-weight: 900 !important;
+        font-family: monospace !important;
+        color: #000000 !important;
       }
     ` : `
       @page { 
         size: A4 portrait; 
-        margin: 15mm 12mm 15mm 12mm !important; 
+        margin: 12mm 10mm 12mm 10mm !important; 
       }
       body { 
         background: #ffffff !important; 
@@ -258,7 +311,7 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
         flex-wrap: wrap !important;
         justify-content: flex-start !important;
         align-content: flex-start !important;
-        gap: 4mm !important;
+        gap: 3.5mm !important;
         width: 100% !important;
         margin: 0 auto !important;
       }
@@ -266,9 +319,9 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
         width: ${widthMm}mm !important;
         height: ${heightMm}mm !important;
         max-height: ${heightMm}mm !important;
-        border: 1.5px dashed #64748b !important;
+        border: 1.2px dashed #64748b !important;
         border-radius: 4px !important;
-        padding: 2mm !important;
+        padding: 1.5mm 1.8mm !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
         display: flex !important;
@@ -280,22 +333,75 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
         box-sizing: border-box !important;
         overflow: hidden !important;
       }
+      .sticker-header {
+        width: 100% !important;
+        flex-shrink: 0 !important;
+      }
+      .sticker-store-name {
+        font-size: 8px !important;
+        font-weight: 900 !important;
+        line-height: 1.1 !important;
+        text-transform: uppercase !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        border-bottom: 0.5px solid #e2e8f0 !important;
+        padding-bottom: 0.5mm !important;
+        margin-bottom: 0.5mm !important;
+      }
+      .sticker-product-title {
+        font-size: 9.5px !important;
+        font-weight: 800 !important;
+        line-height: 1.15 !important;
+        max-height: 2.3em !important;
+        overflow: hidden !important;
+        word-break: break-word !important;
+      }
+      .sticker-sku {
+        font-size: 8px !important;
+        font-family: monospace !important;
+        color: #334155 !important;
+        line-height: 1 !important;
+        margin-top: 0.5mm !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
       .barcode-svg-wrapper {
         width: 98% !important;
-        height: ${barcodeHeightMm}mm !important;
-        max-height: ${barcodeHeightMm}mm !important;
+        flex: 1 1 auto !important;
+        min-height: 10mm !important;
+        max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.42))}mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 1mm 0 !important;
+        margin: 0.5mm 0 !important;
         overflow: hidden !important;
       }
       .barcode-svg-wrapper svg {
         width: 100% !important;
         height: 100% !important;
-        max-height: ${barcodeHeightMm}mm !important;
+        max-height: 100% !important;
         display: block !important;
         shape-rendering: crispEdges !important;
+      }
+      .sticker-footer {
+        width: 100% !important;
+        flex-shrink: 0 !important;
+        margin-top: auto !important;
+        border-top: 1px solid #94a3b8 !important;
+        padding-top: 0.8mm !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        font-size: 9px !important;
+        box-sizing: border-box !important;
+      }
+      .sticker-footer .sticker-price {
+        font-size: 11px !important;
+        font-weight: 900 !important;
+        font-family: monospace !important;
+        color: #000000 !important;
       }
     `;
   };

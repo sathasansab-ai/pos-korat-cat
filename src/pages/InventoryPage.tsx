@@ -21,7 +21,10 @@ import {
   DownloadCloud,
   PackagePlus,
   ArrowDownToLine,
-  CheckCircle2
+  CheckCircle2,
+  Edit2,
+  Camera,
+  Save
 } from 'lucide-react';
 import { db } from '../db';
 import type { ProductVariant, StoreSettings, ConsignmentVendor, UserAccount } from '../types';
@@ -128,6 +131,22 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
   const [restockQty, setRestockQty] = useState<number>(10);
   const [restockDestination, setRestockDestination] = useState<'SHOP' | 'WAREHOUSE'>('SHOP');
   const [restockAutoPrint, setRestockAutoPrint] = useState<boolean>(true);
+
+  // Edit Existing Product / Variant Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editCost, setEditCost] = useState(0);
+  const [editPrice, setEditPrice] = useState(0);
+  const [editSku, setEditSku] = useState('');
+  const [editBarcode, setEditBarcode] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
+  const [editShopStock, setEditShopStock] = useState(0);
+  const [editWarehouseStock, setEditWarehouseStock] = useState(0);
+  const [editColor, setEditColor] = useState('');
+  const [editSize, setEditSize] = useState('');
+  const [editTechnique, setEditTechnique] = useState('');
 
   // Matrix Generator Form State
   const [baseProductName, setBaseProductName] = useState('เสื้อยืดลิมิเต็ด KORAT CAT x เรือนโคราช');
@@ -347,6 +366,80 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
     } catch (err) {
       alert('ไม่สามารถประมวลผลรูปภาพได้');
     }
+  };
+
+  const handleEditImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressedBase64 = await ImageOptimizer.resizeAndCompress(file, 480, 480, 0.8);
+      setEditImageUrl(compressedBase64);
+    } catch (err) {
+      alert('ไม่สามารถประมวลผลรูปภาพได้');
+    }
+  };
+
+  const handleOpenEdit = (variant: ProductVariant) => {
+    setEditingVariant(variant);
+    setEditName(variant.productName);
+    setEditCategory(variant.category || DEFAULT_PRODUCT_CATEGORIES[0]);
+    setEditCost(variant.costPrice || 0);
+    setEditPrice(variant.salePrice || 0);
+    setEditSku(variant.sku);
+    setEditBarcode(variant.barcode);
+    setEditImageUrl(variant.imageUrl || '');
+    const currentWh = variant.warehouseStock ?? 0;
+    const currentSh = variant.shopStock ?? (variant.stockQuantity - currentWh);
+    setEditWarehouseStock(currentWh);
+    setEditShopStock(currentSh);
+    setEditColor(variant.attributes?.['color'] || variant.attributes?.['สี'] || '');
+    setEditSize(variant.attributes?.['size'] || variant.attributes?.['ไซส์'] || variant.attributes?.['ขนาด'] || '');
+    setEditTechnique(variant.attributes?.['technique'] || variant.attributes?.['เทคนิค'] || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVariant) return;
+    if (!editName.trim()) {
+      alert('กรุณากรอกชื่อสินค้า');
+      return;
+    }
+
+    const shop = Math.max(0, Number(editShopStock) || 0);
+    const wh = Math.max(0, Number(editWarehouseStock) || 0);
+    const total = shop + wh;
+    const nowIso = new Date().toISOString();
+    const modifierName = currentUser?.name || 'แอดมินสต็อก';
+
+    const updatedAttributes = { ...editingVariant.attributes };
+    if (editColor.trim()) updatedAttributes['color'] = editColor.trim();
+    if (editSize.trim()) updatedAttributes['size'] = editSize.trim();
+    if (editTechnique.trim()) updatedAttributes['technique'] = editTechnique.trim();
+
+    const updated: ProductVariant = {
+      ...editingVariant,
+      productName: editName.trim(),
+      category: editCategory.trim() || 'สินค้าทั่วไป',
+      costPrice: Math.max(0, Number(editCost) || 0),
+      salePrice: Math.max(0, Number(editPrice) || 0),
+      sku: editSku.trim() || editingVariant.sku,
+      barcode: editBarcode.trim() || editingVariant.barcode,
+      imageUrl: editImageUrl.trim() || undefined,
+      shopStock: shop,
+      warehouseStock: wh,
+      stockQuantity: total,
+      attributes: updatedAttributes,
+      lastModifiedBy: modifierName,
+      updatedAt: nowIso
+    };
+
+    await db.variants.put(updated);
+    await CloudSync.pushVariant(updated);
+    await loadVariants();
+    setIsEditModalOpen(false);
+    setEditingVariant(null);
+    alert(`✅ บันทึกการแก้ไขข้อมูลสินค้า "${updated.productName}" สำเร็จ และซิงค์ขึ้น Cloud เรียบร้อย!`);
   };
 
   // Add custom size into list
@@ -1217,13 +1310,24 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                     </td>
 
                     <td className="p-3.5 text-center">
-                      <button
-                        onClick={() => handleDeleteVariant(item.id)}
-                        className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition"
-                        title="ลบตัวเลือกนี้"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(item)}
+                          className="p-1.5 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded-lg transition"
+                          title="แก้ไขชื่อสินค้า, รูปภาพ, หมวดหมู่, ราคา หรือสต็อก"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteVariant(item.id)}
+                          className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                          title="ลบตัวเลือกนี้"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1278,20 +1382,33 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                     <span className="text-[9px]">ไม่มีรูปภาพ</span>
                   </div>
                 )}
-                <div className="flex-1">
-                  <label className="block font-bold text-slate-700 mb-1">
-                    📷 รูปภาพสินค้า (ถ่ายจากมือถือ ย่อบีบอัดอัตโนมัติ)
+                <div className="flex-1 space-y-1.5">
+                  <label className="block font-bold text-slate-700">
+                    📷 รูปภาพสินค้า (ถ่ายด้วยแท็บเล็ต/มือถือ หรือเลือกจากเครื่อง)
                   </label>
-                  <label className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 shadow transition">
-                    <Upload className="w-3.5 h-3.5 text-amber-400" />
-                    <span>เลือกรูปภาพจากเครื่อง</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleSingleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shadow-sm transition">
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>ถ่ายรูปด้วยกล้อง</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleSingleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 rounded-xl text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 transition">
+                      <Upload className="w-3.5 h-3.5 text-amber-400" />
+                      <span>เลือกจากเครื่อง</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleSingleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -2246,6 +2363,261 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ currentUser }) => 
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT PRODUCT / VARIANT */}
+      {isEditModalOpen && editingVariant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-amber-500" />
+                <span>แก้ไขข้อมูลสินค้า &amp; สต็อก</span>
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingVariant(null);
+                }} 
+                className="text-slate-400 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+              {/* Image Edit with Tablet Camera and Picker */}
+              <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-2xl flex items-center gap-4">
+                {editImageUrl ? (
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={editImageUrl}
+                      alt="Product"
+                      className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-400 shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditImageUrl('')}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold"
+                      title="ลบรูปภาพ"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl bg-slate-200 flex flex-col items-center justify-center text-slate-400 flex-shrink-0">
+                    <ImageIcon className="w-6 h-6 mb-1" />
+                    <span className="text-[9px]">ไม่มีรูปภาพ</span>
+                  </div>
+                )}
+                <div className="flex-1 space-y-1.5">
+                  <label className="block font-bold text-slate-700">
+                    📷 รูปภาพสินค้า (ถ่ายด้วยกล้องแท็บเล็ต หรือเลือกรูปจากเครื่อง)
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shadow-sm transition">
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>ถ่ายรูปด้วยกล้อง</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleEditImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 rounded-xl text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 transition">
+                      <Upload className="w-3.5 h-3.5 text-amber-400" />
+                      <span>เลือกจากเครื่อง</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Name */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ชื่อสินค้า *</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="เช่น กางเกง/แมวเล็ก/ส้มซัมเมอร์ (S)"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                />
+              </div>
+
+              {/* Category & Color */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">หมวดหมู่สินค้า</label>
+                  <select
+                    value={editCategory}
+                    onChange={e => setEditCategory(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                  >
+                    {allCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                    {!allCategories.includes(editCategory) && editCategory && (
+                      <option value={editCategory}>{editCategory}</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">สี (Color)</label>
+                  <input
+                    type="text"
+                    value={editColor}
+                    onChange={e => setEditColor(e.target.value)}
+                    placeholder="เช่น ดำ Obsidian, ส้ม"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Size & Technique */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ไซส์ / ขนาด (Size)</label>
+                  <input
+                    type="text"
+                    value={editSize}
+                    onChange={e => setEditSize(e.target.value)}
+                    placeholder="เช่น S, M, L, XL, Free Size"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">เทคนิคการผลิต</label>
+                  <input
+                    type="text"
+                    value={editTechnique}
+                    onChange={e => setEditTechnique(e.target.value)}
+                    placeholder="เช่น DTF, ปัก, มัดหมี่"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Cost & Sale Price */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ต้นทุนสินค้า (บาท)</label>
+                  <input
+                    type="number"
+                    value={editCost === 0 ? '' : editCost}
+                    onFocus={e => e.target.select()}
+                    onChange={e => setEditCost(Math.max(0, parseFloat(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-slate-700 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ราคาขายหน้าร้าน (บาท) *</label>
+                  <input
+                    type="number"
+                    value={editPrice === 0 ? '' : editPrice}
+                    onFocus={e => e.target.select()}
+                    onChange={e => setEditPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-amber-700 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* SKU & Barcode */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">SKU</label>
+                  <input
+                    type="text"
+                    value={editSku}
+                    onChange={e => setEditSku(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-xs uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">บาร์โค้ด (Barcode)</label>
+                  <input
+                    type="text"
+                    value={editBarcode}
+                    onChange={e => setEditBarcode(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-xs text-amber-800 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Stocks (Shop & Warehouse) */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <div className="font-bold text-slate-800 text-xs">
+                  📦 ปรับปรุงยอดสต็อกคงเหลือ
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-600 mb-1 text-[11px] font-semibold">
+                      🏪 หน้าร้าน (พร้อมขาย)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editShopStock === 0 ? '' : editShopStock}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setEditShopStock(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      placeholder="0"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl font-mono font-bold text-emerald-800 text-center"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 mb-1 text-[11px] font-semibold">
+                      🏭 โกดัง (สำรอง)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editWarehouseStock === 0 ? '' : editWarehouseStock}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setEditWarehouseStock(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      placeholder="0"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl font-mono font-bold text-amber-800 text-center"
+                    />
+                  </div>
+                </div>
+                <div className="p-2 bg-slate-900 text-white rounded-xl text-center font-mono font-bold text-xs mt-1">
+                  ยอดรวมสต็อกทั้งสิ้น: <span className="text-amber-400 font-black">{(Number(editShopStock) || 0) + (Number(editWarehouseStock) || 0)}</span> ชิ้น
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditingVariant(null);
+                  }}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl font-bold shadow-md transition flex items-center justify-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>บันทึกการแก้ไข</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

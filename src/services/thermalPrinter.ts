@@ -232,8 +232,20 @@ export class ThermalPrinterService {
               }
 
               /* รูปภาพโลโก้และบาร์โค้ด */
+              .receipt-logo, img.receipt-logo, .store-logo {
+                max-width: ${paperWidth === '80mm' ? '22mm' : '18mm'} !important;
+                max-height: ${paperWidth === '80mm' ? '22mm' : '18mm'} !important;
+                width: auto !important;
+                height: auto !important;
+                object-fit: contain !important;
+                display: block !important;
+                margin: 0 auto 3px auto !important;
+                image-rendering: -webkit-optimize-contrast !important;
+              }
+
               img {
-                max-width: ${paperWidth === '80mm' ? '46mm' : '32mm'} !important;
+                max-width: ${paperWidth === '80mm' ? '24mm' : '18mm'} !important;
+                max-height: ${paperWidth === '80mm' ? '24mm' : '18mm'} !important;
                 height: auto !important;
                 display: block !important;
                 margin: 0 auto 4px auto !important;

@@ -22,11 +22,13 @@ import {
   Eye, 
   Truck,
   RefreshCw,
-  FileText
+  FileText,
+  Download
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
   CustomMadeOrder, 
+  CustomOrderItem,
   StoreSettings, 
   Shift, 
   UserAccount, 
@@ -39,6 +41,16 @@ import { DualMonitorSync } from '../services/dualMonitorSync';
 import { BarcodeGenerator } from '../services/barcodeGenerator';
 import { SoundEffects } from '../services/soundEffects';
 import { renderMannequinSvgHtml } from './MannequinFigure';
+
+const CATEGORY_OPTIONS = [
+  { id: 'SHIRT', label: 'เสื้อ (Shirt)', icon: '👔' },
+  { id: 'PANTS', label: 'กางเกง (Pants)', icon: '👖' },
+  { id: 'DRESS', label: 'เดรส / ชุดกระโปรง', icon: '👗' },
+  { id: 'JACKET', label: 'สูท / แจ็กเก็ต', icon: '🧥' },
+  { id: 'BAG', label: 'กระเป๋าผ้าไหม', icon: '👜' },
+  { id: 'HAT', label: 'หมวก / อื่นๆ', icon: '🧢' },
+  { id: 'OTHER', label: 'งานสั่งตัดอื่นๆ', icon: '✂️' }
+];
 
 interface CustomOrderQueueModalProps {
   isOpen: boolean;
@@ -443,6 +455,371 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
     }
   };
 
+  // Generate A4 Work Order HTML
+  const generateWorkOrderA4Html = (order: CustomMadeOrder) => {
+    const isFem = order.customerGender === 'FEMALE';
+    const itemsList: CustomOrderItem[] = order.items && order.items.length > 0 ? order.items : [{
+      id: 'item-1',
+      categoryType: order.categoryType,
+      itemDescription: order.itemDescription,
+      sizeMode: order.sizeMode || 'STANDARD',
+      standardSize: order.standardSize,
+      measurements: order.measurements,
+      fabricType: order.fabricType,
+      specialInstructions: order.specialInstructions,
+      referenceImageUrl: order.referenceImageUrl,
+      qty: order.qty,
+      unitPrice: Math.round(order.totalPrice / (order.qty || 1)),
+      lineTotal: order.totalPrice
+    }];
+    const firstCustomItem = itemsList.find(it => it.sizeMode === 'CUSTOM') || itemsList[0];
+    const meas = firstCustomItem.measurements || order.measurements || {};
+
+    const printAmount = order.balanceDue > 0 ? order.balanceDue : (order.depositAmount > 0 ? order.depositAmount : order.totalPrice);
+    const printPromptPayPayload = settings?.promptPayId
+      ? PromptPayService.generatePayload(settings.promptPayId, printAmount)
+      : '';
+    const printQrUrl = printPromptPayPayload
+      ? PromptPayService.getQrImageUrl(printPromptPayPayload, 260)
+      : '';
+
+    const orderBarcodeDataUrl = BarcodeGenerator.generateDataUrl(order.orderNo, { height: 40, showText: false });
+
+    const measurementRows: string[] = [];
+    if (meas.chest) measurementRows.push(`<tr><td>รอบอก</td><td class="bold">${meas.chest}</td></tr>`);
+    if (meas.waist || meas.waistPants) measurementRows.push(`<tr><td>รอบเอว</td><td class="bold">${meas.waist || meas.waistPants}</td></tr>`);
+    if (meas.hips || meas.hipsPants) measurementRows.push(`<tr><td>รอบสะโพก</td><td class="bold">${meas.hips || meas.hipsPants}</td></tr>`);
+    if (meas.shoulder) measurementRows.push(`<tr><td>ไหล่กว้าง</td><td class="bold">${meas.shoulder}</td></tr>`);
+    if (meas.shirtLength) measurementRows.push(`<tr><td>ความยาวเสื้อ</td><td class="bold">${meas.shirtLength}</td></tr>`);
+    if (meas.armLength) measurementRows.push(`<tr><td>ความยาวแขน</td><td class="bold">${meas.armLength}</td></tr>`);
+    if (meas.armHole) measurementRows.push(`<tr><td>รอบวงแขน/ต้นแขน</td><td class="bold">${meas.armHole}</td></tr>`);
+    if (meas.neck) measurementRows.push(`<tr><td>รอบคอ</td><td class="bold">${meas.neck}</td></tr>`);
+    if (meas.pantsLength) measurementRows.push(`<tr><td>ความยาวกางเกง</td><td class="bold">${meas.pantsLength}</td></tr>`);
+    if (meas.thigh) measurementRows.push(`<tr><td>รอบต้นขา</td><td class="bold">${meas.thigh}</td></tr>`);
+    if (meas.crotch) measurementRows.push(`<tr><td>เป้ากางเกง</td><td class="bold">${meas.crotch}</td></tr>`);
+    if (meas.legOpening) measurementRows.push(`<tr><td>ปลายขา</td><td class="bold">${meas.legOpening}</td></tr>`);
+    if (meas.customDimension) measurementRows.push(`<tr><td>มิติสัดส่วนพิเศษ</td><td class="bold">${meas.customDimension}</td></tr>`);
+
+    return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>ใบสั่งผลิตและวัดตัว Haute Couture - ${order.orderNo}</title>
+    <style>
+      @page { size: A4 portrait; margin: 12mm 15mm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; line-height: 1.5; color: #1e293b; margin: 0; padding: 0; }
+      .header-table { width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 12px; margin-bottom: 15px; }
+      .brand-title { font-size: 18px; font-weight: 800; color: #78350f; text-transform: uppercase; }
+      .brand-sub { font-size: 10px; color: #64748b; margin-top: 1px; }
+      .doc-title { font-size: 15px; font-weight: 800; color: #0f172a; text-align: right; }
+      .doc-no { font-family: monospace; font-size: 12px; font-weight: bold; color: #b45309; text-align: right; }
+      
+      .info-grid { width: 100%; margin-bottom: 15px; }
+      .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
+      .info-box h4 { margin: 0 0 6px 0; font-size: 11px; color: #475569; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; }
+      
+      .tailoring-grid { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+      .tailoring-grid td { vertical-align: top; }
+
+      .measurement-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+      .measurement-table th, .measurement-table td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left; }
+      .measurement-table th { background: #f1f5f9; font-weight: 700; color: #334155; }
+      .bold { font-weight: bold; color: #b45309; }
+
+      .mannequin-container { width: 100%; text-align: center; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+      .media-photo { max-height: 230px; width: 100%; object-fit: contain; border-radius: 6px; display: block; margin: 0 auto; }
+      .media-caption { font-size: 10px; font-weight: 700; color: #475569; margin-top: 6px; border-top: 1px dashed #e2e8f0; padding-top: 4px; }
+      
+      table.items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+      table.items-table th, table.items-table td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
+      table.items-table th { background: #f1f5f9; font-weight: 700; color: #334155; font-size: 11.5px; }
+      
+      .summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      .summary-table td { padding: 5px 8px; }
+      .total-row { border-top: 1.5px solid #0f172a; border-bottom: 2px solid #0f172a; font-size: 13px; }
+
+      .terms { font-size: 10.5px; color: #64748b; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 8px 12px; margin-bottom: 20px; border-radius: 0 6px 6px 0; }
+      
+      .signature-table { width: 100%; margin-top: 25px; border-collapse: collapse; }
+      .signature-table td { width: 50%; text-align: center; vertical-align: bottom; padding: 0 20px; }
+      .sig-line { border-bottom: 1px solid #64748b; width: 80%; margin: 40px auto 6px auto; }
+      .size-badge { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #fcd34d; font-size: 10.5px; }
+      .tailoring-badge { background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #bae6fd; font-size: 10.5px; }
+    </style>
+  </head>
+  <body>
+    <table class="header-table">
+      <tr>
+        <td style="vertical-align: top;">
+          <div class="brand-title">${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}</div>
+          <div class="brand-sub">${settings?.subTitle || 'Haute Couture & Heritage Craft Boutique'}</div>
+          <div style="font-size: 10.5px; color: #475569; margin-top: 3px;">
+            ที่อยู่: ${settings?.address || 'เรือนโคราชเฉลิมวัฒนา จ.นครราชสีมา'} | โทร: ${settings?.phone || '044-XXXXXX'}
+          </div>
+        </td>
+        <td style="vertical-align: top; text-align: right;">
+          <div class="doc-title">ใบสั่งผลิต & สัดส่วนสั่งตัดพิเศษ</div>
+          <div class="doc-title" style="font-size: 11px; font-weight: normal; color: #64748b;">(CUSTOM TAILORING & WORK ORDER)</div>
+          <div class="doc-no">เลขที่: ${order.orderNo}</div>
+          <div style="font-size: 11px; color: #64748b;">วันที่: ${new Date(order.createdAt).toLocaleDateString('th-TH')}</div>
+          <div style="margin-top: 4px; display: flex; justify-content: flex-end;">
+            <img src="${orderBarcodeDataUrl}" style="height: 36px; width: 140px; object-fit: contain;" alt="Order Barcode" />
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <table class="info-grid">
+      <tr>
+        <td style="width: 50%; padding-right: 8px; vertical-align: top;">
+          <div class="info-box">
+            <h4>ข้อมูลลูกค้าผู้สั่ง</h4>
+            <div><b>ชื่อ-นามสกุล:</b> ${order.customerName} (${GENDER_CONFIG[order.customerGender || 'FEMALE'].label})</div>
+            <div><b>เบอร์โทรศัพท์:</b> ${order.customerPhone}</div>
+            <div><b>การรับสินค้า:</b> ${order.deliveryMethod === 'PICKUP_SHOP' ? 'มารับเองที่หน้าร้าน (เรือนโคราชเฉลิมวัฒนา)' : 'จัดส่งพัสดุตามที่อยู่'}</div>
+            ${order.shippingAddress ? `<div><b>ที่อยู่จัดส่ง:</b> ${order.shippingAddress}</div>` : ''}
+          </div>
+        </td>
+        <td style="width: 50%; padding-left: 8px; vertical-align: top;">
+          <div class="info-box">
+            <h4>ข้อมูลการผลิตและการนัดหมาย</h4>
+            <div><b>ผู้ออกใบสั่ง:</b> ${order.staffName} (สาขาหน้าร้าน)</div>
+            <div><b>กำหนดส่งมอบ / นัดรับ:</b> <span style="font-size: 12.5px; font-weight: 800; color: #b45309;">${order.dueDate ? `${new Date(order.dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} (${order.dueDate.split('-').reverse().join('/')})` : '-'}</span></div>
+            <div><b>ประเภทสินค้า:</b> ${CATEGORY_OPTIONS.find(c => c.id === order.categoryType)?.label || 'สั่งตัดพิเศษ'}</div>
+            <div><b>ช่องทางชำระมัดจำ:</b> ${order.depositPaymentMethod === 'PROMPTPAY' ? 'สแกนโอน PromptPay QR' : 'เงินสด'}</div>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- TAILORING MEASUREMENTS & SPECIFICATIONS -->
+    <table class="tailoring-grid">
+      <tr>
+        <td style="width: 55%; padding-right: 10px;">
+          <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 5px; color: #0f172a;">
+            📐 ตารางสัดส่วนการวัดตัว (Body Measurements):
+          </div>
+          ${measurementRows.length > 0 ? `
+            <table class="measurement-table">
+              <thead>
+                <tr><th>จุดวัดสัดส่วน</th><th>ขนาดที่วัดได้</th></tr>
+              </thead>
+              <tbody>
+                ${measurementRows.join('')}
+              </tbody>
+            </table>
+          ` : '<div style="font-style: italic; color: #64748b; padding: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px;">ใช้ไซส์มาตรฐานสำเร็จรูป (ไม่มีระบุสัดส่วนวัดตัวเฉพาะ)</div>'}
+
+          <div style="margin-top: 8px; font-size: 11px;">
+            ${order.fabricType ? `<div><b>ชนิดผ้า:</b> ${order.fabricType}</div>` : ''}
+            ${order.specialInstructions ? `<div><b>เทคนิค/ตำแหน่งปัก:</b> ${order.specialInstructions}</div>` : ''}
+          </div>
+        </td>
+
+        <td style="width: 48%; text-align: center; vertical-align: top;">
+          <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 6px; color: #0f172a; text-align: left;">
+            ${order.referenceImageUrl 
+              ? '🎨 ภาพตัวอย่าง & หุ่นสัดส่วน (Reference & Mannequin):' 
+              : `📐 หุ่นจำลองสัดส่วนวัดตัว (${isFem ? 'สตรี' : 'บุรุษ'}):`}
+          </div>
+
+          ${order.referenceImageUrl ? `
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="width: 46%; vertical-align: top; padding-right: 5px;">
+                  <div class="mannequin-container" style="padding: 6px; min-height: 240px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <img src="${order.referenceImageUrl}" alt="Mockup" class="media-photo" style="max-height: 190px;" />
+                    <div class="media-caption">ภาพแบบอ้างอิง / ลายผ้า</div>
+                  </div>
+                </td>
+                <td style="width: 54%; vertical-align: top; padding-left: 5px;">
+                  <div class="mannequin-container" style="padding: 6px; min-height: 240px;">
+                    <div style="font-size: 10px; font-weight: bold; color: #334155; margin-bottom: 3px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px;">
+                      ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'}
+                    </div>
+                    ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
+                  </div>
+                </td>
+              </tr>
+            </table>
+          ` : `
+            <div class="mannequin-container" style="padding: 8px;">
+              <div style="font-size: 11px; font-weight: bold; color: #334155; margin-bottom: 4px;">
+                ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'} - ${order.categoryType === 'PANTS' ? 'เน้นสัดส่วนช่วงล่าง (กางเกง)' : 'เน้นสัดส่วนช่วงบน (เสื้อ/แจ็กเก็ต)'}
+              </div>
+              <div style="width: 100%; display: flex; justify-content: center; align-items: center;">
+                ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
+              </div>
+            </div>
+          `}
+        </td>
+      </tr>
+    </table>
+
+    <!-- ITEMS & PRICE SUMMARY -->
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 35px; text-align: center;">ลำดับ</th>
+          <th>รายละเอียดงานสั่งผลิต</th>
+          <th style="width: 120px; text-align: center;">ไซส์ / รูปแบบ</th>
+          <th style="width: 60px; text-align: center;">จำนวน</th>
+          <th style="width: 90px; text-align: right;">ราคาต่อหน่วย</th>
+          <th style="width: 100px; text-align: right;">รวมเงิน (บาท)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsList.map((item, idx) => `
+          <tr>
+            <td style="text-align: center; font-weight: bold; vertical-align: top;">${idx + 1}</td>
+            <td style="vertical-align: top;">
+              <div style="font-weight: 700; color: #0f172a;">${item.itemDescription || 'สั่งตัดพิเศษ'}</div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 1px;">
+                ${item.fabricType ? `ผ้า: <b>${item.fabricType}</b> ` : ''}
+                ${item.specialInstructions ? `| ปัก/เทคนิค: <i>${item.specialInstructions}</i>` : ''}
+              </div>
+            </td>
+            <td style="text-align: center; vertical-align: top;">
+              ${item.sizeMode === 'STANDARD' ? `
+                <span class="size-badge">ไซส์: ${item.standardSize || 'Free Size'}</span>
+              ` : `
+                <span class="tailoring-badge">📐 วัดตัวตัดเฉพาะ</span>
+              `}
+            </td>
+            <td style="text-align: center; font-weight: 700; vertical-align: top;">${item.qty || 1} ชิ้น</td>
+            <td style="text-align: right; vertical-align: top;">฿${(item.unitPrice || 0).toLocaleString()}</td>
+            <td style="text-align: right; font-weight: 700; vertical-align: top;">฿${(item.lineTotal || 0).toLocaleString()}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+      <tr>
+        <td style="width: 52%; vertical-align: middle; padding-right: 15px;">
+          ${printQrUrl ? `
+            <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 12px;">
+              <img src="${printQrUrl}" style="width: 90px; height: 90px; object-fit: contain; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; padding: 3px;" alt="PromptPay QR" />
+              <div style="flex: 1;">
+                <div style="font-weight: 800; font-size: 11px; color: #0f172a;">📱 สแกนชำระเงินผ่าน PromptPay QR</div>
+                <div style="font-size: 10px; color: #475569; margin-top: 2px;">
+                  ${order.balanceDue > 0 
+                    ? `ยอดค้างชำระคงเหลือวันรับของ: <b style="color: #b91c1c; font-size: 11.5px;">฿${order.balanceDue.toLocaleString()}</b>`
+                    : `ยอดชำระแล้ว: <b style="color: #15803d; font-size: 11.5px;">฿${order.depositAmount.toLocaleString()}</b>`}
+                </div>
+                <div style="font-size: 9.5px; color: #64748b; font-family: monospace; margin-top: 2px;">
+                  พร้อมเพย์: <b>${settings?.promptPayId || '-'}</b> (${settings?.storeName || 'KORAT CAT'})
+                </div>
+                <div style="font-size: 8.5px; color: #94a3b8; margin-top: 2px; line-height: 1.3;">
+                  * สแกนผ่าน Mobile Banking ได้ทุกธนาคาร ลูกค้าสามารถนำใบนี้มาสแกนจ่ายยอดคงเหลือในวันรับสินค้าได้ทันที
+                </div>
+              </div>
+            </div>
+          ` : `
+            <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; font-size: 10.5px; color: #64748b;">
+              <b>ช่องทางชำระเงิน:</b> ${order.depositPaymentMethod === 'PROMPTPAY' ? 'สแกนโอน PromptPay QR' : 'เงินสด'}
+            </div>
+          `}
+        </td>
+        <td style="width: 48%; vertical-align: top;">
+          <table class="summary-table">
+            <tr>
+              <td>ยอดรวมทั้งสิ้น (Total):</td>
+              <td style="text-align: right; font-weight: 700;">฿${order.totalPrice.toLocaleString()}</td>
+            </tr>
+            <tr style="color: #15803d;">
+              <td><b>${order.balanceDue <= 0 ? '✓ ชำระเต็มจำนวนแล้ว (100%):' : 'เงินมัดจำที่ชำระแล้ว:'}</b></td>
+              <td style="text-align: right; font-weight: 700;">฿${order.depositAmount.toLocaleString()}</td>
+            </tr>
+            <tr class="total-row" style="color: ${order.balanceDue <= 0 ? '#15803d' : '#b91c1c'};">
+              <td style="font-weight: 700;">ยอดค้างชำระคงเหลือ (Balance Due):</td>
+              <td style="text-align: right; font-weight: 800;">
+                ${order.balanceDue <= 0 ? '฿0 (ชำระครบถ้วน)' : `฿${order.balanceDue.toLocaleString()}`}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <div class="terms">
+      <b>เงื่อนไขการบริการงานสั่งตัด (Terms of Service):</b><br>
+      1. กรุณานำใบสั่งผลิตนี้ หรือภาพถ่ายบาร์โค้ดมาแสดงเมื่อติดต่อรับสินค้าที่หน้าร้าน<br>
+      2. กำหนดการรับสินค้าอาจมีการปรับเปลี่ยนเล็กน้อยตามความประณีตของงานช่างศิลป์ ทางร้านจะติดต่อแจ้งล่วงหน้า<br>
+      3. สามารถสแกนชำระเงินส่วนที่เหลือผ่าน QR Code บนเอกสารนี้ล่วงหน้าได้ หรือชำระที่เคาน์เตอร์ในวันรับมอบสินค้า
+    </div>
+
+    <table class="signature-table">
+      <tr>
+        <td>
+          <div class="sig-line"></div>
+          <div style="font-weight: 700;">( ${order.staffName} )</div>
+          <div style="font-size: 10px; color: #64748b;">พนักงานผู้รับงานสั่งผลิต</div>
+        </td>
+        <td>
+          <div class="sig-line"></div>
+          <div style="font-weight: 700;">( ${order.customerName} )</div>
+          <div style="font-size: 10px; color: #64748b;">ลูกค้าผู้สั่งผลิต / ตรวจสอบสัดส่วน</div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+  };
+
+  const handleDownloadWorkOrderA4 = (order: CustomMadeOrder) => {
+    try {
+      const htmlContent = generateWorkOrderA4Html(order);
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ใบสั่งผลิต-${order.orderNo}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download work order error:', err);
+      alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
+    }
+  };
+
+  const handlePrintWorkOrderA4 = (order: CustomMadeOrder) => {
+    const htmlContent = generateWorkOrderA4Html(order);
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(htmlContent);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 350);
+    } else {
+      let iframe = document.getElementById('print-workorder-iframe') as HTMLIFrameElement;
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'print-workorder-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0px';
+        iframe.style.height = '0px';
+        iframe.style.border = 'none';
+        document.body.appendChild(iframe);
+      }
+      const doc = iframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(htmlContent);
+        doc.close();
+        iframe.contentWindow?.focus();
+        setTimeout(() => {
+          iframe.contentWindow?.print();
+        }, 500);
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto select-none">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-6xl w-full overflow-hidden text-white my-auto animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
@@ -682,8 +1059,18 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                             <div className="font-bold text-white text-xs truncate">
                               {order.itemDescription}
                             </div>
-                            <div className="text-[10px] text-amber-300 mt-0.5 truncate">
-                              ผ้า: {order.fabricType || 'ตามที่กำหนด'} • {order.qty} ชิ้น
+                            <div className="text-[10px] text-amber-300 mt-0.5 truncate flex items-center gap-1.5 flex-wrap">
+                              <span>ผ้า: {order.fabricType || 'ตามที่กำหนด'} • {order.qty} ชิ้น</span>
+                              {order.sizeMode === 'STANDARD' && (
+                                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 rounded font-mono font-bold">
+                                  ไซส์ {order.standardSize || 'Free Size'}
+                                </span>
+                              )}
+                              {order.items && order.items.length > 1 && (
+                                <span className="bg-sky-500/20 text-sky-300 border border-sky-500/40 px-1.5 py-0.2 rounded font-bold">
+                                  {order.items.length} รายการ
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] text-slate-400 truncate">
                               รับมอบ: {order.deliveryMethod === 'PICKUP_SHOP' ? '🏪 หน้าร้าน' : `🚚 พัสดุ: ${order.shippingAddress || ''}`}
@@ -698,10 +1085,17 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                           <span>ยอดสั่งผลิตรวม:</span>
                           <span className="font-mono text-slate-200">฿{order.totalPrice.toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between text-emerald-400 text-[11px]">
-                          <span>เงินมัดจำ (ชำระแล้ว):</span>
-                          <span className="font-mono font-bold">฿{order.depositAmount.toLocaleString()} ({order.depositPaymentMethod === 'PROMPTPAY' ? 'PromptPay' : 'เงินสด'})</span>
-                        </div>
+                        {order.paymentType === 'FULL' || order.depositAmount >= order.totalPrice ? (
+                          <div className="flex justify-between text-emerald-400 text-[11px]">
+                            <span>สถานะการชำระ:</span>
+                            <span className="font-mono font-bold">✓ ชำระเต็ม 100% ({order.depositPaymentMethod === 'PROMPTPAY' ? 'PromptPay' : 'เงินสด'})</span>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between text-emerald-400 text-[11px]">
+                            <span>เงินมัดจำ (ชำระแล้ว):</span>
+                            <span className="font-mono font-bold">฿{order.depositAmount.toLocaleString()} ({order.depositPaymentMethod === 'PROMPTPAY' ? 'PromptPay' : 'เงินสด'})</span>
+                          </div>
+                        )}
                         <div className="flex justify-between items-baseline pt-1 border-t border-slate-800 font-bold">
                           <span className={isPaidFull ? 'text-emerald-400' : 'text-rose-400'}>
                             {isPaidFull ? '✓ ชำระครบถ้วน 100%' : 'ยอดค้างชำระคงเหลือ:'}
@@ -744,8 +1138,29 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                         )}
                       </div>
 
+                      {/* Print & Download Work Order A4 Row */}
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handlePrintWorkOrderA4(order)}
+                          className="flex-1 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition border border-slate-700"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>🖨️ พิมพ์ใบสั่งตัด (A4)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadWorkOrderA4(order)}
+                          className="flex-1 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition border border-slate-700"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>📥 บันทึก PDF / HTML</span>
+                        </button>
+                      </div>
+
                       {/* Main Action Buttons */}
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex items-center gap-2 pt-0.5">
                         {order.balanceDue > 0 ? (
                           <button
                             type="button"
@@ -755,7 +1170,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               setSettlementPaymentMethod('PROMPTPAY');
                               setCashTendered(order.balanceDue.toString());
                             }}
-                            className="flex-1 py-2.5 px-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-lg transition active:scale-95"
+                            className="flex-1 py-2 px-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-lg transition active:scale-95"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
                             <span>💰 ชำระยอดคงเหลือ (฿{order.balanceDue.toLocaleString()}) &amp; ส่งมอบ</span>
@@ -764,7 +1179,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handlePrintCompletedA4(order)}
-                            className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                            className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition"
                           >
                             <Printer className="w-3.5 h-3.5 text-emerald-400" />
                             <span>🖨️ พิมพ์ใบเสร็จส่งมอบ (A4)</span>
@@ -775,7 +1190,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                           type="button"
                           onClick={() => setViewingMeasurementOrder(order)}
                           title="ดูสัดส่วนวัดตัว & หุ่นจำลอง"
-                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
+                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition border border-slate-700"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -1042,6 +1457,35 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
             </div>
 
             <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Multi-item breakdown if available */}
+              {viewingMeasurementOrder.items && viewingMeasurementOrder.items.length > 0 && (
+                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="font-bold text-amber-300 text-xs">
+                    รายการสินค้าที่สั่งผลิต ({viewingMeasurementOrder.items.length} รายการ):
+                  </div>
+                  <div className="divide-y divide-slate-800 text-xs">
+                    {viewingMeasurementOrder.items.map((it, idx) => (
+                      <div key={it.id || idx} className="py-2 flex justify-between items-center">
+                        <div>
+                          <div className="font-bold text-white">#{idx + 1} {it.itemDescription}</div>
+                          <div className="text-[10px] text-slate-400">
+                            ผ้า: {it.fabricType || '-'} • {it.specialInstructions ? `ปัก: ${it.specialInstructions} • ` : ''}จำนวน {it.qty} ชิ้น
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            {it.sizeMode === 'STANDARD' ? `ไซส์ ${it.standardSize || 'Free Size'}` : '📐 วัดตัวตัดเฉพาะ'}
+                          </span>
+                          <div className="font-mono text-emerald-400 font-bold mt-0.5">
+                            ฿{(it.lineTotal || (it.qty * it.unitPrice)).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <h5 className="font-bold text-slate-300 border-b border-slate-800 pb-1">📐 สัดส่วนที่วัดได้ (นิ้ว/ซม.):</h5>
@@ -1079,7 +1523,26 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
               </div>
             </div>
 
-            <div className="p-3 bg-slate-950 border-t border-slate-800 flex justify-end">
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintWorkOrderA4(viewingMeasurementOrder)}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>🖨️ พิมพ์ใบสั่งตัด (A4)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadWorkOrderA4(viewingMeasurementOrder)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-emerald-500/40"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>📥 บันทึก PDF / HTML ลงเครื่อง</span>
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setViewingMeasurementOrder(null)}

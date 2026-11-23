@@ -237,7 +237,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 <img
                   src={settings.logoUrl}
                   alt="Store Logo"
-                  className="max-h-12 max-w-[120px] w-auto h-auto mx-auto mb-1.5 object-contain select-none"
+                  className="receipt-logo max-h-11 max-w-[70px] w-auto h-auto mx-auto mb-1.5 object-contain select-none"
                 />
               )}
               <h2 className="font-black text-sm text-slate-950 uppercase tracking-tight">

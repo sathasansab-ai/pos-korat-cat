@@ -367,6 +367,21 @@ export interface CustomOrderMeasurements {
   customDimension?: string; // เช่น ขนาดหมวก / กระเป๋า / ผ้าพันคอ
 }
 
+export interface CustomOrderItem {
+  id: string;
+  categoryType: CustomOrderCategory;
+  itemDescription: string;
+  sizeMode?: 'STANDARD' | 'CUSTOM';
+  standardSize?: string; // S, M, L, XL, 2XL, 3XL, Free Size
+  measurements?: CustomOrderMeasurements;
+  fabricType?: string;
+  specialInstructions?: string;
+  referenceImageUrl?: string;
+  qty: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
 export interface CustomMadeOrder {
   id: string;
   orderNo: string;
@@ -378,6 +393,8 @@ export interface CustomMadeOrder {
   customerPhone: string;
   customerGender?: GenderType;
   categoryType?: CustomOrderCategory;
+  sizeMode?: 'STANDARD' | 'CUSTOM';
+  standardSize?: string;
   measurements?: CustomOrderMeasurements;
   referenceImageUrl?: string; // รูปแบบอ้างอิง หรือ ลายผ้าที่ลูกค้าต้องการ
   fabricType?: string; // ชนิดผ้า เช่น ผ้าไหมมัดหมี่, คอตตอน Comb 20
@@ -388,14 +405,16 @@ export interface CustomMadeOrder {
   itemDescription: string; // รายละเอียดงานสั่งทำ เช่น ปักลาย, สกรีน DTF, งานโหล
   qty: number;
   totalPrice: number;
-  depositAmount: number; // เงินมัดจำ
-  balanceDue: number; // ยอดค้างชำระ
+  paymentType?: 'FULL' | 'DEPOSIT'; // ชำระเต็มจำนวน หรือ มัดจำ
+  depositAmount: number; // เงินมัดจำ (ถ้าจ่ายเต็ม = totalPrice)
+  balanceDue: number; // ยอดค้างชำระ (ถ้าจ่ายเต็ม = 0)
   depositPaymentMethod: 'CASH' | 'PROMPTPAY';
   status: 'PENDING_PRODUCTION' | 'IN_PRODUCTION' | 'READY_FOR_PICKUP' | 'COMPLETED' | 'CANCELLED';
   finalPaymentMethod?: 'CASH' | 'PROMPTPAY';
   finalPaidAmount?: number;
   finalPaidAt?: string;
   notes?: string;
+  items?: CustomOrderItem[]; // รายการสินค้าที่สั่งตัด (รองรับ 1 คนสั่งหลายชิ้นพร้อมกัน)
 }
 
 export interface PromotionRule {

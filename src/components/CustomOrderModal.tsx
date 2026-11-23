@@ -18,11 +18,15 @@ import {
   Sparkles,
   Search,
   Truck,
-  QrCode
+  QrCode,
+  Download,
+  Trash2,
+  Camera
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
   CustomMadeOrder, 
+  CustomOrderItem,
   StoreSettings, 
   Order, 
   Shift, 
@@ -59,6 +63,8 @@ const CATEGORY_OPTIONS: { id: CustomOrderCategory; label: string; icon: string }
   { id: 'OTHER', label: 'งานสั่งทำอื่นๆ', icon: '✨' }
 ];
 
+export const STANDARD_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Free Size'];
+
 export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
   isOpen,
   onClose,
@@ -76,7 +82,42 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerGender, setCustomerGender] = useState<GenderType>('FEMALE');
 
-  // Category & Tailoring Measurements
+  // Multi-item Custom Orders State
+  const [orderItems, setOrderItems] = useState<CustomOrderItem[]>([
+    {
+      id: `item-${Date.now()}-1`,
+      categoryType: 'SHIRT',
+      itemDescription: 'สั่งตัดเสื้อผ้าไหมลายอัตลักษณ์แมวโคราช x ปักลายฉลุเรือนทอง',
+      sizeMode: 'STANDARD',
+      standardSize: 'M',
+      measurements: {
+        chest: '',
+        waist: '',
+        shoulder: '',
+        shirtLength: '',
+        armLength: '',
+        armHole: '',
+        neck: '',
+        wrist: '',
+        waistPants: '',
+        hipsPants: '',
+        pantsLength: '',
+        thigh: '',
+        crotch: '',
+        legOpening: '',
+        customDimension: ''
+      },
+      fabricType: 'ผ้าไหมมัดหมี่ทอมือโคราช',
+      specialInstructions: 'ปักลายฉลุทองแมวโคราช x เดินตะเข็บคู่ประณีต',
+      referenceImageUrl: '',
+      qty: 1,
+      unitPrice: 3500,
+      lineTotal: 3500
+    }
+  ]);
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
+
+  // Category & Tailoring Measurements (for backwards compat and current active item)
   const [categoryType, setCategoryType] = useState<CustomOrderCategory>('SHIRT');
   const [measurements, setMeasurements] = useState<CustomOrderMeasurements>({
     chest: '',
@@ -103,6 +144,9 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
   const [itemDescription, setItemDescription] = useState('สั่งตัดเสื้อผ้าไหมลายอัตลักษณ์แมวโคราช x ปักลายฉลุเรือนทอง');
   const [qty, setQty] = useState(1);
   const [totalPrice, setTotalPrice] = useState(3500);
+
+  // Payment Type: Full (100%) vs Deposit
+  const [paymentType, setPaymentType] = useState<'FULL' | 'DEPOSIT'>('DEPOSIT');
   const [depositAmount, setDepositAmount] = useState(1750); // 50% default
   const [paymentMethod, setPaymentMethod] = useState<'PROMPTPAY' | 'CASH'>('PROMPTPAY');
   const [deliveryMethod, setDeliveryMethod] = useState<'PICKUP_SHOP' | 'SHIPPING_ADDRESS'>('PICKUP_SHOP');
@@ -178,6 +222,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     setItemDescription('สั่งตัดเสื้อผ้าไหมลายอัตลักษณ์แมวโคราช x ปักลายฉลุเรือนทอง');
     setQty(1);
     setTotalPrice(3500);
+    setPaymentType('DEPOSIT');
     setDepositAmount(1750);
     setPaymentMethod('PROMPTPAY');
     setDeliveryMethod('PICKUP_SHOP');
@@ -185,6 +230,39 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     setNotes('');
     setViewState('FORM');
     setSavedOrder(null);
+    setOrderItems([
+      {
+        id: `item-${Date.now()}-1`,
+        categoryType: 'SHIRT',
+        itemDescription: 'สั่งตัดเสื้อผ้าไหมลายอัตลักษณ์แมวโคราช x ปักลายฉลุเรือนทอง',
+        sizeMode: 'STANDARD',
+        standardSize: 'M',
+        measurements: {
+          chest: '',
+          waist: '',
+          shoulder: '',
+          shirtLength: '',
+          armLength: '',
+          armHole: '',
+          neck: '',
+          wrist: '',
+          waistPants: '',
+          hipsPants: '',
+          pantsLength: '',
+          thigh: '',
+          crotch: '',
+          legOpening: '',
+          customDimension: ''
+        },
+        fabricType: 'ผ้าไหมมัดหมี่ทอมือโคราช',
+        specialInstructions: 'ปักลายฉลุทองแมวโคราช x เดินตะเข็บคู่ประณีต',
+        referenceImageUrl: '',
+        qty: 1,
+        unitPrice: 3500,
+        lineTotal: 3500
+      }
+    ]);
+    setActiveItemIndex(0);
   };
 
   useEffect(() => {
@@ -271,10 +349,139 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
 
   const handlePriceChange = (val: number) => {
     setTotalPrice(val);
-    setDepositAmount(Math.round(val / 2)); // Auto 50%
+    if (paymentType === 'FULL') {
+      setDepositAmount(val);
+    } else {
+      setDepositAmount(Math.round(val / 2));
+    }
+  };
+
+  const handlePaymentTypeToggle = (type: 'FULL' | 'DEPOSIT') => {
+    setPaymentType(type);
+    if (type === 'FULL') {
+      setDepositAmount(totalPrice);
+    } else {
+      setDepositAmount(Math.round(totalPrice / 2));
+    }
+  };
+
+  // Multi-item custom order helpers
+  const handleAddItem = () => {
+    const nextIdx = orderItems.length + 1;
+    const newItem: CustomOrderItem = {
+      id: `item-${Date.now()}-${nextIdx}`,
+      categoryType: 'SHIRT',
+      itemDescription: `รายการสั่งตัด #${nextIdx}`,
+      sizeMode: 'STANDARD',
+      standardSize: 'M',
+      measurements: {
+        chest: '',
+        waist: '',
+        shoulder: '',
+        shirtLength: '',
+        armLength: '',
+        armHole: '',
+        neck: '',
+        wrist: '',
+        waistPants: '',
+        hipsPants: '',
+        pantsLength: '',
+        thigh: '',
+        crotch: '',
+        legOpening: '',
+        customDimension: ''
+      },
+      fabricType: 'ผ้าไหมมัดหมี่ทอมือโคราช',
+      specialInstructions: '',
+      referenceImageUrl: '',
+      qty: 1,
+      unitPrice: 1500,
+      lineTotal: 1500
+    };
+    const nextItems = [...orderItems, newItem];
+    setOrderItems(nextItems);
+    setActiveItemIndex(nextItems.length - 1);
+    const newTotal = nextItems.reduce((acc, it) => acc + (it.lineTotal || (it.qty * it.unitPrice)), 0);
+    setTotalPrice(newTotal);
+    if (paymentType === 'FULL') {
+      setDepositAmount(newTotal);
+    } else {
+      setDepositAmount(Math.round(newTotal / 2));
+    }
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (orderItems.length <= 1) {
+      alert('คำสั่งผลิตต้องมีอย่างน้อย 1 รายการ');
+      return;
+    }
+    const nextItems = orderItems.filter((_, i) => i !== index);
+    setOrderItems(nextItems);
+    setActiveItemIndex(Math.max(0, index - 1));
+    const newTotal = nextItems.reduce((acc, it) => acc + (it.lineTotal || (it.qty * it.unitPrice)), 0);
+    setTotalPrice(newTotal);
+    if (paymentType === 'FULL') {
+      setDepositAmount(newTotal);
+    } else {
+      setDepositAmount(Math.round(newTotal / 2));
+    }
+  };
+
+  const handleUpdateActiveItem = (updates: Partial<CustomOrderItem>) => {
+    setOrderItems(prev => {
+      const next = [...prev];
+      const cur = next[activeItemIndex];
+      if (!cur) return prev;
+      const qty = updates.qty !== undefined ? Math.max(1, updates.qty) : cur.qty;
+      const unitPrice = updates.unitPrice !== undefined ? Math.max(0, updates.unitPrice) : cur.unitPrice;
+      const lineTotal = qty * unitPrice;
+      next[activeItemIndex] = {
+        ...cur,
+        ...updates,
+        qty,
+        unitPrice,
+        lineTotal
+      };
+      const newTotal = next.reduce((acc, it) => acc + (it.lineTotal || (it.qty * it.unitPrice)), 0);
+      setTotalPrice(newTotal);
+      if (paymentType === 'FULL') {
+        setDepositAmount(newTotal);
+      } else {
+        setDepositAmount(Math.round(newTotal / 2));
+      }
+      return next;
+    });
+  };
+
+  const updateActiveMeasurement = (key: keyof CustomOrderMeasurements, value: string) => {
+    setOrderItems(prev => {
+      const next = [...prev];
+      const cur = next[activeItemIndex];
+      if (!cur) return prev;
+      next[activeItemIndex] = {
+        ...cur,
+        measurements: {
+          ...(cur.measurements || {}),
+          [key]: value
+        }
+      };
+      return next;
+    });
+  };
+
+  const handleActivePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await ImageOptimizer.resizeAndCompress(file, 800, 800, 0.85);
+      handleUpdateActiveItem({ referenceImageUrl: base64 });
+    } catch {
+      alert('ไม่สามารถประมวลผลรูปภาพได้');
+    }
   };
 
   const updateMeasurement = (key: keyof CustomOrderMeasurements, value: string) => {
+    updateActiveMeasurement(key, value);
     setMeasurements(prev => ({ ...prev, [key]: value }));
   };
 
@@ -285,6 +492,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     try {
       const base64 = await ImageOptimizer.resizeAndCompress(file, 800, 800, 0.85);
       setReferenceImageUrl(base64);
+      handleUpdateActiveItem({ referenceImageUrl: base64 });
     } catch {
       alert('ไม่สามารถประมวลผลรูปภาพได้');
     }
@@ -309,7 +517,15 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     const shiftId = activeShift.id;
 
     const orderNo = `CUST-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
-    const balanceDue = Math.max(0, totalPrice - depositAmount);
+    const effectiveDeposit = paymentType === 'FULL' ? totalPrice : depositAmount;
+    const balanceDue = Math.max(0, totalPrice - effectiveDeposit);
+
+    const primaryItem = orderItems[0] || {};
+    const effectiveCategory = primaryItem.categoryType || 'SHIRT';
+    const effectiveDescription = orderItems.length === 1
+      ? (primaryItem.itemDescription || 'สั่งตัดพิเศษ')
+      : `${primaryItem.itemDescription || 'สั่งตัดพิเศษ'} (รวม ${orderItems.length} รายการ)`;
+    const effectiveTotalQty = orderItems.reduce((sum, it) => sum + (it.qty || 1), 0);
 
     const newOrder: CustomMadeOrder = {
       id: `co-${Date.now()}`,
@@ -321,45 +537,49 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       customerGender,
-      categoryType,
-      measurements,
-      referenceImageUrl: referenceImageUrl || undefined,
-      fabricType: fabricType.trim() || undefined,
-      specialInstructions: specialInstructions.trim() || undefined,
+      categoryType: effectiveCategory,
+      measurements: primaryItem.measurements || measurements,
+      referenceImageUrl: primaryItem.referenceImageUrl || referenceImageUrl || undefined,
+      fabricType: primaryItem.fabricType || fabricType.trim() || undefined,
+      specialInstructions: primaryItem.specialInstructions || specialInstructions.trim() || undefined,
       deliveryMethod,
       shippingAddress: deliveryMethod === 'SHIPPING_ADDRESS' ? shippingAddress.trim() : undefined,
       dueDate,
-      itemDescription: itemDescription.trim(),
-      qty,
+      itemDescription: effectiveDescription,
+      qty: effectiveTotalQty,
       totalPrice,
-      depositAmount,
+      depositAmount: effectiveDeposit,
       balanceDue,
       depositPaymentMethod: paymentMethod,
       status: 'PENDING_PRODUCTION',
-      notes: notes.trim()
+      notes: notes.trim(),
+      items: orderItems,
+      paymentType,
+      sizeMode: primaryItem.sizeMode || 'STANDARD',
+      standardSize: primaryItem.standardSize || 'M'
     };
 
     // 1. บันทึกลงตารางงานสั่งผลิต
     await db.customOrders.add(newOrder);
     CloudSync.pushCustomOrder(newOrder);
 
-    // 2. นำยอดเงินมัดจำเข้ากะพนักงาน
-    if (depositAmount > 0) {
+    // 2. นำยอดเงินเข้ากะพนักงาน
+    if (effectiveDeposit > 0) {
       const isCash = paymentMethod === 'CASH';
       const updatedShift: Shift = {
         ...activeShift,
-        totalCashSales: (activeShift.totalCashSales || 0) + (isCash ? depositAmount : 0),
-        totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + (!isCash ? depositAmount : 0),
+        totalCashSales: (activeShift.totalCashSales || 0) + (isCash ? effectiveDeposit : 0),
+        totalPromptPaySales: (activeShift.totalPromptPaySales || 0) + (!isCash ? effectiveDeposit : 0),
         totalTransactions: (activeShift.totalTransactions || 0) + 1
       };
       await db.shifts.put(updatedShift);
       CloudSync.pushShift(updatedShift);
       if (onShiftUpdated) onShiftUpdated();
 
-      // 3. สร้างบิลขายมัดจำลงใน db.orders
+      // 3. สร้างบิลขายลงใน db.orders
       const depositBill: Order = {
         id: `ord-dep-${Date.now()}`,
-        localOrderId: `DEP-${newOrder.orderNo}`,
+        localOrderId: `${paymentType === 'FULL' ? 'FULL' : 'DEP'}-${newOrder.orderNo}`,
         timestamp: new Date().toISOString(),
         cashierId: cashierId,
         cashierName: cashierName,
@@ -367,30 +587,30 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
         customerId: selectedCustomerId,
         customerName: newOrder.customerName,
         customerGender,
-        items: [{
-          variantId: `custom-order-${newOrder.id}`,
-          productName: `เงินมัดจำสั่งผลิต (50%): ${newOrder.itemDescription}`,
-          sku: newOrder.orderNo,
+        branch: activeShift.branch || 'SHOP',
+        items: orderItems.map((it, idx) => ({
+          variantId: `custom-order-${newOrder.id}-${idx}`,
+          productName: `[สั่งตัด] ${it.itemDescription || 'รายการสั่งตัด'}${it.sizeMode === 'STANDARD' && it.standardSize ? ` (${it.standardSize})` : ''}`,
+          sku: `${newOrder.orderNo}-${idx + 1}`,
+          barcode: newOrder.orderNo,
           attributes: {
-            'ประเภท': categoryType,
-            'ลูกค้า': newOrder.customerName,
-            'โทร': newOrder.customerPhone,
-            'ยอดสั่งผลิตเต็ม': `฿${newOrder.totalPrice.toLocaleString()}`,
-            'ยอดคงค้าง': `฿${newOrder.balanceDue.toLocaleString()}`
+            'ประเภท': it.categoryType,
+            'ไซส์': it.sizeMode === 'STANDARD' ? (it.standardSize || 'M') : 'วัดตัวเฉพาะบุคคล',
+            'ผ้า': it.fabricType || '-'
           },
-          qty: newOrder.qty,
-          unitPrice: newOrder.depositAmount,
+          qty: it.qty || 1,
+          unitPrice: paymentType === 'FULL' ? it.unitPrice : Math.round(((it.unitPrice * (it.qty || 1)) / totalPrice) * effectiveDeposit),
           costPrice: 0,
-          lineTotal: newOrder.depositAmount
-        }],
-        subtotal: newOrder.depositAmount,
+          lineTotal: paymentType === 'FULL' ? it.lineTotal : Math.round((it.lineTotal / totalPrice) * effectiveDeposit)
+        })),
+        subtotal: effectiveDeposit,
         promoDiscount: 0,
-        netTotal: newOrder.depositAmount,
+        netTotal: effectiveDeposit,
         payments: [{
           method: paymentMethod === 'CASH' ? 'CASH' : 'PROMPTPAY',
-          amount: newOrder.depositAmount
+          amount: effectiveDeposit
         }],
-        cashReceived: paymentMethod === 'CASH' ? newOrder.depositAmount : undefined,
+        cashReceived: paymentMethod === 'CASH' ? effectiveDeposit : undefined,
         changeGiven: 0,
         status: 'COMPLETED',
         isSynced: false
@@ -404,10 +624,25 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     setViewState('SUCCESS_VIEW');
   };
 
-  // พิมพ์ใบสั่งผลิตและยืนยันการสั่งซื้อ ขนาด A4 มาตรฐาน พร้อมอินโฟกราฟิกหุ่นสัดส่วน และ PromptPay QR ชำระเงิน
-  const handlePrintA4 = (order: CustomMadeOrder) => {
+  // สร้างเอกสาร HTML ขนาด A4 มาตรฐาน พร้อมอินโฟกราฟิกหุ่นสัดส่วน และ PromptPay QR ชำระเงิน
+  const generateA4Html = (order: CustomMadeOrder) => {
     const isFem = order.customerGender === 'FEMALE';
-    const meas = order.measurements || {};
+    const itemsList = order.items && order.items.length > 0 ? order.items : [{
+      id: 'item-1',
+      categoryType: order.categoryType,
+      itemDescription: order.itemDescription,
+      sizeMode: order.sizeMode || 'STANDARD',
+      standardSize: order.standardSize,
+      measurements: order.measurements,
+      fabricType: order.fabricType,
+      specialInstructions: order.specialInstructions,
+      referenceImageUrl: order.referenceImageUrl,
+      qty: order.qty,
+      unitPrice: Math.round(order.totalPrice / (order.qty || 1)),
+      lineTotal: order.totalPrice
+    }];
+    const firstCustomItem = itemsList.find(it => it.sizeMode === 'CUSTOM') || itemsList[0];
+    const meas = firstCustomItem.measurements || order.measurements || {};
 
     // Dynamic QR for printable A4: For remaining balance due (or deposit/total)
     const printAmount = order.balanceDue > 0 ? order.balanceDue : (order.depositAmount > 0 ? order.depositAmount : order.totalPrice);
@@ -603,22 +838,35 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
               <tr>
                 <th style="width: 35px; text-align: center;">ลำดับ</th>
                 <th>รายละเอียดงานสั่งผลิต</th>
+                <th style="width: 120px; text-align: center;">ไซส์ / รูปแบบ</th>
                 <th style="width: 60px; text-align: center;">จำนวน</th>
                 <th style="width: 90px; text-align: right;">ราคาต่อหน่วย</th>
                 <th style="width: 100px; text-align: right;">รวมเงิน (บาท)</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td style="text-align: center;">1</td>
-                <td>
-                  <div style="font-weight: 700; color: #0f172a;">${order.itemDescription}</div>
-                  ${order.notes ? `<div style="font-size: 10.5px; color: #64748b; margin-top: 2px;">หมายเหตุ: ${order.notes}</div>` : ''}
-                </td>
-                <td style="text-align: center; font-weight: 700;">${order.qty} ชิ้น</td>
-                <td style="text-align: right;">฿${(order.totalPrice / order.qty).toLocaleString()}</td>
-                <td style="text-align: right; font-weight: 700;">฿${order.totalPrice.toLocaleString()}</td>
-              </tr>
+              ${itemsList.map((item, idx) => `
+                <tr>
+                  <td style="text-align: center; font-weight: bold; vertical-align: top;">${idx + 1}</td>
+                  <td style="vertical-align: top;">
+                    <div style="font-weight: 700; color: #0f172a;">${item.itemDescription || 'สั่งตัดพิเศษ'}</div>
+                    <div style="font-size: 10px; color: #64748b; margin-top: 1px;">
+                      ${item.fabricType ? `ผ้า: <b>${item.fabricType}</b> ` : ''}
+                      ${item.specialInstructions ? `| ปัก/เทคนิค: <i>${item.specialInstructions}</i>` : ''}
+                    </div>
+                  </td>
+                  <td style="text-align: center; vertical-align: top;">
+                    ${item.sizeMode === 'STANDARD' ? `
+                      <span class="size-badge">ไซส์: ${item.standardSize || 'Free Size'}</span>
+                    ` : `
+                      <span class="tailoring-badge">📐 วัดตัวตัดเฉพาะ</span>
+                    `}
+                  </td>
+                  <td style="text-align: center; font-weight: 700; vertical-align: top;">${item.qty || 1} ชิ้น</td>
+                  <td style="text-align: right; vertical-align: top;">฿${(item.unitPrice || 0).toLocaleString()}</td>
+                  <td style="text-align: right; font-weight: 700; vertical-align: top;">฿${(item.lineTotal || 0).toLocaleString()}</td>
+                </tr>
+              `).join('')}
             </tbody>
           </table>
 
@@ -633,7 +881,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                       <div style="font-size: 10px; color: #475569; margin-top: 2px;">
                         ${order.balanceDue > 0 
                           ? `ยอดค้างชำระคงเหลือวันรับของ: <b style="color: #b91c1c; font-size: 11.5px;">฿${order.balanceDue.toLocaleString()}</b>`
-                          : `ยอดชำระมัดจำแล้ว: <b style="color: #15803d; font-size: 11.5px;">฿${order.depositAmount.toLocaleString()}</b>`}
+                          : `ยอดชำระแล้ว: <b style="color: #15803d; font-size: 11.5px;">฿${order.depositAmount.toLocaleString()}</b>`}
                       </div>
                       <div style="font-size: 9.5px; color: #64748b; font-family: monospace; margin-top: 2px;">
                         พร้อมเพย์: <b>${settings?.promptPayId || '-'}</b> (${settings?.storeName || 'KORAT CAT'})
@@ -645,7 +893,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                   </div>
                 ` : `
                   <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; font-size: 10.5px; color: #64748b;">
-                    <b>ช่องทางชำระมัดจำ:</b> ${order.depositPaymentMethod === 'PROMPTPAY' ? 'สแกนโอน PromptPay QR' : 'เงินสด'}
+                    <b>ช่องทางชำระเงิน:</b> ${order.depositPaymentMethod === 'PROMPTPAY' ? 'สแกนโอน PromptPay QR' : 'เงินสด'}
                   </div>
                 `}
               </td>
@@ -656,12 +904,14 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                     <td style="text-align: right; font-weight: 700;">฿${order.totalPrice.toLocaleString()}</td>
                   </tr>
                   <tr style="color: #15803d;">
-                    <td><b>เงินมัดจำที่ชำระแล้ว (Deposit Paid):</b></td>
+                    <td><b>${order.balanceDue <= 0 ? '✓ ชำระเต็มจำนวนแล้ว (100%):' : 'เงินมัดจำที่ชำระแล้ว:'}</b></td>
                     <td style="text-align: right; font-weight: 700;">฿${order.depositAmount.toLocaleString()}</td>
                   </tr>
-                  <tr class="total-row" style="color: #b91c1c;">
+                  <tr class="total-row" style="color: ${order.balanceDue <= 0 ? '#15803d' : '#b91c1c'};">
                     <td style="font-weight: 700;">ยอดค้างชำระคงเหลือ (Balance Due):</td>
-                    <td style="text-align: right; font-weight: 700;">฿${order.balanceDue.toLocaleString()}</td>
+                    <td style="text-align: right; font-weight: 800;">
+                      ${order.balanceDue <= 0 ? '฿0 (ชำระครบถ้วน)' : `฿${order.balanceDue.toLocaleString()}`}
+                    </td>
                   </tr>
                 </table>
               </td>
@@ -692,14 +942,72 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
         </body>
       </html>
     `;
+    return printContent;
+  };
+
+  const handleDownloadA4Document = (order: CustomMadeOrder) => {
+    const htmlContent = generateA4Html(order);
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ใบสั่งผลิต-${order.orderNo}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrintA4 = (order: CustomMadeOrder) => {
+    const htmlContent = generateA4Html(order);
     const w = window.open('', '_blank');
     if (w) {
-      w.document.write(printContent);
+      w.document.write(htmlContent);
       w.document.close();
       w.focus();
       setTimeout(() => w.print(), 350);
+      return;
+    }
+
+    // Fallback if popup blocked by browser
+    let iframe = document.getElementById('custom-order-print-iframe') as HTMLIFrameElement;
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'custom-order-print-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.top = '-9999px';
+      iframe.style.left = '-9999px';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+    }
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+      iframe.contentWindow?.focus();
+      setTimeout(() => {
+        iframe.contentWindow?.print();
+      }, 500);
     }
   };
+
+  const currentItem: CustomOrderItem = orderItems[activeItemIndex] || orderItems[0] || ({
+    id: 'item-default',
+    categoryType: 'SHIRT',
+    itemDescription: 'รายการสั่งตัด #1',
+    sizeMode: 'STANDARD',
+    standardSize: 'M',
+    measurements: {},
+    fabricType: '',
+    specialInstructions: '',
+    referenceImageUrl: '',
+    qty: 1,
+    unitPrice: 0,
+    lineTotal: 0
+  } as CustomOrderItem);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto select-none">
@@ -760,28 +1068,48 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                   <span className="text-slate-400">ยอดรวมทั้งสิ้น:</span>
                   <span className="font-bold text-white font-mono">฿{savedOrder.totalPrice.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-emerald-400">
-                  <span>มัดจำที่ชำระแล้ว (50%):</span>
-                  <span className="font-bold font-mono">฿{savedOrder.depositAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-rose-400 font-bold border-t border-slate-800 pt-1">
-                  <span>ยอดค้างชำระคงเหลือ:</span>
-                  <span className="font-mono">฿{savedOrder.balanceDue.toLocaleString()}</span>
-                </div>
+                {savedOrder.paymentType === 'FULL' || savedOrder.depositAmount >= savedOrder.totalPrice ? (
+                  <div className="flex justify-between text-emerald-400 font-bold border-t border-slate-800 pt-1">
+                    <span>สถานะการชำระ:</span>
+                    <span>✓ ชำระเต็มจำนวนแล้ว (100%)</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-emerald-400">
+                      <span>มัดจำที่ชำระแล้ว:</span>
+                      <span className="font-bold font-mono">฿{savedOrder.depositAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-rose-400 font-bold border-t border-slate-800 pt-1">
+                      <span>ยอดค้างชำระคงเหลือ:</span>
+                      <span className="font-mono">฿{savedOrder.balanceDue.toLocaleString()}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* QR Code Embedded Notice */}
               <div className="p-3 bg-sky-950/40 border border-sky-500/30 rounded-2xl max-w-md mx-auto text-xs text-sky-200 flex items-center gap-2.5 text-left">
                 <QrCode className="w-5 h-5 text-sky-400 flex-shrink-0" />
                 <div>
-                  <span className="font-bold text-white">ระบบแนบ PromptPay QR ลงในใบสั่งตัด A4 ให้เรียบร้อย</span>
-                  <p className="text-[11px] text-sky-300/80 mt-0.5">
-                    ลูกค้าสามารถนำเอกสาร A4 นี้มาสแกนจ่ายยอดคงเหลือ (฿{savedOrder.balanceDue.toLocaleString()}) ผ่านมือถือในวันรับสินค้าได้ทันที
-                  </p>
+                  {savedOrder.balanceDue > 0 ? (
+                    <>
+                      <span className="font-bold text-white">ระบบแนบ PromptPay QR ลงในใบสั่งตัด A4 ให้เรียบร้อย</span>
+                      <p className="text-[11px] text-sky-300/80 mt-0.5">
+                        ลูกค้าสามารถนำเอกสาร A4 นี้มาสแกนจ่ายยอดคงเหลือ (฿{savedOrder.balanceDue.toLocaleString()}) ผ่านมือถือในวันรับสินค้าได้ทันที
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-bold text-emerald-300">ชำระเต็มจำนวนเรียบร้อย 100%</span>
+                      <p className="text-[11px] text-sky-300/80 mt-0.5">
+                        ไม่มียอดค้างชำระในวันรับสินค้า ระบบระบุสถานะชำระครบถ้วนในเอกสาร A4 แล้ว
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Print Action Buttons */}
+              {/* Print & Download Action Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
                   type="button"
@@ -789,7 +1117,16 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                   className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>🖨️ พิมพ์ใบสั่งตัด A4 พร้อมหุ่นวัดตัว &amp; QR ชำระเงิน</span>
+                  <span>🖨️ พิมพ์ใบสั่งตัด A4</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDownloadA4Document(savedOrder)}
+                  className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border border-emerald-500/40"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>📥 บันทึก PDF / HTML ลงเครื่อง</span>
                 </button>
 
                 <button
@@ -926,213 +1263,364 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Category Pills */}
-                  <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-2">
-                    <label className="block text-xs font-bold text-amber-300">
-                      ประเภทงานที่ลูกค้าสั่ง (เลือกเพื่อเปิดช่องสัดส่วน):
-                    </label>
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-                      {CATEGORY_OPTIONS.map(cat => (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => setCategoryType(cat.id)}
-                          className={`py-2 px-1 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 border ${
-                            categoryType === cat.id
-                              ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-md'
-                              : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
-                          }`}
-                        >
-                          <span className="text-base">{cat.icon}</span>
-                          <span className="text-[10px] leading-tight text-center">{cat.label.split(' ')[0]}</span>
-                        </button>
-                      ))}
+                  {/* Multi-Item Management Tabs */}
+                  <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
+                          <Scissors className="w-4 h-4 text-amber-400" />
+                          <span>รายการสินค้าสั่งตัด ({orderItems.length} รายการ):</span>
+                        </span>
+                        <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                          1 ลูกค้าสั่งได้หลายชิ้นในใบเดียว
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddItem}
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ เพิ่มรายการสั่งตัด</span>
+                      </button>
+                    </div>
+
+                    {/* Tab Strip */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                      {orderItems.map((item, idx) => {
+                        const isActive = idx === activeItemIndex;
+                        return (
+                          <div
+                            key={item.id || idx}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold cursor-pointer transition flex-shrink-0 ${
+                              isActive
+                                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                            }`}
+                            onClick={() => setActiveItemIndex(idx)}
+                          >
+                            <span>#{idx + 1} {item.itemDescription ? (item.itemDescription.length > 12 ? item.itemDescription.slice(0, 12) + '...' : item.itemDescription) : `รายการ ${idx + 1}`}</span>
+                            {item.sizeMode === 'STANDARD' ? (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${isActive ? 'bg-black/20 text-slate-950 font-black' : 'bg-slate-700 text-amber-300'}`}>
+                                {item.standardSize || 'M'}
+                              </span>
+                            ) : (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${isActive ? 'bg-black/20 text-slate-950 font-black' : 'bg-slate-700 text-sky-300'}`}>
+                                วัดตัว
+                              </span>
+                            )}
+                            {orderItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveItem(idx);
+                                }}
+                                className={`p-0.5 rounded hover:bg-rose-600 hover:text-white transition ml-1 ${isActive ? 'text-slate-800' : 'text-slate-400'}`}
+                                title="ลบรายการนี้"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Measurement Inputs based on category */}
+                  {/* Active Item Details */}
                   <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-amber-300 flex items-center gap-1.5">
-                        <Ruler className="w-3.5 h-3.5 text-amber-400" />
-                        <span>กรอกสัดส่วนการวัดตัว (หน่วย: นิ้ว หรือ ซม.):</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400">พิมพ์แล้วตัวเลขจะขึ้นบนหุ่นขวามือทันที</span>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                        <span>กำลังแก้ไข: รายการที่ #{activeItemIndex + 1}</span>
+                      </div>
+                      {orderItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(activeItemIndex)}
+                          className="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>ลบรายการนี้</span>
+                        </button>
+                      )}
                     </div>
 
-                    {(categoryType === 'SHIRT' || categoryType === 'JACKET' || categoryType === 'OTHER') && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบอก</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 36"'
-                            value={measurements.chest || ''}
-                            onChange={e => updateMeasurement('chest', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบเอว</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 28"'
-                            value={measurements.waist || ''}
-                            onChange={e => updateMeasurement('waist', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ไหล่กว้าง</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 16"'
-                            value={measurements.shoulder || ''}
-                            onChange={e => updateMeasurement('shoulder', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ความยาวเสื้อ</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 27"'
-                            value={measurements.shirtLength || ''}
-                            onChange={e => updateMeasurement('shirtLength', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ความยาวแขน</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 22"'
-                            value={measurements.armLength || ''}
-                            onChange={e => updateMeasurement('armLength', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบวงแขน/ต้นแขน</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 14"'
-                            value={measurements.armHole || ''}
-                            onChange={e => updateMeasurement('armHole', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบคอ</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 15"'
-                            value={measurements.neck || ''}
-                            onChange={e => updateMeasurement('neck', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบข้อมือ/ปลายแขน</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 8"'
-                            value={measurements.wrist || ''}
-                            onChange={e => updateMeasurement('wrist', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {(categoryType === 'PANTS' || categoryType === 'OTHER') && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1 border-t border-slate-800">
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">เอวกางเกง</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 32"'
-                            value={measurements.waistPants || ''}
-                            onChange={e => updateMeasurement('waistPants', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบสะโพก</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 38"'
-                            value={measurements.hipsPants || ''}
-                            onChange={e => updateMeasurement('hipsPants', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ความยาวกางเกง</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 38"'
-                            value={measurements.pantsLength || ''}
-                            onChange={e => updateMeasurement('pantsLength', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบต้นขา</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 22"'
-                            value={measurements.thigh || ''}
-                            onChange={e => updateMeasurement('thigh', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">เป้ากางเกง</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 12"'
-                            value={measurements.crotch || ''}
-                            onChange={e => updateMeasurement('crotch', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ปลายขา</label>
-                          <input
-                            type="text"
-                            placeholder='เช่น 14"'
-                            value={measurements.legOpening || ''}
-                            onChange={e => updateMeasurement('legOpening', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {(categoryType === 'BAG' || categoryType === 'HAT') && (
+                    <div className="space-y-2">
                       <div>
-                        <label className="block text-[10px] text-slate-400 font-bold mb-0.5">มิติสัดส่วนพิเศษ (กว้าง x ยาว x สูง หรือ รอบศีรษะ)</label>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-0.5">ชื่อ / รายละเอียดสินค้าสั่งตัด *</label>
                         <input
                           type="text"
-                          placeholder="เช่น รอบศีรษะ 58 ซม. หรือ กว้าง 40 x สูง 35 ซม."
-                          value={measurements.customDimension || ''}
-                          onChange={e => updateMeasurement('customDimension', e.target.value)}
-                          className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs"
+                          required
+                          value={currentItem.itemDescription || ''}
+                          onChange={e => handleUpdateActiveItem({ itemDescription: e.target.value })}
+                          placeholder="เช่น เสื้อสูทผ้าไหมโคราชแขนยาวกระดุมทอง, กางเกงสแล็คเข้าชุด"
+                          className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
                         />
+                      </div>
+
+                      {/* Category Pills */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                          ประเภทสินค้า:
+                        </label>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                          {CATEGORY_OPTIONS.map(cat => (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => handleUpdateActiveItem({ categoryType: cat.id })}
+                              className={`py-2 px-1 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 border ${
+                                (currentItem.categoryType || 'SHIRT') === cat.id
+                                  ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-md'
+                                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                              }`}
+                            >
+                              <span className="text-base">{cat.icon}</span>
+                              <span className="text-[10px] leading-tight text-center">{cat.label.split(' ')[0]}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sizing Section: Standard Size vs Custom Measurements */}
+                  <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                        <Ruler className="w-3.5 h-3.5 text-amber-400" />
+                        <span>รูปแบบขนาด / ไซส์:</span>
+                      </label>
+                      <div className="flex bg-slate-800 p-0.5 rounded-xl border border-slate-700 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateActiveItem({ sizeMode: 'STANDARD' })}
+                          className={`px-3 py-1 rounded-lg font-bold transition ${
+                            (currentItem.sizeMode || 'STANDARD') === 'STANDARD'
+                              ? 'bg-amber-600 text-white shadow'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          👕 ไซส์มาตรฐาน (S-4XL)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateActiveItem({ sizeMode: 'CUSTOM' })}
+                          className={`px-3 py-1 rounded-lg font-bold transition ${
+                            currentItem.sizeMode === 'CUSTOM'
+                              ? 'bg-amber-600 text-white shadow'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          📏 วัดตัวตามสัดส่วน (Custom)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* If STANDARD SIZE */}
+                    {(currentItem.sizeMode || 'STANDARD') === 'STANDARD' ? (
+                      <div className="space-y-2 pt-1">
+                        <div className="text-[11px] text-slate-400">เลือกรหัสไซส์สำเร็จรูป (สะดวก รวดเร็ว ไม่ต้องกรอกสัดส่วนทุกช่อง):</div>
+                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                          {STANDARD_SIZES.map(sz => (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => handleUpdateActiveItem({ standardSize: sz })}
+                              className={`py-2 px-1 rounded-xl text-xs font-black transition border text-center ${
+                                (currentItem.standardSize || 'M') === sz
+                                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md scale-105'
+                                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                              }`}
+                            >
+                              {sz}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-slate-400 italic">
+                          * ไซส์มาตรฐานที่เลือก: <b className="text-amber-300">{currentItem.standardSize || 'M'}</b> (ระบุข้อแนะนำเพิ่มเติมในช่องเทคนิคพิเศษได้)
+                        </p>
+                      </div>
+                    ) : (
+                      /* If CUSTOM MEASUREMENTS */
+                      <div className="space-y-3 pt-1">
+                        <div className="text-[10px] text-slate-400">กรอกสัดส่วนการวัดตัว (หน่วย: นิ้ว หรือ ซม.) - ตัวเลขจะขึ้นบนหุ่นขวามือทันที:</div>
+                        {((currentItem.categoryType || 'SHIRT') === 'SHIRT' || currentItem.categoryType === 'JACKET' || currentItem.categoryType === 'OTHER') && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบอก</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 36"'
+                                value={currentItem.measurements?.chest || ''}
+                                onChange={e => updateActiveMeasurement('chest', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบเอว</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 28"'
+                                value={currentItem.measurements?.waist || ''}
+                                onChange={e => updateActiveMeasurement('waist', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ไหล่กว้าง</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 16"'
+                                value={currentItem.measurements?.shoulder || ''}
+                                onChange={e => updateActiveMeasurement('shoulder', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ความยาวเสื้อ</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 27"'
+                                value={currentItem.measurements?.shirtLength || ''}
+                                onChange={e => updateActiveMeasurement('shirtLength', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ความยาวแขน</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 22"'
+                                value={currentItem.measurements?.armLength || ''}
+                                onChange={e => updateActiveMeasurement('armLength', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบวงแขน/ต้นแขน</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 14"'
+                                value={currentItem.measurements?.armHole || ''}
+                                onChange={e => updateActiveMeasurement('armHole', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบคอ</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 15"'
+                                value={currentItem.measurements?.neck || ''}
+                                onChange={e => updateActiveMeasurement('neck', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบข้อมือ/ปลายแขน</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 8"'
+                                value={currentItem.measurements?.wrist || ''}
+                                onChange={e => updateActiveMeasurement('wrist', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {((currentItem.categoryType || 'SHIRT') === 'PANTS' || currentItem.categoryType === 'OTHER') && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1 border-t border-slate-800">
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">เอวกางเกง</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 32"'
+                                value={currentItem.measurements?.waistPants || ''}
+                                onChange={e => updateActiveMeasurement('waistPants', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบสะโพก</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 38"'
+                                value={currentItem.measurements?.hipsPants || ''}
+                                onChange={e => updateActiveMeasurement('hipsPants', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ความยาวกางเกง</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 38"'
+                                value={currentItem.measurements?.pantsLength || ''}
+                                onChange={e => updateActiveMeasurement('pantsLength', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบต้นขา</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 22"'
+                                value={currentItem.measurements?.thigh || ''}
+                                onChange={e => updateActiveMeasurement('thigh', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">เป้ากางเกง</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 12"'
+                                value={currentItem.measurements?.crotch || ''}
+                                onChange={e => updateActiveMeasurement('crotch', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ปลายขา</label>
+                              <input
+                                type="text"
+                                placeholder='เช่น 14"'
+                                value={currentItem.measurements?.legOpening || ''}
+                                onChange={e => updateActiveMeasurement('legOpening', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {(currentItem.categoryType === 'BAG' || currentItem.categoryType === 'HAT') && (
+                          <div>
+                            <label className="block text-[10px] text-slate-400 font-bold mb-0.5">มิติสัดส่วนพิเศษ (กว้าง x ยาว x สูง หรือ รอบศีรษะ)</label>
+                            <input
+                              type="text"
+                              placeholder="เช่น รอบศีรษะ 58 ซม. หรือ กว้าง 40 x สูง 35 ซม."
+                              value={currentItem.measurements?.customDimension || ''}
+                              onChange={e => updateActiveMeasurement('customDimension', e.target.value)}
+                              className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs"
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* Fabric & Mockup Attachment */}
+                  {/* Fabric, Mockup Attachment & Item Price */}
                   <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       <div>
                         <label className="block text-[11px] font-bold text-slate-300 mb-1">ชนิดผ้า / วัสดุที่ใช้:</label>
                         <input
                           type="text"
-                          value={fabricType}
-                          onChange={e => setFabricType(e.target.value)}
+                          value={currentItem.fabricType || ''}
+                          onChange={e => handleUpdateActiveItem({ fabricType: e.target.value })}
                           placeholder="เช่น ผ้าไหมมัดหมี่, คอตตอน Comb 20"
                           className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
                         />
@@ -1141,35 +1629,42 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                         <label className="block text-[11px] font-bold text-slate-300 mb-1">เทคนิคพิเศษ / ตำแหน่งปัก:</label>
                         <input
                           type="text"
-                          value={specialInstructions}
-                          onChange={e => setSpecialInstructions(e.target.value)}
+                          value={currentItem.specialInstructions || ''}
+                          onChange={e => handleUpdateActiveItem({ specialInstructions: e.target.value })}
                           placeholder="เช่น ปักด้ายทองที่อกซ้าย, สกรีน DTF ด้านหลัง"
                           className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
                         />
                       </div>
                     </div>
 
-                    {/* Photo Upload */}
+                    {/* Photo Upload with Tablet Camera */}
                     <div>
                       <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                        แนบรูปตัวอย่างลายผ้า หรือ แบบอ้างอิงจากลูกค้า (Reference Mockup):
+                        แนบรูปตัวอย่างลายผ้า หรือ แบบอ้างอิง (ถ่ายรูปด้วยแท็บเล็ต หรือเลือกรูป):
                       </label>
-                      <div className="flex items-center gap-3">
-                        <label className="cursor-pointer px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs text-amber-300 font-bold flex items-center gap-1.5 transition">
-                          <Upload className="w-4 h-4 text-amber-400" />
-                          <span>เลือกไฟล์ภาพ</span>
-                          <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <label className="cursor-pointer px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs text-amber-300 font-bold flex items-center gap-1.5 transition">
+                          <Upload className="w-3.5 h-3.5 text-amber-400" />
+                          <span>เลือกรูปภาพ</span>
+                          <input type="file" accept="image/*" onChange={handleActivePhotoUpload} className="hidden" />
                         </label>
-                        {referenceImageUrl ? (
+
+                        <label className="cursor-pointer px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-xl text-xs text-amber-300 font-bold flex items-center gap-1.5 transition">
+                          <Camera className="w-3.5 h-3.5 text-amber-400" />
+                          <span>📸 ถ่ายรูปด้วยกล้องแท็บเล็ต</span>
+                          <input type="file" accept="image/*" capture="environment" onChange={handleActivePhotoUpload} className="hidden" />
+                        </label>
+
+                        {currentItem.referenceImageUrl ? (
                           <div className="relative group">
                             <img
-                              src={referenceImageUrl}
+                              src={currentItem.referenceImageUrl}
                               alt="Ref"
                               className="w-12 h-12 rounded-lg object-cover border border-amber-400/60 shadow"
                             />
                             <button
                               type="button"
-                              onClick={() => setReferenceImageUrl('')}
+                              onClick={() => handleUpdateActiveItem({ referenceImageUrl: '' })}
                               className="absolute -top-1.5 -right-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-full p-0.5"
                               title="ลบรูปภาพ"
                             >
@@ -1177,8 +1672,38 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                             </button>
                           </div>
                         ) : (
-                          <span className="text-[11px] text-slate-500 italic">ยังไม่มีรูปแนบ (สามารถแนบภายหลังได้)</span>
+                          <span className="text-[11px] text-slate-500 italic">ยังไม่มีรูปแนบ</span>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Item Quantity and Unit Price */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800 text-xs">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-1">จำนวน (ชิ้น/ชุด):</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={currentItem.qty || 1}
+                          onChange={e => handleUpdateActiveItem({ qty: parseInt(e.target.value, 10) || 1 })}
+                          className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-1">ราคาต่อหน่วย (บาท):</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={currentItem.unitPrice || 0}
+                          onChange={e => handleUpdateActiveItem({ unitPrice: parseInt(e.target.value, 10) || 0 })}
+                          className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-amber-400 font-mono font-bold"
+                        />
+                      </div>
+                      <div className="col-span-2 sm:col-span-1">
+                        <label className="block text-[11px] font-bold text-slate-400 mb-1">ยอดรวมรายการนี้:</label>
+                        <div className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-emerald-400 font-mono font-bold">
+                          ฿{((currentItem.qty || 1) * (currentItem.unitPrice || 0)).toLocaleString()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1250,11 +1775,41 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                     )}
                   </div>
 
-                  {/* Pricing & 50% Deposit */}
+                  {/* Pricing & Payment Mode */}
                   <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-300">รูปแบบการชำระเงิน:</span>
+                      <div className="flex bg-slate-800 p-0.5 rounded-xl border border-slate-700 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => handlePaymentTypeToggle('FULL')}
+                          className={`px-3 py-1 rounded-lg font-bold transition ${
+                            paymentType === 'FULL'
+                              ? 'bg-emerald-600 text-white shadow'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          ✓ ชำระเต็มจำนวน 100%
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePaymentTypeToggle('DEPOSIT')}
+                          className={`px-3 py-1 rounded-lg font-bold transition ${
+                            paymentType === 'DEPOSIT'
+                              ? 'bg-amber-600 text-white shadow'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          ชำระมัดจำ (Deposit)
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-300 mb-1">ยอดราคาผลิตรวมทั้งหมด (บาท) *</label>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                          ยอดราคาผลิตรวม ({orderItems.length} รายการ) *
+                        </label>
                         <input
                           type="number"
                           min={1}
@@ -1269,7 +1824,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
 
                       <div>
                         <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                          เงินมัดจำ (50% = ฿{Math.round(totalPrice / 2).toLocaleString()}) *
+                          {paymentType === 'FULL' ? 'ยอดชำระเต็มจำนวน (100%) *' : `เงินมัดจำ (แนะนำ 50% = ฿${Math.round(totalPrice / 2).toLocaleString()}) *`}
                         </label>
                         <input
                           type="number"
@@ -1287,7 +1842,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
 
                     <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800">
                       <span className="text-slate-400">
-                        ช่องทางชำระมัดจำ:
+                        ช่องทางชำระเงิน{paymentType === 'FULL' ? '' : 'มัดจำ'}:
                       </span>
                       <div className="flex gap-2">
                         <button
@@ -1311,7 +1866,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Live PromptPay QR for Deposit scanning directly at counter */}
+                    {/* Live PromptPay QR for Deposit/Full payment scanning directly at counter */}
                     {paymentMethod === 'PROMPTPAY' && depositAmount > 0 && (
                       <div className="p-3 bg-slate-900 border border-sky-500/40 rounded-2xl flex flex-col sm:flex-row items-center gap-3.5 shadow-inner">
                         <div className="bg-white p-2 rounded-xl flex-shrink-0 shadow">
@@ -1331,10 +1886,10 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                         <div className="flex-1 text-center sm:text-left space-y-1">
                           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10.5px] font-bold border border-sky-500/40">
                             <QrCode className="w-3 h-3" />
-                            <span>สแกนจ่ายมัดจำ 50% ทันที (PromptPay)</span>
+                            <span>สแกนจ่าย{paymentType === 'FULL' ? 'เต็มจำนวน 100%' : 'มัดจำ 50%'} ทันที (PromptPay)</span>
                           </div>
                           <div className="text-xs font-bold text-white">
-                            ยอดมัดจำ: <span className="font-mono text-emerald-400 text-sm font-black">฿{depositAmount.toLocaleString()}</span>
+                            ยอดชำระ: <span className="font-mono text-emerald-400 text-sm font-black">฿{depositAmount.toLocaleString()}</span>
                           </div>
                           <p className="text-[10px] text-slate-400 leading-relaxed">
                             {settings?.promptPayId ? (
@@ -1361,7 +1916,9 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                       className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-xl transition active:scale-95"
                     >
                       <Check className="w-4 h-4" />
-                      <span>บันทึกใบสั่งผลิตและรับมัดจำ (฿{depositAmount.toLocaleString()})</span>
+                      <span>
+                        บันทึกใบสั่งผลิต{paymentType === 'FULL' ? 'และรับชำระเต็มจำนวน' : 'และรับมัดจำ'} (฿{depositAmount.toLocaleString()})
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -1374,23 +1931,23 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                       <span>อินโฟกราฟิกหุ่นสัดส่วนสด (Live Silhouette):</span>
                     </span>
                     <span className="text-[10px] text-slate-400">
-                      {customerGender === 'FEMALE' ? 'สตรี' : 'บุรุษ'}
+                      {customerGender === 'FEMALE' ? 'สตรี' : 'บุรุษ'} • รายการ #{activeItemIndex + 1}
                     </span>
                   </div>
 
                   <div className="w-full py-2 flex items-center justify-center flex-1 min-h-[360px]">
                     <MannequinFigure
                       gender={customerGender}
-                      category={categoryType}
-                      measurements={measurements}
+                      category={currentItem.categoryType || 'SHIRT'}
+                      measurements={currentItem.measurements || {}}
                       className="w-full"
                     />
                   </div>
 
-                  {referenceImageUrl && (
+                  {currentItem.referenceImageUrl && (
                     <div className="w-full pt-3 border-t border-slate-800 flex items-center gap-3">
                       <img
-                        src={referenceImageUrl}
+                        src={currentItem.referenceImageUrl}
                         alt="Fabric Mockup"
                         className="w-12 h-12 rounded-xl object-cover border border-amber-400/50"
                       />
