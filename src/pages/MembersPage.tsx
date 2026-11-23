@@ -23,6 +23,7 @@ import { db } from '../db';
 import type { Customer, StoreSettings, GenderType, AgeRangeType, NationalityType } from '../types';
 import { GENDER_CONFIG, AGE_RANGE_CONFIG, THAI_PROVINCES, FOREIGN_COUNTRIES } from '../types';
 import { DigitalPassModal } from '../components/DigitalPassModal';
+import { SearchableSelect } from '../components/SearchableSelect';
 import { SoundEffects } from '../services/soundEffects';
 
 export const MembersPage: React.FC = () => {
@@ -550,34 +551,26 @@ export const MembersPage: React.FC = () => {
                     <label className="block font-semibold text-slate-700 text-xs mb-1">
                       จังหวัดที่พำนัก/ภูมิลำเนา (ค่าเริ่มต้น: นครราชสีมา)
                     </label>
-                    <select
+                    <SearchableSelect
                       value={province}
-                      onChange={e => setProvince(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
-                    >
-                      {THAI_PROVINCES.map(p => (
-                        <option key={p} value={p}>
-                          {p === 'นครราชสีมา' ? '★ นครราชสีมา (คนโคราช / ท้องถิ่น)' : p}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={val => setProvince(val)}
+                      options={THAI_PROVINCES}
+                      pinnedOption="นครราชสีมา"
+                      pinnedLabel="★ นครราชสีมา (คนโคราช / ท้องถิ่น)"
+                      placeholder="🔍 พิมพ์ค้นหาจังหวัด เช่น เชียงใหม่, ภูเก็ต..."
+                    />
                   </div>
                 ) : (
                   <div>
                     <label className="block font-semibold text-slate-700 text-xs mb-1">
                       ประเทศ / ภูมิภาค (Country / Region)
                     </label>
-                    <select
+                    <SearchableSelect
                       value={country}
-                      onChange={e => setCountry(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
-                    >
-                      {FOREIGN_COUNTRIES.map(c => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={val => setCountry(val)}
+                      options={FOREIGN_COUNTRIES}
+                      placeholder="🔍 พิมพ์ค้นหาประเทศ เช่น จีน, ญี่ปุ่น, สหรัฐ..."
+                    />
                   </div>
                 )}
               </div>

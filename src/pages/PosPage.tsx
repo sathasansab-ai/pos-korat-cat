@@ -64,6 +64,7 @@ import { CustomOrderQueueModal } from '../components/CustomOrderQueueModal';
 import { ProductExchangeModal } from '../components/ProductExchangeModal';
 import { QuotationModal } from '../components/QuotationModal';
 import { PartTimeAttendanceModal } from '../components/PartTimeAttendanceModal';
+import { SearchableSelect } from '../components/SearchableSelect';
 import { CloudSync } from '../services/cloudSync';
 import { BarcodeScannerHelper } from '../services/barcodeScannerHelper';
 import { ThermalPrinterService } from '../services/thermalPrinter';
@@ -2442,20 +2443,18 @@ export const PosPage: React.FC<PosPageProps> = ({
                           </button>
                         ))}
                       </div>
-                      {/* Dropdown for 77 provinces */}
+                      {/* Searchable input for 77 provinces */}
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-slate-400 whitespace-nowrap">จังหวัดอื่น:</span>
-                        <select
+                        <span className="text-[10px] text-slate-400 whitespace-nowrap">จังหวัด:</span>
+                        <SearchableSelect
                           value={customerProvince}
-                          onChange={e => setCustomerProvince(e.target.value)}
-                          className="flex-1 py-1 px-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
-                        >
-                          {THAI_PROVINCES.map(p => (
-                            <option key={p} value={p}>
-                              {p === 'นครราชสีมา' ? '★ นครราชสีมา (คนโคราช / ท้องถิ่น)' : p}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={val => setCustomerProvince(val)}
+                          options={THAI_PROVINCES}
+                          pinnedOption="นครราชสีมา"
+                          pinnedLabel="★ นครราชสีมา (คนโคราช / ท้องถิ่น)"
+                          placeholder="🔍 พิมพ์ค้นหาจังหวัด..."
+                          className="flex-1"
+                        />
                       </div>
                     </div>
                   ) : (
@@ -2484,20 +2483,16 @@ export const PosPage: React.FC<PosPageProps> = ({
                           </button>
                         ))}
                       </div>
-                      {/* Dropdown for other countries */}
+                      {/* Searchable input for foreign countries */}
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-slate-400 whitespace-nowrap">ประเทศ/ภูมิภาค:</span>
-                        <select
+                        <span className="text-[10px] text-slate-400 whitespace-nowrap">ประเทศ:</span>
+                        <SearchableSelect
                           value={customerCountry}
-                          onChange={e => setCustomerCountry(e.target.value)}
-                          className="flex-1 py-1 px-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
-                        >
-                          {FOREIGN_COUNTRIES.map(c => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={val => setCustomerCountry(val)}
+                          options={FOREIGN_COUNTRIES}
+                          placeholder="🔍 พิมพ์ค้นหาประเทศ..."
+                          className="flex-1"
+                        />
                       </div>
                     </div>
                   )}
@@ -2639,34 +2634,26 @@ export const PosPage: React.FC<PosPageProps> = ({
                     <label className="block font-semibold text-slate-700 text-xs mb-1">
                       จังหวัดที่พำนัก/ภูมิลำเนา (ค่าเริ่มต้น: นครราชสีมา)
                     </label>
-                    <select
+                    <SearchableSelect
                       value={regProvince}
-                      onChange={e => setRegProvince(e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
-                    >
-                      {THAI_PROVINCES.map(p => (
-                        <option key={p} value={p}>
-                          {p === 'นครราชสีมา' ? '★ นครราชสีมา (คนโคราช / ท้องถิ่น)' : p}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={val => setRegProvince(val)}
+                      options={THAI_PROVINCES}
+                      pinnedOption="นครราชสีมา"
+                      pinnedLabel="★ นครราชสีมา (คนโคราช / ท้องถิ่น)"
+                      placeholder="🔍 พิมพ์ค้นหาจังหวัด เช่น เชียงใหม่, ขอนแก่น..."
+                    />
                   </div>
                 ) : (
                   <div>
                     <label className="block font-semibold text-slate-700 text-xs mb-1">
-                      ประเทศ / ภูมิภาค
+                      ประเทศ / ภูมิภาค (Country / Region)
                     </label>
-                    <select
+                    <SearchableSelect
                       value={regCountry}
-                      onChange={e => setRegCountry(e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs"
-                    >
-                      {FOREIGN_COUNTRIES.map(c => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={val => setRegCountry(val)}
+                      options={FOREIGN_COUNTRIES}
+                      placeholder="🔍 พิมพ์ค้นหาประเทศ เช่น จีน, ญี่ปุ่น, สหรัฐ..."
+                    />
                   </div>
                 )}
               </div>
