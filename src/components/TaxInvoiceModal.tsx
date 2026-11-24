@@ -280,7 +280,7 @@ export const TaxInvoiceModal: React.FC<TaxInvoiceModalProps> = ({
         vatRate,
         preTaxAmount: calculated.preTax,
         vatAmount: calculated.vat,
-        branch: 'KORAT_HOUSE',
+        branch: 'SHOP',
         payments: [{ method: paymentMethod, amount: calculated.grandTotal }],
         cashReceived: calculated.grandTotal,
         changeGiven: 0,
