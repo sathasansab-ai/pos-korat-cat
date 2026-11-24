@@ -2978,11 +2978,11 @@ export const ReportsPage: React.FC = () => {
                             </td>
                             <td className="p-3 text-center whitespace-nowrap">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                                {co.status === 'RECEIVED' ? 'รับออเดอร์' :
-                                 co.status === 'PATTERN_CUT' ? 'ตัดผ้าแล้ว' :
-                                 co.status === 'SEWING' ? 'กำลังเย็บ' :
-                                 co.status === 'COMPLETED' ? 'เย็บเสร็จแล้ว' :
-                                 co.status === 'DELIVERED' ? 'ส่งมอบแล้ว' : co.status}
+                                {co.status === 'PENDING_PRODUCTION' ? 'รอผลิต' :
+                                 co.status === 'IN_PRODUCTION' ? 'กำลังผลิต' :
+                                 co.status === 'READY_FOR_PICKUP' ? 'พร้อมรับ' :
+                                 co.status === 'COMPLETED' ? 'ส่งมอบแล้ว' :
+                                 co.status === 'CANCELLED' ? 'ยกเลิก' : co.status}
                               </span>
                             </td>
                           </tr>
