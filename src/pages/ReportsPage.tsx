@@ -27,7 +27,7 @@ import {
   Compass
 } from 'lucide-react';
 import { db } from '../db';
-import type { Order, Shift, StoreSettings, ConsignmentVendor, SalesChannel, GenderType, AgeRangeType, NationalityType } from '../types';
+import type { Order, Shift, StoreSettings, ConsignmentVendor, SalesChannel, GenderType, AgeRangeType, NationalityType, CustomMadeOrder } from '../types';
 import { SALES_CHANNEL_CONFIG, GENDER_CONFIG, AGE_RANGE_CONFIG } from '../types';
 import { GoogleSheetsBridge } from '../services/googleSheets';
 import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
@@ -41,6 +41,9 @@ export const ReportsPage: React.FC = () => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [consignors, setConsignors] = useState<ConsignmentVendor[]>([]);
   const [selectedVendorFilter, setSelectedVendorFilter] = useState<string>('ALL');
+  const [customOrders, setCustomOrders] = useState<CustomMadeOrder[]>([]);
+  const [arSearchQuery, setArSearchQuery] = useState('');
+  const [arAgingFilter, setArAgingFilter] = useState<'ALL' | 'OVERDUE' | 'DUE_SOON' | 'NORMAL'>('ALL');
 
   // Add Vendor Modal State
   const [isAddVendorOpen, setIsAddVendorOpen] = useState(false);
@@ -65,7 +68,7 @@ export const ReportsPage: React.FC = () => {
   const [selectedChannelFilter, setSelectedChannelFilter] = useState<string>('ALL');
   
   // Active Report Sub-Tab
-  const [reportTab, setReportTab] = useState<'OVERVIEW' | 'SHIFTS' | 'DAILY' | 'ACCOUNTING' | 'ORDERS' | 'CONSIGNMENT' | 'DEMOGRAPHICS'>('OVERVIEW');
+  const [reportTab, setReportTab] = useState<'OVERVIEW' | 'SHIFTS' | 'DAILY' | 'ACCOUNTING' | 'ORDERS' | 'CONSIGNMENT' | 'DEMOGRAPHICS' | 'AR'>('OVERVIEW');
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
@@ -74,12 +77,14 @@ export const ReportsPage: React.FC = () => {
       db.orders.toArray(),
       db.shifts.toArray(),
       db.settings.get('current_store_settings'),
-      db.consignors.toArray()
-    ]).then(([o, s, sett, v]) => {
+      db.consignors.toArray(),
+      db.customOrders.toArray()
+    ]).then(([o, s, sett, v, co]) => {
       setOrders(o);
       setShifts(s);
       if (sett) setSettings(sett);
       setConsignors(v || []);
+      setCustomOrders(co || []);
     });
   };
 
@@ -191,6 +196,40 @@ export const ReportsPage: React.FC = () => {
       if (p.method === 'PROMPTPAY') existing.promptpay += p.amount;
     });
     dailyMap.set(dayKey, existing);
+  });
+
+  // Accounts Receivable (AR / ทะเบียนลูกหนี้การค้าและเงินค้างชำระงานสั่งตัด)
+  const todayYmd = new Date().toISOString().slice(0, 10);
+  const rawArOrders = customOrders.filter(co => (co.balanceDue || 0) > 0 && co.status !== 'CANCELLED');
+  const totalArAmount = rawArOrders.reduce((sum, co) => sum + (co.balanceDue || 0), 0);
+  const totalArCount = rawArOrders.length;
+  
+  // Overdue (> Due Date)
+  const overdueArOrders = rawArOrders.filter(co => co.dueDate && co.dueDate < todayYmd);
+  const totalOverdueArAmount = overdueArOrders.reduce((sum, co) => sum + (co.balanceDue || 0), 0);
+  
+  // Due soon (within 3 days)
+  const threeDaysAhead = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  const dueSoonArOrders = rawArOrders.filter(co => co.dueDate && co.dueDate >= todayYmd && co.dueDate <= threeDaysAhead);
+  const totalDueSoonArAmount = dueSoonArOrders.reduce((sum, co) => sum + (co.balanceDue || 0), 0);
+
+  // Filtered AR list by search and aging
+  const filteredArOrders = rawArOrders.filter(co => {
+    // Aging filter
+    if (arAgingFilter === 'OVERDUE' && (!co.dueDate || co.dueDate >= todayYmd)) return false;
+    if (arAgingFilter === 'DUE_SOON' && (!co.dueDate || co.dueDate < todayYmd || co.dueDate > threeDaysAhead)) return false;
+    if (arAgingFilter === 'NORMAL' && co.dueDate && co.dueDate <= threeDaysAhead) return false;
+
+    // Search query
+    if (arSearchQuery.trim()) {
+      const q = arSearchQuery.toLowerCase();
+      const matchName = co.customerName.toLowerCase().includes(q);
+      const matchPhone = co.customerPhone.includes(q);
+      const matchOrderNo = co.orderNo.toLowerCase().includes(q);
+      const matchItem = co.itemDescription.toLowerCase().includes(q);
+      return matchName || matchPhone || matchOrderNo || matchItem;
+    }
+    return true;
   });
 
   // Consignment Filtered Items & Settlement Calculations
@@ -832,6 +871,240 @@ export const ReportsPage: React.FC = () => {
     GoogleSheetsBridge.downloadCsv(csv, `รายงานประวัติการโอนย้ายสต็อก_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
+  // 8. Export Accounts Receivable (AR) Report (สมุดทะเบียนลูกหนี้การค้า)
+  const handleExportArCsv = () => {
+    const headers = [
+      'ลำดับ',
+      'เลขที่สั่งผลิต/สั่งตัด',
+      'วันที่สั่ง',
+      'ชื่อลูกค้า',
+      'เบอร์โทรศัพท์',
+      'รายละเอียดงานสั่งตัด',
+      'ยอดสั่งรวม (บาท)',
+      'มัดจำแล้ว (บาท)',
+      'ยอดคงค้าง AR (บาท)',
+      'วันนัดรับสินค้า',
+      'สถานะอายุหนี้',
+      'สถานะงานผลิต',
+      'วิธีส่งมอบ',
+      'หมายเหตุ'
+    ];
+
+    let sumTotal = 0;
+    let sumDeposit = 0;
+    let sumBalance = 0;
+
+    const rows = filteredArOrders.map((co, idx) => {
+      sumTotal += co.totalPrice || 0;
+      sumDeposit += co.depositAmount || 0;
+      sumBalance += co.balanceDue || 0;
+
+      let agingStatus = 'ปกติ (ยังไม่ถึงกำหนด)';
+      if (co.dueDate && co.dueDate < todayYmd) {
+        agingStatus = '⚠️ เกินกำหนดนัดรับ (Overdue)';
+      } else if (co.dueDate && co.dueDate <= threeDaysAhead) {
+        agingStatus = '⏰ ใกล้ถึงกำหนด (ภายใน 3 วัน)';
+      }
+
+      return [
+        idx + 1,
+        `"${co.orderNo}"`,
+        `"${new Date(co.createdAt).toLocaleDateString('th-TH')}"`,
+        `"${co.customerName.replace(/"/g, '""')}"`,
+        `"${co.customerPhone}"`,
+        `"${co.itemDescription.replace(/"/g, '""')}"`,
+        co.totalPrice.toFixed(2),
+        co.depositAmount.toFixed(2),
+        co.balanceDue.toFixed(2),
+        `"${co.dueDate || '-'}"`,
+        `"${agingStatus}"`,
+        `"${co.status}"`,
+        `"${co.deliveryMethod === 'PICKUP_SHOP' ? 'รับเองที่ร้าน' : 'จัดส่งพัสดุ'}"`,
+        `"${(co.notes || '').replace(/"/g, '""')}"`
+      ].join(',');
+    });
+
+    const summaryRow = [
+      'รวมทั้งสิ้น',
+      '',
+      '',
+      '',
+      '',
+      '',
+      sumTotal.toFixed(2),
+      sumDeposit.toFixed(2),
+      sumBalance.toFixed(2),
+      '',
+      '',
+      '',
+      '',
+      ''
+    ].join(',');
+
+    const csv = [
+      `"รายงานทะเบียนลูกหนี้การค้า (Accounts Receivable / AR) - ${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}"`,
+      `"วันที่ออกรายงาน: ${new Date().toLocaleDateString('th-TH')} ${new Date().toLocaleTimeString('th-TH')}"`,
+      `"ยอดลูกหนี้รวม: ฿${sumBalance.toLocaleString()} (${filteredArOrders.length} รายการ)"`,
+      '',
+      headers.join(','),
+      ...rows,
+      summaryRow
+    ].join('\r\n');
+
+    GoogleSheetsBridge.downloadCsv(csv, `รายงานลูกหนี้การค้า_AR_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  // 9. Print Official A4 AR Statement / Aging Report
+  const handlePrintArReportA4 = () => {
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('กรุณาอนุญาตป็อปอัป (Pop-up) ในเบราว์เซอร์เพื่อเปิดเอกสารพิมพ์');
+      return;
+    }
+
+    const todayTh = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeTh = new Date().toLocaleTimeString('th-TH');
+
+    const rowsHtml = filteredArOrders.map((co, idx) => {
+      let agingBadge = '<span style="color: #166534; font-weight: bold;">ปกติ</span>';
+      if (co.dueDate && co.dueDate < todayYmd) {
+        agingBadge = '<span style="color: #dc2626; font-weight: bold; background: #fee2e2; padding: 2px 6px; border-radius: 4px;">เกินกำหนด</span>';
+      } else if (co.dueDate && co.dueDate <= threeDaysAhead) {
+        agingBadge = '<span style="color: #d97706; font-weight: bold; background: #fef3c7; padding: 2px 6px; border-radius: 4px;">ใกล้ครบกำหนด</span>';
+      }
+
+      return `
+        <tr>
+          <td style="text-align: center; font-size: 11px;">${idx + 1}</td>
+          <td style="font-family: monospace; font-weight: bold; font-size: 11px;">${co.orderNo}</td>
+          <td style="font-size: 11px;">${new Date(co.createdAt).toLocaleDateString('th-TH')}</td>
+          <td>
+            <div style="font-weight: bold; font-size: 11.5px;">${co.customerName}</div>
+            <div style="font-size: 10px; color: #475569; font-family: monospace;">${co.customerPhone}</div>
+          </td>
+          <td style="font-size: 11px;">${co.itemDescription}</td>
+          <td style="text-align: right; font-family: monospace; font-size: 11px;">฿${co.totalPrice.toLocaleString()}</td>
+          <td style="text-align: right; font-family: monospace; font-size: 11px; color: #166534;">฿${co.depositAmount.toLocaleString()}</td>
+          <td style="text-align: right; font-family: monospace; font-weight: bold; font-size: 11.5px; color: #b91c1c;">฿${co.balanceDue.toLocaleString()}</td>
+          <td style="text-align: center; font-size: 11px; font-family: monospace;">${co.dueDate || '-'}</td>
+          <td style="text-align: center; font-size: 10px;">${agingBadge}</td>
+        </tr>
+      `;
+    }).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>รายงานลูกหนี้การค้าคงค้าง (Accounts Receivable / AR) - ${todayTh}</title>
+          <style>
+            @page { size: A4 landscape; margin: 10mm 12mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; color: #0f172a; margin: 0; padding: 0; }
+            .header-table { width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 8px; margin-bottom: 12px; }
+            .brand-title { font-size: 16px; font-weight: 800; color: #78350f; text-transform: uppercase; }
+            .doc-title { font-size: 15px; font-weight: 800; color: #0f172a; text-align: right; }
+            .meta-bar { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 12px; margin-bottom: 12px; font-size: 11px; }
+            .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+            .kpi-box { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; text-align: center; }
+            .kpi-label { font-size: 10px; color: #64748b; font-weight: bold; }
+            .kpi-value { font-size: 15px; font-weight: 900; font-family: monospace; margin-top: 2px; }
+            table.sheet { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+            table.sheet th, table.sheet td { border: 1px solid #cbd5e1; padding: 5px 6px; vertical-align: middle; }
+            table.sheet th { background: #f1f5f9; font-weight: 700; font-size: 10.5px; color: #334155; text-align: center; }
+            .sig-table { width: 100%; margin-top: 25px; border-collapse: collapse; page-break-inside: avoid; }
+            .sig-table td { width: 50%; text-align: center; vertical-align: bottom; font-size: 10.5px; padding: 0 40px; }
+            .sig-line { border-bottom: 1px solid #64748b; width: 75%; margin: 35px auto 4px auto; }
+          </style>
+        </head>
+        <body>
+          <table class="header-table">
+            <tr>
+              <td>
+                <div class="brand-title">${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}</div>
+                <div style="font-size: 10px; color: #64748b;">ระบบบริหารบัญชีลูกหนี้การค้า & ยอดค้างชำระงานสั่งตัด (Accounts Receivable System)</div>
+              </td>
+              <td style="text-align: right;">
+                <div class="doc-title">ทะเบียนลูกหนี้การค้าและเงินคงค้าง (ACCOUNTS RECEIVABLE LEDGER)</div>
+                <div style="font-size: 10.5px; color: #64748b;">วันที่ออกรายงาน: ${todayTh} ${timeTh}</div>
+              </td>
+            </tr>
+          </table>
+
+          <div class="kpi-row">
+            <div class="kpi-box">
+              <div class="kpi-label">ยอดลูกหนี้คงค้างรวม (AR Total)</div>
+              <div class="kpi-value" style="color: #b91c1c;">฿${totalArAmount.toLocaleString()}</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-label">เกินกำหนดนัดรับ (Overdue)</div>
+              <div class="kpi-value" style="color: #dc2626;">฿${totalOverdueArAmount.toLocaleString()} (${overdueArOrders.length} ราย)</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-label">ใกล้ครบกำหนด (Due Soon 3 Days)</div>
+              <div class="kpi-value" style="color: #d97706;">฿${totalDueSoonArAmount.toLocaleString()} (${dueSoonArOrders.length} ราย)</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-label">จำนวนลูกหนี้ที่รอชำระ</div>
+              <div class="kpi-value" style="color: #0f172a;">${totalArCount} รายการ</div>
+            </div>
+          </div>
+
+          <table class="sheet">
+            <thead>
+              <tr>
+                <th style="width: 30px;">#</th>
+                <th style="width: 100px;">เลขที่สั่งตัด</th>
+                <th style="width: 75px;">วันที่สั่ง</th>
+                <th style="width: 150px;">ชื่อลูกค้า / เบอร์โทร</th>
+                <th>รายละเอียดงานสั่งตัด</th>
+                <th style="width: 80px;">ยอดรวม</th>
+                <th style="width: 80px;">มัดจำแล้ว</th>
+                <th style="width: 85px;">คงค้าง (AR)</th>
+                <th style="width: 80px;">วันนัดรับ</th>
+                <th style="width: 90px;">สถานะอายุหนี้</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+              <tr style="background: #f8fafc; font-weight: bold;">
+                <td colspan="5" style="text-align: right; padding-right: 12px; font-size: 11px;">รวมยอดทั้งสิ้น:</td>
+                <td style="text-align: right; font-family: monospace;">฿${filteredArOrders.reduce((s, c) => s + (c.totalPrice || 0), 0).toLocaleString()}</td>
+                <td style="text-align: right; font-family: monospace; color: #166534;">฿${filteredArOrders.reduce((s, c) => s + (c.depositAmount || 0), 0).toLocaleString()}</td>
+                <td style="text-align: right; font-family: monospace; color: #b91c1c; font-size: 12px;">฿${filteredArOrders.reduce((s, c) => s + (c.balanceDue || 0), 0).toLocaleString()}</td>
+                <td colspan="2"></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table class="sig-table">
+            <tr>
+              <td>
+                <div class="sig-line"></div>
+                <div>( ............................................................ )</div>
+                <div style="color: #64748b; font-size: 9.5px; margin-top: 2px;">พนักงานบัญชี / แคชเชียร์ผู้จัดทำ</div>
+              </td>
+              <td>
+                <div class="sig-line"></div>
+                <div>( ............................................................ )</div>
+                <div style="color: #64748b; font-size: 9.5px; margin-top: 2px;">ผู้จัดการร้าน / ผู้มีอำนาจตรวจสอบ</div>
+              </td>
+            </tr>
+          </table>
+
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
   const handleCreateVendor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVendorName.trim()) return;
@@ -1053,6 +1326,16 @@ export const ReportsPage: React.FC = () => {
           >
             <Users className="w-3.5 h-3.5 text-indigo-600" />
             <span>ประชากรลูกค้า</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportArCsv}
+            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-800 border border-rose-300 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
+            title="ดาวน์โหลดสมุดทะเบียนลูกหนี้การค้า (Accounts Receivable / AR) ลง Excel/CSV"
+          >
+            <DollarSign className="w-3.5 h-3.5 text-rose-600" />
+            <span>ลูกหนี้การค้า (AR)</span>
           </button>
         </div>
       </div>
@@ -1351,6 +1634,23 @@ export const ReportsPage: React.FC = () => {
           >
             <Users className="w-3.5 h-3.5" />
             <span>👥 ข้อมูลลูกค้า (เพศ & ช่วงอายุ)</span>
+          </button>
+          <button
+            onClick={() => setReportTab('AR')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 duration-150 ${
+              reportTab === 'AR' 
+                ? 'bg-rose-700 text-white shadow-xs font-black' 
+                : 'text-rose-800 hover:bg-rose-100/60 font-bold'
+            }`}
+          >
+            <span>📋 บัญชีลูกหนี้ (AR)</span>
+            {totalArCount > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono tabular-nums ${
+                reportTab === 'AR' ? 'bg-white text-rose-900 font-black' : 'bg-rose-200 text-rose-900 font-bold'
+              }`}>
+                ฿{totalArAmount.toLocaleString()} ({totalArCount})
+              </span>
+            )}
           </button>
         </div>
 
@@ -2428,6 +2728,282 @@ export const ReportsPage: React.FC = () => {
                 })()}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 8. ACCOUNTS RECEIVABLE (AR) TAB */}
+        {reportTab === 'AR' && (
+          <div className="p-6 space-y-6">
+            {/* Header & Export Actions */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+              <div>
+                <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
+                  <span className="text-rose-600">📋</span>
+                  <span>บัญชีลูกหนี้การค้า & ยอดค้างชำระงานสั่งตัด (Accounts Receivable / AR)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  ติดตามยอดเงินคงเหลือที่ลูกค้ายังไม่ได้ชำระจากงานสั่งผลิต/สั่งตัด วิเคราะห์อายุหนี้ และออกรายงานทางการเงิน
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handlePrintArReportA4}
+                  className="flex-1 sm:flex-initial px-3.5 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                  title="พิมพ์รายงานสรุปทะเบียนลูกหนี้การค้าขนาด A4 ทางการ"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>พิมพ์รายงาน A4</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportArCsv}
+                  className="flex-1 sm:flex-initial px-3.5 py-2 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 border border-slate-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
+                  title="ดาวน์โหลดสมุดลูกหนี้การค้าเป็นไฟล์ Excel/CSV"
+                >
+                  <Download className="w-3.5 h-3.5 text-rose-600" />
+                  <span>ส่งออก Excel</span>
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-gradient-to-br from-rose-50 to-red-100/60 rounded-2xl border border-rose-200 shadow-2xs">
+                <div className="flex items-center justify-between text-rose-800 mb-1">
+                  <span className="text-xs font-bold">ยอดลูกหนี้คงค้างรวม (AR Total)</span>
+                  <DollarSign className="w-4 h-4 text-rose-600" />
+                </div>
+                <div className="text-2xl font-black font-mono text-rose-700">
+                  ฿{totalArAmount.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-rose-600 font-medium mt-1">
+                  จากลูกค้า {totalArCount} รายการสั่งตัด
+                </div>
+              </div>
+
+              <div className="p-4 bg-white rounded-2xl border border-red-300 shadow-2xs bg-gradient-to-br from-white to-red-50/50">
+                <div className="flex items-center justify-between text-red-900 mb-1">
+                  <span className="text-xs font-bold text-red-800">⚠️ เกินกำหนดนัดรับ (Overdue)</span>
+                  <Clock className="w-4 h-4 text-red-600" />
+                </div>
+                <div className="text-2xl font-black font-mono text-red-600">
+                  ฿{totalOverdueArAmount.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-red-700 font-bold mt-1">
+                  {overdueArOrders.length} รายการ (เลยวันนัดรับ)
+                </div>
+              </div>
+
+              <div className="p-4 bg-white rounded-2xl border border-amber-300 shadow-2xs bg-gradient-to-br from-white to-amber-50/50">
+                <div className="flex items-center justify-between text-amber-900 mb-1">
+                  <span className="text-xs font-bold text-amber-800">⏰ ใกล้ครบกำหนด (ภายใน 3 วัน)</span>
+                  <Calendar className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="text-2xl font-black font-mono text-amber-700">
+                  ฿{totalDueSoonArAmount.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-amber-700 font-bold mt-1">
+                  {dueSoonArOrders.length} รายการ (เตือนให้มารับ)
+                </div>
+              </div>
+
+              <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+                <div className="flex items-center justify-between text-slate-500 mb-1">
+                  <span className="text-xs font-bold text-slate-600">ยอดเฉลี่ยคงค้างต่อราย</span>
+                  <Receipt className="w-4 h-4 text-slate-500" />
+                </div>
+                <div className="text-2xl font-black font-mono text-slate-800">
+                  ฿{totalArCount > 0 ? (totalArAmount / totalArCount).toFixed(0) : '0'}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1">
+                  Average AR Ticket Size
+                </div>
+              </div>
+            </div>
+
+            {/* Search and Aging Filter Tabs */}
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/90 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-600 flex items-center gap-1 mr-1">
+                  <Filter className="w-3.5 h-3.5 text-slate-500" /> สถานะอายุหนี้:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setArAgingFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 ${
+                    arAgingFilter === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  ทั้งหมด ({rawArOrders.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArAgingFilter('OVERDUE')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 ${
+                    arAgingFilter === 'OVERDUE'
+                      ? 'bg-red-600 text-white shadow-xs'
+                      : 'bg-white text-red-700 border border-red-200 hover:bg-red-50'
+                  }`}
+                >
+                  ⚠️ เกินกำหนด ({overdueArOrders.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArAgingFilter('DUE_SOON')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 ${
+                    arAgingFilter === 'DUE_SOON'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50'
+                  }`}
+                >
+                  ⏰ ใกล้ครบกำหนด 3 วัน ({dueSoonArOrders.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArAgingFilter('NORMAL')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 ${
+                    arAgingFilter === 'NORMAL'
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-50'
+                  }`}
+                >
+                  🟢 ยังไม่ถึงกำหนด ({Math.max(0, rawArOrders.length - overdueArOrders.length - dueSoonArOrders.length)})
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative min-w-[240px]">
+                <input
+                  type="text"
+                  value={arSearchQuery}
+                  onChange={e => setArSearchQuery(e.target.value)}
+                  placeholder="ค้นหาชื่อลูกค้า, เบอร์โทร, เลขที่..."
+                  className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
+                {arSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setArSearchQuery('')}
+                    className="absolute right-2.5 top-1.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* AR Debtors Table */}
+            {filteredArOrders.length === 0 ? (
+              <div className="p-12 bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-center space-y-2">
+                <div className="text-3xl">🎉</div>
+                <div className="font-bold text-slate-700 text-sm">ไม่พบรายการลูกหนี้การค้าคงค้าง</div>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  {rawArOrders.length === 0 
+                    ? 'ยอดเงินทุกคำสั่งผลิต/สั่งตัดได้รับการชำระครบถ้วน 100% ไม่มีลูกหนี้ค้างชำระในระบบ'
+                    : 'ไม่มีรายการที่ตรงกับเงื่อนไขการค้นหาหรือตัวกรองที่เลือก'}
+                </p>
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-3 w-10 text-center">#</th>
+                        <th className="p-3">เลขที่สั่งตัด</th>
+                        <th className="p-3">วันที่สั่ง</th>
+                        <th className="p-3">ลูกค้า / เบอร์โทร</th>
+                        <th className="p-3">รายละเอียดงานสั่งตัด</th>
+                        <th className="p-3 text-right">ยอดรวม</th>
+                        <th className="p-3 text-right">มัดจำแล้ว</th>
+                        <th className="p-3 text-right font-black text-rose-700">คงค้าง (AR)</th>
+                        <th className="p-3 text-center">วันนัดรับสินค้า</th>
+                        <th className="p-3 text-center">สถานะอายุหนี้</th>
+                        <th className="p-3 text-center">สถานะงาน</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {filteredArOrders.map((co, idx) => {
+                        const isOverdue = co.dueDate && co.dueDate < todayYmd;
+                        const isDueSoon = co.dueDate && co.dueDate >= todayYmd && co.dueDate <= threeDaysAhead;
+
+                        return (
+                          <tr key={co.id} className="hover:bg-slate-50/80 transition">
+                            <td className="p-3 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                            <td className="p-3 font-mono font-bold text-slate-900">{co.orderNo}</td>
+                            <td className="p-3 text-slate-500 whitespace-nowrap">{new Date(co.createdAt).toLocaleDateString('th-TH')}</td>
+                            <td className="p-3">
+                              <div className="font-bold text-slate-900">{co.customerName}</div>
+                              <a 
+                                href={`tel:${co.customerPhone}`}
+                                className="text-sky-700 hover:underline font-mono text-[11px] inline-flex items-center gap-1"
+                                title="กดเพื่อโทรหาลูกค้า"
+                              >
+                                <span>📞</span> {co.customerPhone}
+                              </a>
+                            </td>
+                            <td className="p-3">
+                              <div className="font-medium text-slate-800 line-clamp-1">{co.itemDescription}</div>
+                              <div className="text-[11px] text-slate-400">
+                                {co.sizeMode === 'STANDARD' ? `ไซส์มาตรฐาน (${co.standardSize || '-'})` : 'งานวัดตัวสั่งตัดเฉพาะบุคคล'}
+                              </div>
+                            </td>
+                            <td className="p-3 text-right font-mono text-slate-600">฿{co.totalPrice.toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono text-emerald-700 font-semibold">฿{co.depositAmount.toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono font-black text-rose-700 text-sm">
+                              ฿{co.balanceDue.toLocaleString()}
+                            </td>
+                            <td className="p-3 text-center font-mono whitespace-nowrap">
+                              {co.dueDate || '-'}
+                            </td>
+                            <td className="p-3 text-center whitespace-nowrap">
+                              {isOverdue ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700 border border-red-200">
+                                  ⚠️ เกินกำหนด
+                                </span>
+                              ) : isDueSoon ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                  ⏰ ใกล้ถึงนัด
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  🟢 ปกติ
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-center whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                                {co.status === 'RECEIVED' ? 'รับออเดอร์' :
+                                 co.status === 'PATTERN_CUT' ? 'ตัดผ้าแล้ว' :
+                                 co.status === 'SEWING' ? 'กำลังเย็บ' :
+                                 co.status === 'COMPLETED' ? 'เย็บเสร็จแล้ว' :
+                                 co.status === 'DELIVERED' ? 'ส่งมอบแล้ว' : co.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-300">
+                      <tr>
+                        <td colSpan={5} className="p-3 text-right text-slate-700">รวมยอดลูกหนี้ที่แสดง ({filteredArOrders.length} รายการ):</td>
+                        <td className="p-3 text-right font-mono">฿{filteredArOrders.reduce((s, c) => s + (c.totalPrice || 0), 0).toLocaleString()}</td>
+                        <td className="p-3 text-right font-mono text-emerald-700">฿{filteredArOrders.reduce((s, c) => s + (c.depositAmount || 0), 0).toLocaleString()}</td>
+                        <td className="p-3 text-right font-mono font-black text-rose-700 text-sm">
+                          ฿{filteredArOrders.reduce((s, c) => s + (c.balanceDue || 0), 0).toLocaleString()}
+                        </td>
+                        <td colSpan={3}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

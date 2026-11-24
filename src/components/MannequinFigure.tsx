@@ -29,8 +29,8 @@ export function renderMannequinSvgHtml(
       xmlns="http://www.w3.org/2000/svg" 
       viewBox="0 0 240 380" 
       width="100%" 
-      height="230" 
-      style="display: block; margin: 0 auto; max-height: 230px;"
+      height="145" 
+      style="display: block; margin: 0 auto; max-height: 145px;"
     >
       ${isFemale ? `
         <!-- ================= FEMALE VECTOR SILHOUETTE ================= -->
@@ -83,9 +83,9 @@ export function renderMannequinSvgHtml(
           <!-- Broad Muscular Torso & Arms -->
           <path d="M 80 96 C 75 106 71 140 68 175 C 65 195 62 210 60 220 C 58 227 62 230 66 227 C 70 220 74 200 78 180 C 82 155 84 140 87 132 C 90 146 95 170 102 186 C 105 194 107 202 104 214 L 104 222 L 136 222 L 136 214 C 133 202 135 194 138 186 C 145 170 150 146 153 132 C 156 140 158 155 162 180 C 166 200 170 220 174 227 C 178 230 182 227 180 220 C 178 210 175 195 172 175 C 169 140 165 106 160 96 Z" fill="#ffffff" />
 
-          <!-- Pectoral Chest Lines -->
-          <path d="M 94 116 Q 106 128 118 122 M 146 116 Q 134 128 122 122" fill="none" stroke="#475569" stroke-width="1.4" />
-          <path d="M 120 106 L 120 123" fill="none" stroke="#475569" stroke-width="1.4" />
+          <!-- Athletic Straight Pectoral Chest Lines (Masculine) -->
+          <path d="M 92 118 L 118 122 M 148 118 L 122 122" fill="none" stroke="#475569" stroke-width="1.5" />
+          <path d="M 120 104 L 120 124" fill="none" stroke="#475569" stroke-width="1.5" />
 
           <!-- 6-Pack Abdominals Definition -->
           <path d="M 120 124 L 120 188" fill="none" stroke="#64748b" stroke-width="1.2" />
@@ -98,6 +98,11 @@ export function renderMannequinSvgHtml(
 
           <!-- Muscular Legs & Feet -->
           <path d="M 104 244 C 104 266 103 292 103 315 C 103 335 105 352 104 360 L 98 364 L 110 364 C 114 354 116 332 117 310 C 118 288 119 265 120 240 C 121 265 122 288 123 310 C 124 332 126 354 130 364 L 142 364 L 136 360 C 135 352 137 335 137 315 C 137 292 136 266 136 244 Z" fill="#ffffff" />
+          
+          <!-- Knee Contours -->
+          <path d="M 106 288 Q 110 291 114 288 M 126 288 Q 130 291 134 288" fill="none" stroke="#94a3b8" stroke-width="1.3" />
+        </g>
+      `}
           
           <!-- Knee Contours -->
           <path d="M 106 288 Q 110 291 114 288 M 126 288 Q 130 291 134 288" fill="none" stroke="#94a3b8" stroke-width="1.3" />
@@ -256,8 +261,8 @@ export const MannequinFigure: React.FC<MannequinFigureProps> = ({
             />
 
             {/* Chest (Pectorals) */}
-            <path d="M 94 116 Q 106 128 118 122 M 146 116 Q 134 128 122 122" fill="none" stroke={isPrintMode ? "#475569" : "#64748b"} strokeWidth="1.4" />
-            <path d="M 120 106 L 120 123" fill="none" stroke={isPrintMode ? "#475569" : "#64748b"} strokeWidth="1.4" />
+            <path d="M 92 118 L 118 122 M 148 118 L 122 122" fill="none" stroke={isPrintMode ? "#475569" : "#64748b"} strokeWidth="1.5" />
+            <path d="M 120 104 L 120 124" fill="none" stroke={isPrintMode ? "#475569" : "#64748b"} strokeWidth="1.5" />
 
             {/* Abdominals (6-Pack) */}
             <path d="M 120 124 L 120 188" fill="none" stroke={isPrintMode ? "#64748b" : "#475569"} strokeWidth="1.2" />

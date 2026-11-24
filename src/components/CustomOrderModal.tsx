@@ -43,6 +43,7 @@ import { PromptPayService } from '../services/promptPay';
 import { DualMonitorSync } from '../services/dualMonitorSync';
 import { BarcodeGenerator } from '../services/barcodeGenerator';
 import { MannequinFigure, renderMannequinSvgHtml } from './MannequinFigure';
+import { lookupThaiPostalCode } from '../services/thaiPostalCode';
 
 interface CustomOrderModalProps {
   isOpen: boolean;
@@ -151,6 +152,63 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'PROMPTPAY' | 'CASH'>('PROMPTPAY');
   const [deliveryMethod, setDeliveryMethod] = useState<'PICKUP_SHOP' | 'SHIPPING_ADDRESS'>('PICKUP_SHOP');
   const [shippingAddress, setShippingAddress] = useState('');
+  const [shippingPostalCode, setShippingPostalCode] = useState('');
+  const [shippingProvince, setShippingProvince] = useState('');
+  const [shippingDistrict, setShippingDistrict] = useState('');
+  const [shippingSubdistrict, setShippingSubdistrict] = useState('');
+  const [shippingHouseDetails, setShippingHouseDetails] = useState('');
+  const [subdistrictOptions, setSubdistrictOptions] = useState<string[]>([]);
+
+  const handlePostalCodeChange = (zip: string) => {
+    setShippingPostalCode(zip);
+    const info = lookupThaiPostalCode(zip);
+    if (info) {
+      setShippingProvince(info.province);
+      setShippingDistrict(info.district);
+      setShippingSubdistrict(info.subdistrict);
+      setSubdistrictOptions(info.subdistricts || [info.subdistrict]);
+      const house = shippingHouseDetails.trim();
+      const composed = `${house ? `${house} ` : ''}ต.${info.subdistrict} อ.${info.district} จ.${info.province} ${info.zipCode}`.trim();
+      setShippingAddress(composed);
+    }
+  };
+
+  const handleHouseDetailsChange = (house: string) => {
+    setShippingHouseDetails(house);
+    if (shippingProvince || shippingDistrict || shippingSubdistrict || shippingPostalCode) {
+      const parts = [];
+      if (house.trim()) parts.push(house.trim());
+      if (shippingSubdistrict) parts.push(`ต.${shippingSubdistrict}`);
+      if (shippingDistrict) parts.push(`อ.${shippingDistrict}`);
+      if (shippingProvince) parts.push(`จ.${shippingProvince}`);
+      if (shippingPostalCode) parts.push(shippingPostalCode);
+      setShippingAddress(parts.join(' '));
+    } else {
+      setShippingAddress(house);
+    }
+  };
+
+  const handleSubdistrictSelect = (sub: string) => {
+    setShippingSubdistrict(sub);
+    const house = shippingHouseDetails.trim();
+    const parts = [];
+    if (house) parts.push(house);
+    parts.push(`ต.${sub}`);
+    if (shippingDistrict) parts.push(`อ.${shippingDistrict}`);
+    if (shippingProvince) parts.push(`จ.${shippingProvince}`);
+    if (shippingPostalCode) parts.push(shippingPostalCode);
+    setShippingAddress(parts.join(' '));
+  };
+
+  const updateComposedAddress = (house: string, sub: string, dist: string, prov: string, zip: string) => {
+    const parts = [];
+    if (house.trim()) parts.push(house.trim());
+    if (sub.trim()) parts.push(`ต.${sub.trim()}`);
+    if (dist.trim()) parts.push(`อ.${dist.trim()}`);
+    if (prov.trim()) parts.push(`จ.${prov.trim()}`);
+    if (zip.trim()) parts.push(zip.trim());
+    setShippingAddress(parts.join(' '));
+  };
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 10); // Default 10 days
@@ -227,6 +285,12 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     setPaymentMethod('PROMPTPAY');
     setDeliveryMethod('PICKUP_SHOP');
     setShippingAddress('');
+    setShippingPostalCode('');
+    setShippingProvince('');
+    setShippingDistrict('');
+    setShippingSubdistrict('');
+    setShippingHouseDetails('');
+    setSubdistrictOptions([]);
     setNotes('');
     setViewState('FORM');
     setSavedOrder(null);
@@ -643,6 +707,11 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     }];
     const firstCustomItem = itemsList.find(it => it.sizeMode === 'CUSTOM') || itemsList[0];
     const meas = firstCustomItem.measurements || order.measurements || {};
+    const hasMeasurements = Boolean(
+      meas.chest || meas.waist || meas.waistPants || meas.hips || meas.hipsPants ||
+      meas.shoulder || meas.shirtLength || meas.armLength || meas.pantsLength ||
+      meas.thigh || meas.crotch || meas.legOpening || meas.customDimension
+    );
 
     // Dynamic QR for printable A4: For remaining balance due (or deposit/total)
     const printAmount = order.balanceDue > 0 ? order.balanceDue : (order.depositAmount > 0 ? order.depositAmount : order.totalPrice);
@@ -679,44 +748,47 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
           <meta charset="utf-8">
           <title>ใบสั่งผลิตและวัดตัว Haute Couture - ${order.orderNo}</title>
           <style>
-            @page { size: A4 portrait; margin: 12mm 15mm; }
+            @page { size: A4 portrait; margin: 6mm 10mm; }
             * { box-sizing: border-box; }
-            body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; line-height: 1.5; color: #1e293b; margin: 0; padding: 0; }
-            .header-table { width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 12px; margin-bottom: 15px; }
-            .brand-title { font-size: 18px; font-weight: 800; color: #78350f; text-transform: uppercase; }
-            .brand-sub { font-size: 10px; color: #64748b; margin-top: 1px; }
-            .doc-title { font-size: 15px; font-weight: 800; color: #0f172a; text-align: right; }
-            .doc-no { font-family: monospace; font-size: 12px; font-weight: bold; color: #b45309; text-align: right; }
+            body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; line-height: 1.35; color: #1e293b; margin: 0; padding: 0; }
+            @media print {
+              html, body { height: 100%; max-height: 297mm; overflow: hidden; page-break-after: avoid; page-break-inside: avoid; }
+            }
+            .header-table { width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 6px; margin-bottom: 8px; }
+            .brand-title { font-size: 15px; font-weight: 800; color: #78350f; text-transform: uppercase; }
+            .brand-sub { font-size: 9px; color: #64748b; margin-top: 1px; }
+            .doc-title { font-size: 13px; font-weight: 800; color: #0f172a; text-align: right; }
+            .doc-no { font-family: monospace; font-size: 11px; font-weight: bold; color: #b45309; text-align: right; }
             
-            .info-grid { width: 100%; margin-bottom: 15px; }
-            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
-            .info-box h4 { margin: 0 0 6px 0; font-size: 11px; color: #475569; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; }
+            .info-grid { width: 100%; margin-bottom: 8px; }
+            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 10.5px; }
+            .info-box h4 { margin: 0 0 4px 0; font-size: 10px; color: #475569; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; }
             
-            .tailoring-grid { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            .tailoring-grid { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
             .tailoring-grid td { vertical-align: top; }
 
-            .measurement-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-            .measurement-table th, .measurement-table td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left; }
+            .measurement-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+            .measurement-table th, .measurement-table td { border: 1px solid #cbd5e1; padding: 3px 6px; text-align: left; }
             .measurement-table th { background: #f1f5f9; font-weight: 700; color: #334155; }
             .bold { font-weight: bold; color: #b45309; }
 
-            .mannequin-container { width: 100%; text-align: center; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-            .media-photo { max-height: 230px; width: 100%; object-fit: contain; border-radius: 6px; display: block; margin: 0 auto; }
-            .media-caption { font-size: 10px; font-weight: 700; color: #475569; margin-top: 6px; border-top: 1px dashed #e2e8f0; padding-top: 4px; }
+            .mannequin-container { width: 100%; text-align: center; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px; }
+            .media-photo { max-height: 130px; width: 100%; object-fit: contain; border-radius: 4px; display: block; margin: 0 auto; }
+            .media-caption { font-size: 9px; font-weight: 700; color: #475569; margin-top: 3px; border-top: 1px dashed #e2e8f0; padding-top: 2px; }
             
-            table.items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-            table.items-table th, table.items-table td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
-            table.items-table th { background: #f1f5f9; font-weight: 700; color: #334155; font-size: 11.5px; }
+            table.items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+            table.items-table th, table.items-table td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; }
+            table.items-table th { background: #f1f5f9; font-weight: 700; color: #334155; font-size: 10px; }
             
-            .summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            .summary-table td { padding: 5px 8px; }
-            .total-row { border-top: 1.5px solid #0f172a; border-bottom: 2px solid #0f172a; font-size: 13px; }
+            .summary-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+            .summary-table td { padding: 3px 6px; }
+            .total-row { border-top: 1.5px solid #0f172a; border-bottom: 2px solid #0f172a; font-size: 11.5px; }
 
-            .terms { font-size: 10.5px; color: #64748b; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 8px 12px; margin-bottom: 20px; border-radius: 0 6px 6px 0; }
+            .terms { font-size: 9px; color: #64748b; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 5px 8px; margin-bottom: 8px; border-radius: 0 4px 4px 0; line-height: 1.3; }
             
-            .signature-table { width: 100%; margin-top: 25px; border-collapse: collapse; }
-            .signature-table td { width: 50%; text-align: center; vertical-align: bottom; padding: 0 20px; }
-            .sig-line { border-bottom: 1px solid #64748b; width: 80%; margin: 40px auto 6px auto; }
+            .signature-table { width: 100%; margin-top: 10px; border-collapse: collapse; }
+            .signature-table td { width: 50%; text-align: center; vertical-align: bottom; padding: 0 15px; }
+            .sig-line { border-bottom: 1px solid #64748b; width: 75%; margin: 22px auto 4px auto; }
           </style>
         </head>
         <body>
@@ -725,17 +797,17 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
               <td style="vertical-align: top;">
                 <div class="brand-title">${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}</div>
                 <div class="brand-sub">${settings?.subTitle || 'Haute Couture & Heritage Craft Boutique'}</div>
-                <div style="font-size: 10.5px; color: #475569; margin-top: 3px;">
+                <div style="font-size: 9.5px; color: #475569; margin-top: 2px;">
                   ที่อยู่: ${settings?.address || 'เรือนโคราชเฉลิมวัฒนา จ.นครราชสีมา'} | โทร: ${settings?.phone || '044-XXXXXX'}
                 </div>
               </td>
               <td style="vertical-align: top; text-align: right;">
-                <div class="doc-title">ใบสั่งผลิต & สัดส่วนสั่งตัดพิเศษ</div>
-                <div class="doc-title" style="font-size: 11px; font-weight: normal; color: #64748b;">(CUSTOM TAILORING & WORK ORDER)</div>
+                <div class="doc-title">ใบสั่งผลิต &amp; สัดส่วนสั่งตัดพิเศษ</div>
+                <div class="doc-title" style="font-size: 10px; font-weight: normal; color: #64748b;">(CUSTOM TAILORING &amp; WORK ORDER)</div>
                 <div class="doc-no">เลขที่: ${order.orderNo}</div>
-                <div style="font-size: 11px; color: #64748b;">วันที่: ${new Date(order.createdAt).toLocaleDateString('th-TH')}</div>
-                <div style="margin-top: 4px; display: flex; justify-content: flex-end;">
-                  <img src="${orderBarcodeDataUrl}" style="height: 36px; width: 140px; object-fit: contain;" alt="Order Barcode" />
+                <div style="font-size: 10px; color: #64748b;">วันที่: ${new Date(order.createdAt).toLocaleDateString('th-TH')}</div>
+                <div style="margin-top: 2px; display: flex; justify-content: flex-end;">
+                  <img src="${orderBarcodeDataUrl}" style="height: 32px; width: 130px; object-fit: contain;" alt="Order Barcode" />
                 </div>
               </td>
             </tr>
@@ -743,7 +815,7 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
 
           <table class="info-grid">
             <tr>
-              <td style="width: 50%; padding-right: 8px; vertical-align: top;">
+              <td style="width: 50%; padding-right: 6px; vertical-align: top;">
                 <div class="info-box">
                   <h4>ข้อมูลลูกค้าผู้สั่ง</h4>
                   <div><b>ชื่อ-นามสกุล:</b> ${order.customerName} (${GENDER_CONFIG[order.customerGender || 'FEMALE'].label})</div>
@@ -752,11 +824,11 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                   ${order.shippingAddress ? `<div><b>ที่อยู่จัดส่ง:</b> ${order.shippingAddress}</div>` : ''}
                 </div>
               </td>
-              <td style="width: 50%; padding-left: 8px; vertical-align: top;">
+              <td style="width: 50%; padding-left: 6px; vertical-align: top;">
                 <div class="info-box">
                   <h4>ข้อมูลการผลิตและการนัดหมาย</h4>
                   <div><b>ผู้ออกใบสั่ง:</b> ${order.staffName} (สาขาหน้าร้าน)</div>
-                  <div><b>กำหนดส่งมอบ / นัดรับ:</b> <span style="font-size: 12.5px; font-weight: 800; color: #b45309;">${order.dueDate ? `${new Date(order.dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} (${order.dueDate.split('-').reverse().join('/')})` : '-'}</span></div>
+                  <div><b>กำหนดส่งมอบ / นัดรับ:</b> <span style="font-size: 11.5px; font-weight: 800; color: #b45309;">${order.dueDate ? `${new Date(order.dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} (${order.dueDate.split('-').reverse().join('/')})` : '-'}</span></div>
                   <div><b>ประเภทสินค้า:</b> ${CATEGORY_OPTIONS.find(c => c.id === order.categoryType)?.label || 'สั่งตัดพิเศษ'}</div>
                   <div><b>ช่องทางชำระมัดจำ:</b> ${order.depositPaymentMethod === 'PROMPTPAY' ? 'สแกนโอน PromptPay QR' : 'เงินสด'}</div>
                 </div>
@@ -767,12 +839,12 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
           <!-- TAILORING MEASUREMENTS & SPECIFICATIONS -->
           <table class="tailoring-grid">
             <tr>
-              <!-- Measurements Table (Left) -->
-              <td style="width: 55%; padding-right: 10px;">
-                <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 5px; color: #0f172a;">
-                  📐 ตารางสัดส่วนการวัดตัว (Body Measurements):
-                </div>
-                ${measurementRows.length > 0 ? `
+              ${hasMeasurements ? `
+                <!-- กรณีมีสัดส่วนวัดตัวเฉพาะบุคคล: แสดงตารางสัดส่วนด้านซ้าย และหุ่นจำลองด้านขวา -->
+                <td style="width: 54%; padding-right: 8px;">
+                  <div style="font-weight: 700; font-size: 10.5px; margin-bottom: 4px; color: #0f172a;">
+                    📐 ตารางสัดส่วนการวัดตัว (Body Measurements):
+                  </div>
                   <table class="measurement-table">
                     <thead>
                       <tr><th>จุดวัดสัดส่วน</th><th>ขนาดที่วัดได้</th></tr>
@@ -781,54 +853,85 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                       ${measurementRows.join('')}
                     </tbody>
                   </table>
-                ` : '<div style="font-style: italic; color: #64748b;">ไม่ได้ระบุสัดส่วนวัดตัว</div>'}
 
-                <div style="margin-top: 8px; font-size: 11px;">
-                  ${order.fabricType ? `<div><b>ชนิดผ้า:</b> ${order.fabricType}</div>` : ''}
-                  ${order.specialInstructions ? `<div><b>เทคนิค/ตำแหน่งปัก:</b> ${order.specialInstructions}</div>` : ''}
-                </div>
-              </td>
-
-              <!-- Mockup Image & Vector Mannequin Silhouette (Right) -->
-              <td style="width: 48%; text-align: center; vertical-align: top;">
-                <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 6px; color: #0f172a; text-align: left;">
-                  ${order.referenceImageUrl 
-                    ? '🎨 ภาพตัวอย่าง & หุ่นสัดส่วน (Reference & Mannequin):' 
-                    : `📐 หุ่นจำลองสัดส่วนวัดตัว (${isFem ? 'สตรี' : 'บุรุษ'}):`}
-                </div>
-
-                ${order.referenceImageUrl ? `
-                  <!-- กรณีมีภาพถ่าย: แสดงทั้งภาพตัวอย่าง และหุ่นวัดตัวเวกเตอร์ เคียงข้างกันอย่างลงตัว -->
-                  <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                      <td style="width: 46%; vertical-align: top; padding-right: 5px;">
-                        <div class="mannequin-container" style="padding: 6px; min-height: 240px; display: flex; flex-direction: column; justify-content: space-between;">
-                          <img src="${order.referenceImageUrl}" alt="Mockup" class="media-photo" style="max-height: 190px;" />
-                          <div class="media-caption">ภาพแบบอ้างอิง / ลายผ้า</div>
-                        </div>
-                      </td>
-                      <td style="width: 54%; vertical-align: top; padding-left: 5px;">
-                        <div class="mannequin-container" style="padding: 6px; min-height: 240px;">
-                          <div style="font-size: 10px; font-weight: bold; color: #334155; margin-bottom: 3px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px;">
-                            ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'}
-                          </div>
-                          ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
-                        </div>
-                      </td>
-                    </tr>
-                  </table>
-                ` : `
-                  <!-- กรณีไม่มีรูปถ่าย ให้แสดงหุ่นวัดตัวเวกเตอร์พร้อมเส้นสัดส่วน เต็มพื้นที่ กว้างขวาง คมชัด 100% -->
-                  <div class="mannequin-container" style="padding: 8px;">
-                    <div style="font-size: 11px; font-weight: bold; color: #334155; margin-bottom: 4px;">
-                      ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'} - ${order.categoryType === 'PANTS' ? 'เน้นสัดส่วนช่วงล่าง (กางเกง)' : 'เน้นสัดส่วนช่วงบน (เสื้อ/แจ็กเก็ต)'}
-                    </div>
-                    <div style="width: 100%; display: flex; justify-content: center; align-items: center;">
-                      ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
-                    </div>
+                  <div style="margin-top: 6px; font-size: 10px;">
+                    ${order.fabricType ? `<div><b>ชนิดผ้า:</b> ${order.fabricType}</div>` : ''}
+                    ${order.specialInstructions ? `<div><b>เทคนิค/ตำแหน่งปัก:</b> ${order.specialInstructions}</div>` : ''}
                   </div>
-                `}
-              </td>
+                </td>
+
+                <td style="width: 46%; text-align: center; vertical-align: top;">
+                  <div style="font-weight: 700; font-size: 10.5px; margin-bottom: 4px; color: #0f172a; text-align: left;">
+                    ${order.referenceImageUrl 
+                      ? '🎨 ภาพตัวอย่าง &amp; หุ่นสัดส่วน:' 
+                      : `📐 หุ่นจำลองสัดส่วนวัดตัว (${isFem ? 'สตรี' : 'บุรุษ'}):`}
+                  </div>
+
+                  ${order.referenceImageUrl ? `
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="width: 48%; vertical-align: top; padding-right: 4px;">
+                          <div class="mannequin-container" style="padding: 4px; min-height: 140px; display: flex; flex-direction: column; justify-content: space-between;">
+                            <img src="${order.referenceImageUrl}" alt="Mockup" class="media-photo" style="max-height: 115px;" />
+                            <div class="media-caption">ภาพแบบอ้างอิง / ลายผ้า</div>
+                          </div>
+                        </td>
+                        <td style="width: 52%; vertical-align: top; padding-left: 4px;">
+                          <div class="mannequin-container" style="padding: 4px; min-height: 140px;">
+                            <div style="font-size: 9.5px; font-weight: bold; color: #334155; margin-bottom: 2px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px;">
+                              ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'}
+                            </div>
+                            ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  ` : `
+                    <div class="mannequin-container" style="padding: 4px;">
+                      <div style="font-size: 10px; font-weight: bold; color: #334155; margin-bottom: 2px;">
+                        ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'} - ${order.categoryType === 'PANTS' ? 'สัดส่วนกางเกง' : 'สัดส่วนเสื้อ/สูท'}
+                      </div>
+                      <div style="width: 100%; display: flex; justify-content: center; align-items: center;">
+                        ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
+                      </div>
+                    </div>
+                  `}
+                </td>
+              ` : `
+                <!-- กรณีสั่งตัดไซส์มาตรฐาน (ไม่มีข้อมูลวัดตัว): ไม่แสดงหุ่นจำลอง เพื่อให้จัดหน้า A4 ได้พอดี 1 แผ่น -->
+                <td style="width: 50%; padding-right: 8px; vertical-align: top;">
+                  <div class="info-box" style="height: 100%;">
+                    <h4>รายละเอียดผ้าและเทคนิคการตัดเย็บ</h4>
+                    <div><b>รูปแบบไซส์:</b> ไซส์มาตรฐานสำเร็จรูป</div>
+                    ${order.fabricType ? `<div><b>ชนิดผ้า / วัสดุ:</b> ${order.fabricType}</div>` : ''}
+                    ${order.specialInstructions ? `<div><b>เทคนิคพิเศษ / ตำแหน่งปัก:</b> ${order.specialInstructions}</div>` : ''}
+                    ${order.notes ? `<div><b>หมายเหตุเพิ่มเติม:</b> ${order.notes}</div>` : ''}
+                  </div>
+                </td>
+                <td style="width: 50%; padding-left: 8px; vertical-align: top;">
+                  <div class="info-box" style="background: #ffffff; border: 1.5px solid #cbd5e1; height: 100%;">
+                    <div style="font-size: 10.5px; font-weight: 800; color: #0f172a; margin-bottom: 4px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 3px;">
+                      👕 สเปกงานไซส์มาตรฐานสำเร็จรูป (Standard Size Specification)
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin: 6px 0;">
+                      <span style="background: #b45309; color: #ffffff; font-size: 12px; font-weight: 900; padding: 2px 10px; border-radius: 5px;">
+                        ไซส์: ${firstCustomItem.standardSize || order.standardSize || 'Free Size'}
+                      </span>
+                      <span style="font-size: 10px; color: #64748b;">(ทรงสำเร็จรูปมาตรฐาน ไม่ต้องใช้ข้อมูลวัดตัว)</span>
+                    </div>
+                    ${order.referenceImageUrl ? `
+                      <div style="margin-top: 4px; text-align: center;">
+                        <img src="${order.referenceImageUrl}" alt="Mockup" style="max-height: 100px; max-width: 100%; object-fit: contain; border-radius: 4px; border: 1px solid #cbd5e1;" />
+                        <div style="font-size: 8.5px; color: #64748b; margin-top: 1px;">ภาพแบบอ้างอิง / ลายผ้า</div>
+                      </div>
+                    ` : `
+                      <div style="font-size: 9.5px; color: #64748b; line-height: 1.35; margin-top: 3px;">
+                        ผลิตตามแพทเทิร์นไซส์มาตรฐานห้องเสื้อ KORAT CAT x เรือนโคราชเฉลิมวัฒนา ตรวจสอบขนาดก่อนตัดเย็บจริง
+                      </div>
+                    `}
+                  </div>
+                </td>
+              `}
             </tr>
           </table>
 
@@ -1762,15 +1865,113 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                     </div>
 
                     {deliveryMethod === 'SHIPPING_ADDRESS' && (
-                      <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-bold text-slate-300 mb-1">ที่อยู่จัดส่งพัสดุ:</label>
-                        <textarea
-                          rows={2}
-                          value={shippingAddress}
-                          onChange={e => setShippingAddress(e.target.value)}
-                          placeholder="บ้านเลขที่ ตำบล อำเภอ จังหวัด รหัสไปรษณีย์..."
-                          className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                        />
+                      <div className="sm:col-span-2 p-3.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl space-y-2.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5 text-amber-400" />
+                            <span>กรอกรหัสไปรษณีย์เพื่อดึง จังหวัด/อำเภอ/ตำบล อัตโนมัติ:</span>
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+                          {/* รหัสไปรษณีย์ */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-amber-300 mb-0.5">📮 รหัสไปรษณีย์ (5 หลัก):</label>
+                            <input
+                              type="text"
+                              maxLength={5}
+                              value={shippingPostalCode}
+                              onChange={e => handlePostalCodeChange(e.target.value)}
+                              placeholder="เช่น 30000"
+                              className="w-full px-2.5 py-1.5 bg-slate-800 border border-amber-500/50 rounded-xl text-xs text-white font-mono font-bold focus:ring-1 focus:ring-amber-400"
+                            />
+                          </div>
+
+                          {/* จังหวัด */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">จังหวัด:</label>
+                            <input
+                              type="text"
+                              value={shippingProvince}
+                              onChange={e => {
+                                setShippingProvince(e.target.value);
+                                updateComposedAddress(shippingHouseDetails, shippingSubdistrict, shippingDistrict, e.target.value, shippingPostalCode);
+                              }}
+                              placeholder="เช่น นครราชสีมา"
+                              className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                            />
+                          </div>
+
+                          {/* อำเภอ */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">อำเภอ/เขต:</label>
+                            <input
+                              type="text"
+                              value={shippingDistrict}
+                              onChange={e => {
+                                setShippingDistrict(e.target.value);
+                                updateComposedAddress(shippingHouseDetails, shippingSubdistrict, e.target.value, shippingProvince, shippingPostalCode);
+                              }}
+                              placeholder="เช่น เมืองนครราชสีมา"
+                              className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                            />
+                          </div>
+
+                          {/* ตำบล */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">ตำบล/แขวง:</label>
+                            {subdistrictOptions.length > 1 ? (
+                              <select
+                                value={shippingSubdistrict}
+                                onChange={e => handleSubdistrictSelect(e.target.value)}
+                                className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-medium"
+                              >
+                                {subdistrictOptions.map(s => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={shippingSubdistrict}
+                                onChange={e => {
+                                  setShippingSubdistrict(e.target.value);
+                                  updateComposedAddress(shippingHouseDetails, e.target.value, shippingDistrict, shippingProvince, shippingPostalCode);
+                                }}
+                                placeholder="เช่น ในเมือง"
+                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* บ้านเลขที่ / ซอย / ถนน */}
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-300 mb-0.5">
+                            🏠 บ้านเลขที่, ซอย, ถนน, หมู่บ้าน, จุดสังเกต (พนักงานกรอกเฉพาะส่วนนี้):
+                          </label>
+                          <input
+                            type="text"
+                            value={shippingHouseDetails}
+                            onChange={e => handleHouseDetailsChange(e.target.value)}
+                            placeholder="เช่น 123/45 ซ.มิตรภาพ 4 ถ.มิตรภาพ หมู่บ้านสุขสบาย"
+                            className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                          />
+                        </div>
+
+                        {/* ข้อความที่อยู่เต็ม */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-400 mb-0.5">
+                            ที่อยู่จัดส่งเต็ม (จะแสดงในใบสั่งตัด A4 และสลากพัสดุ):
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={shippingAddress}
+                            onChange={e => setShippingAddress(e.target.value)}
+                            placeholder="บ้านเลขที่ ตำบล อำเภอ จังหวัด รหัสไปรษณีย์..."
+                            className="w-full px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-amber-200 font-mono"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>

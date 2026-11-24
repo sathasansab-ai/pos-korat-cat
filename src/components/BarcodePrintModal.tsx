@@ -240,19 +240,21 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     }
     .barcode-svg-wrapper {
       width: 98% !important;
-      flex: 1 1 auto !important;
-      min-height: 10mm !important;
-      max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.42))}mm !important;
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.40))}mm !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      margin: 0.5mm 0 !important;
+      margin: 0.3mm 0 !important;
       overflow: hidden !important;
     }
     .barcode-svg-wrapper svg {
       width: 100% !important;
       height: 100% !important;
       max-height: 100% !important;
+      max-width: 100% !important;
+      object-fit: contain !important;
       display: block !important;
       shape-rendering: crispEdges !important;
     }
@@ -261,7 +263,8 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       flex-shrink: 0 !important;
       margin-top: auto !important;
       border-top: 1px solid #94a3b8 !important;
-      padding-top: 0.8mm !important;
+      padding-top: 0.6mm !important;
+      padding-bottom: 0.2mm !important;
       display: flex !important;
       align-items: center !important;
       justify-content: space-between !important;
@@ -349,19 +352,21 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     }
     .barcode-svg-wrapper {
       width: 98% !important;
-      flex: 1 1 auto !important;
-      min-height: 10mm !important;
-      max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.42))}mm !important;
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.40))}mm !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      margin: 0.5mm 0 !important;
+      margin: 0.3mm 0 !important;
       overflow: hidden !important;
     }
     .barcode-svg-wrapper svg {
       width: 100% !important;
       height: 100% !important;
       max-height: 100% !important;
+      max-width: 100% !important;
+      object-fit: contain !important;
       display: block !important;
       shape-rendering: crispEdges !important;
     }
@@ -370,7 +375,8 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       flex-shrink: 0 !important;
       margin-top: auto !important;
       border-top: 1px solid #94a3b8 !important;
-      padding-top: 0.8mm !important;
+      padding-top: 0.6mm !important;
+      padding-bottom: 0.2mm !important;
       display: flex !important;
       align-items: center !important;
       justify-content: space-between !important;

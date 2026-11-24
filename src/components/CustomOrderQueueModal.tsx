@@ -23,7 +23,10 @@ import {
   Truck,
   RefreshCw,
   FileText,
-  Download
+  Download,
+  Edit3,
+  DollarSign,
+  TrendingUp
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
@@ -32,7 +35,8 @@ import type {
   StoreSettings, 
   Shift, 
   UserAccount, 
-  Order 
+  Order,
+  GenderType
 } from '../types';
 import { GENDER_CONFIG } from '../types';
 import { CloudSync } from '../services/cloudSync';
@@ -41,6 +45,7 @@ import { DualMonitorSync } from '../services/dualMonitorSync';
 import { BarcodeGenerator } from '../services/barcodeGenerator';
 import { SoundEffects } from '../services/soundEffects';
 import { renderMannequinSvgHtml } from './MannequinFigure';
+import { lookupThaiPostalCode } from '../services/thaiPostalCode';
 
 const CATEGORY_OPTIONS = [
   { id: 'SHIRT', label: 'เสื้อ (Shirt)', icon: '👔' },
@@ -77,7 +82,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
 }) => {
   const [orders, setOrders] = useState<CustomMadeOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING_PRODUCTION' | 'IN_PRODUCTION' | 'READY_FOR_PICKUP' | 'COMPLETED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING_PRODUCTION' | 'IN_PRODUCTION' | 'READY_FOR_PICKUP' | 'COMPLETED' | 'AR'>('ALL');
   
   // Settlement modal state (when customer picks up and pays balance due)
   const [selectedOrderForSettlement, setSelectedOrderForSettlement] = useState<CustomMadeOrder | null>(null);
@@ -85,6 +90,167 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
   const [cashTendered, setCashTendered] = useState<string>('');
   const [isSubmittingSettlement, setIsSubmittingSettlement] = useState(false);
   const [settlementSuccessOrder, setSettlementSuccessOrder] = useState<CustomMadeOrder | null>(null);
+
+  // Edit Order modal state
+  const [editingOrder, setEditingOrder] = useState<CustomMadeOrder | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
+  const [editCustomerGender, setEditCustomerGender] = useState<GenderType>('FEMALE');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editDeliveryMethod, setEditDeliveryMethod] = useState<'PICKUP_SHOP' | 'SHIPPING_ADDRESS'>('PICKUP_SHOP');
+  const [editShippingAddress, setEditShippingAddress] = useState('');
+  const [editShippingPostalCode, setEditShippingPostalCode] = useState('');
+  const [editShippingProvince, setEditShippingProvince] = useState('');
+  const [editShippingDistrict, setEditShippingDistrict] = useState('');
+  const [editShippingSubdistrict, setEditShippingSubdistrict] = useState('');
+  const [editShippingHouseDetails, setEditShippingHouseDetails] = useState('');
+  const [editSubdistrictOptions, setEditSubdistrictOptions] = useState<string[]>([]);
+  const [editItemDescription, setEditItemDescription] = useState('');
+  const [editFabricType, setEditFabricType] = useState('');
+  const [editSpecialInstructions, setEditSpecialInstructions] = useState('');
+  const [editSizeMode, setEditSizeMode] = useState<'STANDARD' | 'CUSTOM'>('STANDARD');
+  const [editStandardSize, setEditStandardSize] = useState('M');
+  const [editTotalPrice, setEditTotalPrice] = useState<number>(0);
+  const [editDepositAmount, setEditDepositAmount] = useState<number>(0);
+  const [editNotes, setEditNotes] = useState('');
+
+  const handleStartEditOrder = (order: CustomMadeOrder) => {
+    setEditingOrder(order);
+    setEditCustomerName(order.customerName);
+    setEditCustomerPhone(order.customerPhone);
+    setEditCustomerGender(order.customerGender || 'FEMALE');
+    setEditDueDate(order.dueDate || '');
+    setEditDeliveryMethod(order.deliveryMethod);
+    setEditShippingAddress(order.shippingAddress || '');
+    setEditItemDescription(order.itemDescription);
+    setEditFabricType(order.fabricType || '');
+    setEditSpecialInstructions(order.specialInstructions || '');
+    setEditSizeMode(order.sizeMode || 'STANDARD');
+    setEditStandardSize(order.standardSize || 'M');
+    setEditTotalPrice(order.totalPrice);
+    setEditDepositAmount(order.depositAmount);
+    setEditNotes(order.notes || '');
+
+    setEditShippingPostalCode('');
+    setEditShippingProvince('');
+    setEditShippingDistrict('');
+    setEditShippingSubdistrict('');
+    setEditShippingHouseDetails(order.shippingAddress || '');
+    setEditSubdistrictOptions([]);
+  };
+
+  const handleEditPostalCodeChange = (zip: string) => {
+    setEditShippingPostalCode(zip);
+    const info = lookupThaiPostalCode(zip);
+    if (info) {
+      setEditShippingProvince(info.province);
+      setEditShippingDistrict(info.district);
+      setEditShippingSubdistrict(info.subdistrict);
+      setEditSubdistrictOptions(info.subdistricts || [info.subdistrict]);
+      const house = editShippingHouseDetails.trim();
+      const composed = `${house ? `${house} ` : ''}ต.${info.subdistrict} อ.${info.district} จ.${info.province} ${info.zipCode}`.trim();
+      setEditShippingAddress(composed);
+    }
+  };
+
+  const handleEditHouseDetailsChange = (house: string) => {
+    setEditShippingHouseDetails(house);
+    if (editShippingProvince || editShippingDistrict || editShippingSubdistrict || editShippingPostalCode) {
+      const parts = [];
+      if (house.trim()) parts.push(house.trim());
+      if (editShippingSubdistrict) parts.push(`ต.${editShippingSubdistrict}`);
+      if (editShippingDistrict) parts.push(`อ.${editShippingDistrict}`);
+      if (editShippingProvince) parts.push(`จ.${editShippingProvince}`);
+      if (editShippingPostalCode) parts.push(editShippingPostalCode);
+      setEditShippingAddress(parts.join(' '));
+    } else {
+      setEditShippingAddress(house);
+    }
+  };
+
+  const handleEditSubdistrictSelect = (sub: string) => {
+    setEditShippingSubdistrict(sub);
+    const house = editShippingHouseDetails.trim();
+    const parts = [];
+    if (house) parts.push(house);
+    parts.push(`ต.${sub}`);
+    if (editShippingDistrict) parts.push(`อ.${editShippingDistrict}`);
+    if (editShippingProvince) parts.push(`จ.${editShippingProvince}`);
+    if (editShippingPostalCode) parts.push(editShippingPostalCode);
+    setEditShippingAddress(parts.join(' '));
+  };
+
+  const updateEditComposedAddress = (house: string, sub: string, dist: string, prov: string, zip: string) => {
+    const parts = [];
+    if (house.trim()) parts.push(house.trim());
+    if (sub.trim()) parts.push(`ต.${sub.trim()}`);
+    if (dist.trim()) parts.push(`อ.${dist.trim()}`);
+    if (prov.trim()) parts.push(`จ.${prov.trim()}`);
+    if (zip.trim()) parts.push(zip.trim());
+    setEditShippingAddress(parts.join(' '));
+  };
+
+  const handleSaveEditedOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrder) return;
+    if (!editCustomerName.trim() || !editCustomerPhone.trim() || editTotalPrice <= 0) {
+      alert('กรุณากรอกชื่อลูกค้า, เบอร์โทรศัพท์ และยอดเงินสั่งผลิตให้ครบถ้วน');
+      return;
+    }
+
+    const effectiveBalanceDue = Math.max(0, editTotalPrice - editDepositAmount);
+    const updatedItems = (editingOrder.items && editingOrder.items.length > 0)
+      ? editingOrder.items.map((it, idx) => idx === 0 ? {
+          ...it,
+          itemDescription: editItemDescription.trim(),
+          sizeMode: editSizeMode,
+          standardSize: editSizeMode === 'STANDARD' ? editStandardSize : undefined,
+          fabricType: editFabricType.trim() || undefined,
+          specialInstructions: editSpecialInstructions.trim() || undefined,
+          unitPrice: editTotalPrice,
+          lineTotal: editTotalPrice
+        } : it)
+      : [{
+          id: 'item-1',
+          categoryType: editingOrder.categoryType || 'SHIRT',
+          itemDescription: editItemDescription.trim(),
+          sizeMode: editSizeMode,
+          standardSize: editSizeMode === 'STANDARD' ? editStandardSize : undefined,
+          measurements: editingOrder.measurements,
+          fabricType: editFabricType.trim() || undefined,
+          specialInstructions: editSpecialInstructions.trim() || undefined,
+          qty: editingOrder.qty || 1,
+          unitPrice: editTotalPrice,
+          lineTotal: editTotalPrice
+        }];
+
+    const updatedOrder: CustomMadeOrder = {
+      ...editingOrder,
+      customerName: editCustomerName.trim(),
+      customerPhone: editCustomerPhone.trim(),
+      customerGender: editCustomerGender,
+      dueDate: editDueDate,
+      deliveryMethod: editDeliveryMethod,
+      shippingAddress: editDeliveryMethod === 'SHIPPING_ADDRESS' ? editShippingAddress.trim() : undefined,
+      itemDescription: editItemDescription.trim(),
+      fabricType: editFabricType.trim() || undefined,
+      specialInstructions: editSpecialInstructions.trim() || undefined,
+      sizeMode: editSizeMode,
+      standardSize: editSizeMode === 'STANDARD' ? editStandardSize : undefined,
+      totalPrice: editTotalPrice,
+      depositAmount: editDepositAmount,
+      balanceDue: effectiveBalanceDue,
+      notes: editNotes.trim(),
+      items: updatedItems
+    };
+
+    await db.customOrders.put(updatedOrder);
+    CloudSync.pushCustomOrder(updatedOrder);
+    SoundEffects.playSuccess();
+    setEditingOrder(null);
+    await loadOrders();
+    alert('บันทึกการแก้ไขข้อมูลใบสั่งตัดเรียบร้อยแล้ว');
+  };
 
   // Measurement detail modal
   const [viewingMeasurementOrder, setViewingMeasurementOrder] = useState<CustomMadeOrder | null>(null);
@@ -162,9 +328,21 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
     onClose();
   };
 
+  // AR (Accounts Receivable / ลูกหนี้การค้า) calculations
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const totalArAmount = orders
+    .filter(o => o.balanceDue > 0 && o.status !== 'CANCELLED')
+    .reduce((sum, o) => sum + o.balanceDue, 0);
+  const totalArCount = orders.filter(o => o.balanceDue > 0 && o.status !== 'CANCELLED').length;
+  const overdueArCount = orders.filter(o => o.balanceDue > 0 && o.status !== 'CANCELLED' && o.dueDate && o.dueDate < todayStr).length;
+
   // Filter orders
   const filteredOrders = orders.filter(o => {
-    if (statusFilter !== 'ALL' && o.status !== statusFilter) return false;
+    if (statusFilter === 'AR') {
+      if (o.balanceDue <= 0 || o.status === 'CANCELLED') return false;
+    } else if (statusFilter !== 'ALL' && o.status !== statusFilter) {
+      return false;
+    }
     if (!searchTerm.trim()) return true;
     const q = searchTerm.trim().toLowerCase();
     return (
@@ -474,6 +652,11 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
     }];
     const firstCustomItem = itemsList.find(it => it.sizeMode === 'CUSTOM') || itemsList[0];
     const meas = firstCustomItem.measurements || order.measurements || {};
+    const hasMeasurements = Boolean(
+      meas.chest || meas.waist || meas.waistPants || meas.hips || meas.hipsPants ||
+      meas.shoulder || meas.shirtLength || meas.armLength || meas.pantsLength ||
+      meas.thigh || meas.crotch || meas.legOpening || meas.customDimension
+    );
 
     const printAmount = order.balanceDue > 0 ? order.balanceDue : (order.depositAmount > 0 ? order.depositAmount : order.totalPrice);
     const printPromptPayPayload = settings?.promptPayId
@@ -506,46 +689,49 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
     <meta charset="utf-8">
     <title>ใบสั่งผลิตและวัดตัว Haute Couture - ${order.orderNo}</title>
     <style>
-      @page { size: A4 portrait; margin: 12mm 15mm; }
+      @page { size: A4 portrait; margin: 6mm 10mm; }
       * { box-sizing: border-box; }
-      body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; line-height: 1.5; color: #1e293b; margin: 0; padding: 0; }
-      .header-table { width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 12px; margin-bottom: 15px; }
-      .brand-title { font-size: 18px; font-weight: 800; color: #78350f; text-transform: uppercase; }
-      .brand-sub { font-size: 10px; color: #64748b; margin-top: 1px; }
-      .doc-title { font-size: 15px; font-weight: 800; color: #0f172a; text-align: right; }
-      .doc-no { font-family: monospace; font-size: 12px; font-weight: bold; color: #b45309; text-align: right; }
+      body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; line-height: 1.35; color: #1e293b; margin: 0; padding: 0; }
+      @media print {
+        html, body { height: 100%; max-height: 297mm; overflow: hidden; page-break-after: avoid; page-break-inside: avoid; }
+      }
+      .header-table { width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 6px; margin-bottom: 8px; }
+      .brand-title { font-size: 15px; font-weight: 800; color: #78350f; text-transform: uppercase; }
+      .brand-sub { font-size: 9px; color: #64748b; margin-top: 1px; }
+      .doc-title { font-size: 13px; font-weight: 800; color: #0f172a; text-align: right; }
+      .doc-no { font-family: monospace; font-size: 11px; font-weight: bold; color: #b45309; text-align: right; }
       
-      .info-grid { width: 100%; margin-bottom: 15px; }
-      .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
-      .info-box h4 { margin: 0 0 6px 0; font-size: 11px; color: #475569; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; }
+      .info-grid { width: 100%; margin-bottom: 8px; }
+      .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 10.5px; }
+      .info-box h4 { margin: 0 0 4px 0; font-size: 10px; color: #475569; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; }
       
-      .tailoring-grid { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+      .tailoring-grid { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
       .tailoring-grid td { vertical-align: top; }
 
-      .measurement-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-      .measurement-table th, .measurement-table td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left; }
+      .measurement-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+      .measurement-table th, .measurement-table td { border: 1px solid #cbd5e1; padding: 3px 6px; text-align: left; }
       .measurement-table th { background: #f1f5f9; font-weight: 700; color: #334155; }
       .bold { font-weight: bold; color: #b45309; }
 
-      .mannequin-container { width: 100%; text-align: center; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-      .media-photo { max-height: 230px; width: 100%; object-fit: contain; border-radius: 6px; display: block; margin: 0 auto; }
-      .media-caption { font-size: 10px; font-weight: 700; color: #475569; margin-top: 6px; border-top: 1px dashed #e2e8f0; padding-top: 4px; }
+      .mannequin-container { width: 100%; text-align: center; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px; }
+      .media-photo { max-height: 130px; width: 100%; object-fit: contain; border-radius: 4px; display: block; margin: 0 auto; }
+      .media-caption { font-size: 9px; font-weight: 700; color: #475569; margin-top: 3px; border-top: 1px dashed #e2e8f0; padding-top: 2px; }
       
-      table.items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-      table.items-table th, table.items-table td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
-      table.items-table th { background: #f1f5f9; font-weight: 700; color: #334155; font-size: 11.5px; }
+      table.items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      table.items-table th, table.items-table td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; }
+      table.items-table th { background: #f1f5f9; font-weight: 700; color: #334155; font-size: 10px; }
       
-      .summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      .summary-table td { padding: 5px 8px; }
-      .total-row { border-top: 1.5px solid #0f172a; border-bottom: 2px solid #0f172a; font-size: 13px; }
+      .summary-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+      .summary-table td { padding: 3px 6px; }
+      .total-row { border-top: 1.5px solid #0f172a; border-bottom: 2px solid #0f172a; font-size: 11.5px; }
 
-      .terms { font-size: 10.5px; color: #64748b; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 8px 12px; margin-bottom: 20px; border-radius: 0 6px 6px 0; }
+      .terms { font-size: 9px; color: #64748b; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 5px 8px; margin-bottom: 8px; border-radius: 0 4px 4px 0; line-height: 1.3; }
       
-      .signature-table { width: 100%; margin-top: 25px; border-collapse: collapse; }
-      .signature-table td { width: 50%; text-align: center; vertical-align: bottom; padding: 0 20px; }
-      .sig-line { border-bottom: 1px solid #64748b; width: 80%; margin: 40px auto 6px auto; }
-      .size-badge { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #fcd34d; font-size: 10.5px; }
-      .tailoring-badge { background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #bae6fd; font-size: 10.5px; }
+      .signature-table { width: 100%; margin-top: 10px; border-collapse: collapse; }
+      .signature-table td { width: 50%; text-align: center; vertical-align: bottom; padding: 0 15px; }
+      .sig-line { border-bottom: 1px solid #64748b; width: 75%; margin: 22px auto 4px auto; }
+      .size-badge { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #fcd34d; font-size: 10px; }
+      .tailoring-badge { background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #bae6fd; font-size: 10px; }
     </style>
   </head>
   <body>
@@ -554,17 +740,17 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
         <td style="vertical-align: top;">
           <div class="brand-title">${settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา'}</div>
           <div class="brand-sub">${settings?.subTitle || 'Haute Couture & Heritage Craft Boutique'}</div>
-          <div style="font-size: 10.5px; color: #475569; margin-top: 3px;">
+          <div style="font-size: 9.5px; color: #475569; margin-top: 2px;">
             ที่อยู่: ${settings?.address || 'เรือนโคราชเฉลิมวัฒนา จ.นครราชสีมา'} | โทร: ${settings?.phone || '044-XXXXXX'}
           </div>
         </td>
         <td style="vertical-align: top; text-align: right;">
-          <div class="doc-title">ใบสั่งผลิต & สัดส่วนสั่งตัดพิเศษ</div>
-          <div class="doc-title" style="font-size: 11px; font-weight: normal; color: #64748b;">(CUSTOM TAILORING & WORK ORDER)</div>
+          <div class="doc-title">ใบสั่งผลิต &amp; สัดส่วนสั่งตัดพิเศษ</div>
+          <div class="doc-title" style="font-size: 10px; font-weight: normal; color: #64748b;">(CUSTOM TAILORING &amp; WORK ORDER)</div>
           <div class="doc-no">เลขที่: ${order.orderNo}</div>
-          <div style="font-size: 11px; color: #64748b;">วันที่: ${new Date(order.createdAt).toLocaleDateString('th-TH')}</div>
-          <div style="margin-top: 4px; display: flex; justify-content: flex-end;">
-            <img src="${orderBarcodeDataUrl}" style="height: 36px; width: 140px; object-fit: contain;" alt="Order Barcode" />
+          <div style="font-size: 10px; color: #64748b;">วันที่: ${new Date(order.createdAt).toLocaleDateString('th-TH')}</div>
+          <div style="margin-top: 2px; display: flex; justify-content: flex-end;">
+            <img src="${orderBarcodeDataUrl}" style="height: 32px; width: 130px; object-fit: contain;" alt="Order Barcode" />
           </div>
         </td>
       </tr>
@@ -572,7 +758,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
 
     <table class="info-grid">
       <tr>
-        <td style="width: 50%; padding-right: 8px; vertical-align: top;">
+        <td style="width: 50%; padding-right: 6px; vertical-align: top;">
           <div class="info-box">
             <h4>ข้อมูลลูกค้าผู้สั่ง</h4>
             <div><b>ชื่อ-นามสกุล:</b> ${order.customerName} (${GENDER_CONFIG[order.customerGender || 'FEMALE'].label})</div>
@@ -581,11 +767,11 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
             ${order.shippingAddress ? `<div><b>ที่อยู่จัดส่ง:</b> ${order.shippingAddress}</div>` : ''}
           </div>
         </td>
-        <td style="width: 50%; padding-left: 8px; vertical-align: top;">
+        <td style="width: 50%; padding-left: 6px; vertical-align: top;">
           <div class="info-box">
             <h4>ข้อมูลการผลิตและการนัดหมาย</h4>
             <div><b>ผู้ออกใบสั่ง:</b> ${order.staffName} (สาขาหน้าร้าน)</div>
-            <div><b>กำหนดส่งมอบ / นัดรับ:</b> <span style="font-size: 12.5px; font-weight: 800; color: #b45309;">${order.dueDate ? `${new Date(order.dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} (${order.dueDate.split('-').reverse().join('/')})` : '-'}</span></div>
+            <div><b>กำหนดส่งมอบ / นัดรับ:</b> <span style="font-size: 11.5px; font-weight: 800; color: #b45309;">${order.dueDate ? `${new Date(order.dueDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} (${order.dueDate.split('-').reverse().join('/')})` : '-'}</span></div>
             <div><b>ประเภทสินค้า:</b> ${CATEGORY_OPTIONS.find(c => c.id === order.categoryType)?.label || 'สั่งตัดพิเศษ'}</div>
             <div><b>ช่องทางชำระมัดจำ:</b> ${order.depositPaymentMethod === 'PROMPTPAY' ? 'สแกนโอน PromptPay QR' : 'เงินสด'}</div>
           </div>
@@ -596,11 +782,12 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
     <!-- TAILORING MEASUREMENTS & SPECIFICATIONS -->
     <table class="tailoring-grid">
       <tr>
-        <td style="width: 55%; padding-right: 10px;">
-          <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 5px; color: #0f172a;">
-            📐 ตารางสัดส่วนการวัดตัว (Body Measurements):
-          </div>
-          ${measurementRows.length > 0 ? `
+        ${hasMeasurements ? `
+          <!-- กรณีมีสัดส่วนวัดตัวเฉพาะบุคคล: แสดงตารางสัดส่วนด้านซ้าย และหุ่นจำลองด้านขวา -->
+          <td style="width: 54%; padding-right: 8px;">
+            <div style="font-weight: 700; font-size: 10.5px; margin-bottom: 4px; color: #0f172a;">
+              📐 ตารางสัดส่วนการวัดตัว (Body Measurements):
+            </div>
             <table class="measurement-table">
               <thead>
                 <tr><th>จุดวัดสัดส่วน</th><th>ขนาดที่วัดได้</th></tr>
@@ -609,51 +796,85 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                 ${measurementRows.join('')}
               </tbody>
             </table>
-          ` : '<div style="font-style: italic; color: #64748b; padding: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px;">ใช้ไซส์มาตรฐานสำเร็จรูป (ไม่มีระบุสัดส่วนวัดตัวเฉพาะ)</div>'}
 
-          <div style="margin-top: 8px; font-size: 11px;">
-            ${order.fabricType ? `<div><b>ชนิดผ้า:</b> ${order.fabricType}</div>` : ''}
-            ${order.specialInstructions ? `<div><b>เทคนิค/ตำแหน่งปัก:</b> ${order.specialInstructions}</div>` : ''}
-          </div>
-        </td>
-
-        <td style="width: 48%; text-align: center; vertical-align: top;">
-          <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 6px; color: #0f172a; text-align: left;">
-            ${order.referenceImageUrl 
-              ? '🎨 ภาพตัวอย่าง & หุ่นสัดส่วน (Reference & Mannequin):' 
-              : `📐 หุ่นจำลองสัดส่วนวัดตัว (${isFem ? 'สตรี' : 'บุรุษ'}):`}
-          </div>
-
-          ${order.referenceImageUrl ? `
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="width: 46%; vertical-align: top; padding-right: 5px;">
-                  <div class="mannequin-container" style="padding: 6px; min-height: 240px; display: flex; flex-direction: column; justify-content: space-between;">
-                    <img src="${order.referenceImageUrl}" alt="Mockup" class="media-photo" style="max-height: 190px;" />
-                    <div class="media-caption">ภาพแบบอ้างอิง / ลายผ้า</div>
-                  </div>
-                </td>
-                <td style="width: 54%; vertical-align: top; padding-left: 5px;">
-                  <div class="mannequin-container" style="padding: 6px; min-height: 240px;">
-                    <div style="font-size: 10px; font-weight: bold; color: #334155; margin-bottom: 3px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px;">
-                      ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'}
-                    </div>
-                    ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
-                  </div>
-                </td>
-              </tr>
-            </table>
-          ` : `
-            <div class="mannequin-container" style="padding: 8px;">
-              <div style="font-size: 11px; font-weight: bold; color: #334155; margin-bottom: 4px;">
-                ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'} - ${order.categoryType === 'PANTS' ? 'เน้นสัดส่วนช่วงล่าง (กางเกง)' : 'เน้นสัดส่วนช่วงบน (เสื้อ/แจ็กเก็ต)'}
-              </div>
-              <div style="width: 100%; display: flex; justify-content: center; align-items: center;">
-                ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
-              </div>
+            <div style="margin-top: 6px; font-size: 10px;">
+              ${order.fabricType ? `<div><b>ชนิดผ้า:</b> ${order.fabricType}</div>` : ''}
+              ${order.specialInstructions ? `<div><b>เทคนิค/ตำแหน่งปัก:</b> ${order.specialInstructions}</div>` : ''}
             </div>
-          `}
-        </td>
+          </td>
+
+          <td style="width: 46%; text-align: center; vertical-align: top;">
+            <div style="font-weight: 700; font-size: 10.5px; margin-bottom: 4px; color: #0f172a; text-align: left;">
+              ${order.referenceImageUrl 
+                ? '🎨 ภาพตัวอย่าง &amp; หุ่นสัดส่วน:' 
+                : `📐 หุ่นจำลองสัดส่วนวัดตัว (${isFem ? 'สตรี' : 'บุรุษ'}):`}
+            </div>
+
+            ${order.referenceImageUrl ? `
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="width: 48%; vertical-align: top; padding-right: 4px;">
+                    <div class="mannequin-container" style="padding: 4px; min-height: 140px; display: flex; flex-direction: column; justify-content: space-between;">
+                      <img src="${order.referenceImageUrl}" alt="Mockup" class="media-photo" style="max-height: 115px;" />
+                      <div class="media-caption">ภาพแบบอ้างอิง / ลายผ้า</div>
+                    </div>
+                  </td>
+                  <td style="width: 52%; vertical-align: top; padding-left: 4px;">
+                    <div class="mannequin-container" style="padding: 4px; min-height: 140px;">
+                      <div style="font-size: 9.5px; font-weight: bold; color: #334155; margin-bottom: 2px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px;">
+                        ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'}
+                      </div>
+                      ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            ` : `
+              <div class="mannequin-container" style="padding: 4px;">
+                <div style="font-size: 10px; font-weight: bold; color: #334155; margin-bottom: 2px;">
+                  ${isFem ? '👩 หุ่นสตรี (FEMALE)' : '👨 หุ่นบุรุษ (MALE)'} - ${order.categoryType === 'PANTS' ? 'สัดส่วนกางเกง' : 'สัดส่วนเสื้อ/สูท'}
+                </div>
+                <div style="width: 100%; display: flex; justify-content: center; align-items: center;">
+                  ${renderMannequinSvgHtml(order.customerGender || 'FEMALE', order.categoryType || 'SHIRT', order.measurements || {}, true)}
+                </div>
+              </div>
+            `}
+          </td>
+        ` : `
+          <!-- กรณีสั่งตัดไซส์มาตรฐาน (ไม่มีข้อมูลวัดตัว): ไม่แสดงหุ่นจำลอง เพื่อให้จัดหน้า A4 ได้พอดี 1 แผ่น -->
+          <td style="width: 50%; padding-right: 8px; vertical-align: top;">
+            <div class="info-box" style="height: 100%;">
+              <h4>รายละเอียดผ้าและเทคนิคการตัดเย็บ</h4>
+              <div><b>รูปแบบไซส์:</b> ไซส์มาตรฐานสำเร็จรูป</div>
+              ${order.fabricType ? `<div><b>ชนิดผ้า / วัสดุ:</b> ${order.fabricType}</div>` : ''}
+              ${order.specialInstructions ? `<div><b>เทคนิคพิเศษ / ตำแหน่งปัก:</b> ${order.specialInstructions}</div>` : ''}
+              ${order.notes ? `<div><b>หมายเหตุเพิ่มเติม:</b> ${order.notes}</div>` : ''}
+            </div>
+          </td>
+          <td style="width: 50%; padding-left: 8px; vertical-align: top;">
+            <div class="info-box" style="background: #ffffff; border: 1.5px solid #cbd5e1; height: 100%;">
+              <div style="font-size: 10.5px; font-weight: 800; color: #0f172a; margin-bottom: 4px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 3px;">
+                👕 สเปกงานไซส์มาตรฐานสำเร็จรูป (Standard Size Specification)
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; margin: 6px 0;">
+                <span style="background: #b45309; color: #ffffff; font-size: 12px; font-weight: 900; padding: 2px 10px; border-radius: 5px;">
+                  ไซส์: ${firstCustomItem.standardSize || order.standardSize || 'Free Size'}
+                </span>
+                <span style="font-size: 10px; color: #64748b;">(ทรงสำเร็จรูปมาตรฐาน ไม่ต้องใช้ข้อมูลวัดตัว)</span>
+              </div>
+              ${order.referenceImageUrl ? `
+                <div style="margin-top: 4px; text-align: center;">
+                  <img src="${order.referenceImageUrl}" alt="Mockup" style="max-height: 100px; max-width: 100%; object-fit: contain; border-radius: 4px; border: 1px solid #cbd5e1;" />
+                  <div style="font-size: 8.5px; color: #64748b; margin-top: 1px;">ภาพแบบอ้างอิง / ลายผ้า</div>
+                </div>
+              ` : `
+                <div style="font-size: 9.5px; color: #64748b; line-height: 1.35; margin-top: 3px;">
+                  ผลิตตามแพทเทิร์นไซส์มาตรฐานห้องเสื้อ KORAT CAT x เรือนโคราชเฉลิมวัฒนา ตรวจสอบขนาดก่อนตัดเย็บจริง
+                </div>
+              `}
+            </div>
+          </td>
+        `}
       </tr>
     </table>
 
@@ -947,8 +1168,56 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
             >
               ✓ รับของครบแล้ว ({completedCount})
             </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('AR')}
+              className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition border flex items-center gap-1.5 ${
+                statusFilter === 'AR'
+                  ? 'bg-rose-600 text-white border-rose-500 shadow-sm'
+                  : 'bg-rose-950/40 text-rose-300 border-rose-800/60 hover:bg-rose-900/40'
+              }`}
+            >
+              <span>📋 ยอดค้างชำระ (AR)</span>
+              {totalArCount > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                  statusFilter === 'AR' ? 'bg-white text-rose-700' : 'bg-rose-500/30 text-rose-200'
+                }`}>
+                  {totalArCount} ใบ (฿{totalArAmount.toLocaleString()})
+                </span>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Accounts Receivable (AR) Summary KPI Banner */}
+        {totalArAmount > 0 && (
+          <div className="mx-6 mt-3 p-3 bg-gradient-to-r from-slate-950 via-slate-900 to-rose-950/40 border border-rose-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs flex-shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="font-bold text-white flex items-center gap-2">
+                  <span>ยอดลูกหนี้การค้ารอเก็บเงิน (Accounts Receivable / AR):</span>
+                  <span className="font-mono font-black text-rose-400 text-sm">฿{totalArAmount.toLocaleString()}</span>
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  ค้างชำระทั้งหมด <b className="text-white">{totalArCount}</b> รายการ
+                  {overdueArCount > 0 && (
+                    <span className="text-rose-400 font-bold ml-2">⚠️ เกินกำหนดนัดรับ {overdueArCount} รายการ</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'AR' ? 'ALL' : 'AR')}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm"
+            >
+              <span>{statusFilter === 'AR' ? 'ดูคิวงานทั้งหมด' : 'กรองเฉพาะรายการค้างชำระ ➔'}</span>
+            </button>
+          </div>
+        )}
 
         {/* Content Body: Order Cards List */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
@@ -1138,8 +1407,18 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                         )}
                       </div>
 
-                      {/* Print & Download Work Order A4 Row */}
+                      {/* Print, Download & Edit Work Order Row */}
                       <div className="flex items-center gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditOrder(order)}
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition border border-slate-700 shadow-xs"
+                          title="แก้ไขรายละเอียดใบสั่งตัด / ที่อยู่จัดส่ง / ยอดเงิน"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>✏️ แก้ไข</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => handlePrintWorkOrderA4(order)}
@@ -1524,7 +1803,38 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
             </div>
 
             <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const o = viewingMeasurementOrder;
+                    setViewingMeasurementOrder(null);
+                    handleStartEditOrder(o);
+                  }}
+                  className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>✏️ แก้ไขข้อมูล</span>
+                </button>
+
+                {viewingMeasurementOrder.balanceDue > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const o = viewingMeasurementOrder;
+                      setViewingMeasurementOrder(null);
+                      setSelectedOrderForSettlement(o);
+                      setSettlementSuccessOrder(null);
+                      setSettlementPaymentMethod('PROMPTPAY');
+                      setCashTendered(o.balanceDue.toString());
+                    }}
+                    className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>💰 ชำระยอดคงเหลือเข้ากะ (฿{viewingMeasurementOrder.balanceDue.toLocaleString()})</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => handlePrintWorkOrderA4(viewingMeasurementOrder)}
@@ -1551,6 +1861,384 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                 ปิด
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 4. MODAL: EDIT CUSTOM ORDER POPUP (แก้ไขข้อมูลใบสั่งตัด)   */}
+      {/* ======================================================== */}
+      {editingOrder && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in zoom-in-95 duration-200 overflow-y-auto">
+          <div className="bg-slate-900 border border-sky-500/40 rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden text-white my-auto flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 px-6 bg-gradient-to-r from-slate-950 via-slate-900 to-sky-950/80 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-400">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">แก้ไขข้อมูลใบสั่งผลิต / สั่งตัด</h4>
+                  <p className="text-[11px] text-sky-300 font-mono">เลขที่สั่ง: {editingOrder.orderNo}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingOrder(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleSaveEditedOrder} className="p-6 overflow-y-auto space-y-4 text-xs">
+              {/* Customer Info Section */}
+              <div className="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+                <span className="font-bold text-amber-300 block">ข้อมูลลูกค้า:</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">ชื่อ-นามสกุล ลูกค้า *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editCustomerName}
+                      onChange={e => setEditCustomerName(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">เบอร์โทรศัพท์ *</label>
+                    <input
+                      type="tel"
+                      required
+                      value={editCustomerPhone}
+                      onChange={e => setEditCustomerPhone(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Gender */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">เพศลูกค้า:</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['FEMALE', 'MALE', 'LGBTQ'] as GenderType[]).map(g => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setEditCustomerGender(g)}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border ${
+                          editCustomerGender === g
+                            ? 'bg-amber-600 text-white border-amber-500 shadow-md'
+                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                        }`}
+                      >
+                        <span>{GENDER_CONFIG[g].icon}</span>
+                        <span>{GENDER_CONFIG[g].label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Garment Details Section */}
+              <div className="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+                <span className="font-bold text-amber-300 block">รายละเอียดงานสั่งตัด &amp; สเปก:</span>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">รายละเอียดสินค้าสั่งตัด:</label>
+                  <input
+                    type="text"
+                    value={editItemDescription}
+                    onChange={e => setEditItemDescription(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">ชนิดผ้า / วัสดุ:</label>
+                    <input
+                      type="text"
+                      value={editFabricType}
+                      onChange={e => setEditFabricType(e.target.value)}
+                      placeholder="เช่น ผ้าไหมมัดหมี่โคราช"
+                      className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">เทคนิคพิเศษ / ตำแหน่งปัก:</label>
+                    <input
+                      type="text"
+                      value={editSpecialInstructions}
+                      onChange={e => setEditSpecialInstructions(e.target.value)}
+                      placeholder="เช่น ปักด้ายทองที่อกซ้าย"
+                      className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Sizing Mode & Standard Size */}
+                <div className="pt-2 border-t border-slate-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[11px] font-bold text-slate-300">รูปแบบไซส์:</label>
+                    <div className="flex bg-slate-800 p-0.5 rounded-lg border border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setEditSizeMode('STANDARD')}
+                        className={`px-3 py-0.5 rounded-md text-xs font-bold transition ${
+                          editSizeMode === 'STANDARD' ? 'bg-amber-600 text-white' : 'text-slate-400'
+                        }`}
+                      >
+                        ไซส์มาตรฐาน
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditSizeMode('CUSTOM')}
+                        className={`px-3 py-0.5 rounded-md text-xs font-bold transition ${
+                          editSizeMode === 'CUSTOM' ? 'bg-amber-600 text-white' : 'text-slate-400'
+                        }`}
+                      >
+                        วัดตัวเฉพาะ
+                      </button>
+                    </div>
+                  </div>
+
+                  {editSizeMode === 'STANDARD' && (
+                    <div className="flex gap-2 flex-wrap pt-1">
+                      {['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Free Size'].map(sz => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => setEditStandardSize(sz)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold border transition ${
+                            editStandardSize === sz
+                              ? 'bg-amber-500 text-slate-950 border-amber-400'
+                              : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                          }`}
+                        >
+                          {sz}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Delivery & Due Date Section */}
+              <div className="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+                <span className="font-bold text-amber-300 block">การนัดหมายและการส่งมอบ:</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">กำหนดส่งมอบ / วันนัดรับ *</label>
+                    <input
+                      type="date"
+                      required
+                      value={editDueDate}
+                      onChange={e => setEditDueDate(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono"
+                    />
+                    <div className="flex gap-1.5 mt-2 flex-wrap">
+                      {[
+                        { label: '+3 วัน', days: 3 },
+                        { label: '+7 วัน', days: 7 },
+                        { label: '+14 วัน', days: 14 },
+                        { label: '+30 วัน', days: 30 }
+                      ].map(btn => (
+                        <button
+                          key={btn.days}
+                          type="button"
+                          onClick={() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + btn.days);
+                            setEditDueDate(d.toISOString().slice(0, 10));
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-[10px] font-bold transition"
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">ช่องทางรับสินค้า *</label>
+                    <select
+                      value={editDeliveryMethod}
+                      onChange={e => setEditDeliveryMethod(e.target.value as any)}
+                      className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-medium"
+                    >
+                      <option value="PICKUP_SHOP">🏪 มารับเองที่หน้าร้าน (เรือนโคราชเฉลิมวัฒนา)</option>
+                      <option value="SHIPPING_ADDRESS">🚚 จัดส่งพัสดุตามที่อยู่ลูกค้า</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Shipping Address with Postal Code Auto-Lookup */}
+                {editDeliveryMethod === 'SHIPPING_ADDRESS' && (
+                  <div className="p-3 bg-slate-900 border border-slate-700 rounded-xl space-y-2 mt-2">
+                    <span className="text-[11px] font-bold text-amber-300 block">
+                      📮 ป้อนรหัสไปรษณีย์เพื่อค้นหาที่อยู่อัตโนมัติ:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-400">รหัสไปรษณีย์:</label>
+                        <input
+                          type="text"
+                          maxLength={5}
+                          value={editShippingPostalCode}
+                          onChange={e => handleEditPostalCodeChange(e.target.value)}
+                          placeholder="เช่น 30000"
+                          className="w-full px-2.5 py-1 bg-slate-800 border border-amber-500/50 rounded-lg text-xs text-white font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400">จังหวัด:</label>
+                        <input
+                          type="text"
+                          value={editShippingProvince}
+                          onChange={e => {
+                            setEditShippingProvince(e.target.value);
+                            updateEditComposedAddress(editShippingHouseDetails, editShippingSubdistrict, editShippingDistrict, e.target.value, editShippingPostalCode);
+                          }}
+                          className="w-full px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400">อำเภอ/เขต:</label>
+                        <input
+                          type="text"
+                          value={editShippingDistrict}
+                          onChange={e => {
+                            setEditShippingDistrict(e.target.value);
+                            updateEditComposedAddress(editShippingHouseDetails, editShippingSubdistrict, e.target.value, editShippingProvince, editShippingPostalCode);
+                          }}
+                          className="w-full px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400">ตำบล/แขวง:</label>
+                        {editSubdistrictOptions.length > 1 ? (
+                          <select
+                            value={editShippingSubdistrict}
+                            onChange={e => handleEditSubdistrictSelect(e.target.value)}
+                            className="w-full px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white"
+                          >
+                            {editSubdistrictOptions.map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={editShippingSubdistrict}
+                            onChange={e => {
+                              setEditShippingSubdistrict(e.target.value);
+                              updateEditComposedAddress(editShippingHouseDetails, e.target.value, editShippingDistrict, editShippingProvince, editShippingPostalCode);
+                            }}
+                            className="w-full px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-400">บ้านเลขที่, ซอย, ถนน:</label>
+                      <input
+                        type="text"
+                        value={editShippingHouseDetails}
+                        onChange={e => handleEditHouseDetailsChange(e.target.value)}
+                        placeholder="เช่น 123/45 ซ.มิตรภาพ 4 ถ.มิตรภาพ"
+                        className="w-full px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-400">ที่อยู่จัดส่งเต็ม:</label>
+                      <textarea
+                        rows={2}
+                        value={editShippingAddress}
+                        onChange={e => setEditShippingAddress(e.target.value)}
+                        className="w-full px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-amber-200 font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Price & Deposit Adjustment */}
+              <div className="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+                <span className="font-bold text-amber-300 block">ยอดเงินและการชำระ:</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">ยอดรวมทั้งสิ้น (บาท) *</label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={editTotalPrice === 0 ? '' : editTotalPrice}
+                      onChange={e => {
+                        const val = parseInt(e.target.value, 10) || 0;
+                        setEditTotalPrice(val);
+                      }}
+                      className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-amber-400 font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">เงินมัดจำที่รับแล้ว (บาท) *</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={editTotalPrice}
+                      required
+                      value={editDepositAmount === 0 ? '' : editDepositAmount}
+                      onChange={e => {
+                        const val = parseInt(e.target.value, 10) || 0;
+                        setEditDepositAmount(val);
+                      }}
+                      className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-emerald-400 font-mono font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-xs">
+                  <span className="font-bold text-rose-300">ยอดค้างชำระคงเหลือ (Balance Due):</span>
+                  <span className="font-mono font-black text-rose-400 text-base">
+                    ฿{Math.max(0, editTotalPrice - editDepositAmount).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">หมายเหตุเพิ่มเติม:</label>
+                <textarea
+                  rows={2}
+                  value={editNotes}
+                  onChange={e => setEditNotes(e.target.value)}
+                  placeholder="เช่น ลูกค้าขอปรับความยาวกระโปรงเพิ่ม 1 นิ้ว..."
+                  className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                />
+              </div>
+
+              {/* Form Buttons */}
+              <div className="pt-2 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEditingOrder(null)}
+                  className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-700 hover:to-sky-800 text-white rounded-xl text-xs font-black shadow-lg transition active:scale-95 flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>✓ บันทึกการแก้ไขข้อมูล</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -260,19 +260,21 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
       }
       .barcode-svg-wrapper {
         width: 98% !important;
-        flex: 1 1 auto !important;
-        min-height: 10mm !important;
-        max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.42))}mm !important;
+        flex: 1 1 0% !important;
+        min-height: 0 !important;
+        max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.40))}mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 0.5mm 0 !important;
+        margin: 0.3mm 0 !important;
         overflow: hidden !important;
       }
       .barcode-svg-wrapper svg {
         width: 100% !important;
         height: 100% !important;
         max-height: 100% !important;
+        max-width: 100% !important;
+        object-fit: contain !important;
         display: block !important;
         shape-rendering: crispEdges !important;
       }
@@ -281,7 +283,8 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
         flex-shrink: 0 !important;
         margin-top: auto !important;
         border-top: 1px solid #94a3b8 !important;
-        padding-top: 0.8mm !important;
+        padding-top: 0.6mm !important;
+        padding-bottom: 0.2mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: space-between !important;
@@ -369,19 +372,21 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
       }
       .barcode-svg-wrapper {
         width: 98% !important;
-        flex: 1 1 auto !important;
-        min-height: 10mm !important;
-        max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.42))}mm !important;
+        flex: 1 1 0% !important;
+        min-height: 0 !important;
+        max-height: ${Math.min(barcodeHeightMm, Math.round(heightMm * 0.40))}mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin: 0.5mm 0 !important;
+        margin: 0.3mm 0 !important;
         overflow: hidden !important;
       }
       .barcode-svg-wrapper svg {
         width: 100% !important;
         height: 100% !important;
         max-height: 100% !important;
+        max-width: 100% !important;
+        object-fit: contain !important;
         display: block !important;
         shape-rendering: crispEdges !important;
       }
@@ -390,7 +395,8 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
         flex-shrink: 0 !important;
         margin-top: auto !important;
         border-top: 1px solid #94a3b8 !important;
-        padding-top: 0.8mm !important;
+        padding-top: 0.6mm !important;
+        padding-bottom: 0.2mm !important;
         display: flex !important;
         align-items: center !important;
         justify-content: space-between !important;
@@ -999,27 +1005,29 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
                 {expandedStickers.map(({ item, stickerIndex }, idx) => (
                   <div
                     key={`${item.id}-${stickerIndex}-${idx}`}
-                    className="sticker-item bg-white border border-slate-300 rounded-xl p-3 flex flex-col justify-between items-center text-center shadow-sm select-none"
+                    className="sticker-item bg-white border border-slate-300 rounded-xl p-2.5 flex flex-col justify-between items-center text-center shadow-sm select-none"
                     style={{ 
                       width: `${widthMm * 3.78}px`, 
-                      minHeight: `${heightMm * 3.78}px`,
-                      maxWidth: '100%'
+                      height: `${heightMm * 3.78}px`,
+                      maxHeight: `${heightMm * 3.78}px`,
+                      maxWidth: '100%',
+                      boxSizing: 'border-box'
                     }}
                   >
                     {/* Top: Store Name & Product Title */}
-                    <div className="w-full">
+                    <div className="sticker-header w-full shrink-0">
                       {showStoreName && (
-                        <div className="text-[10px] font-extrabold text-slate-800 uppercase tracking-tight border-b border-slate-100 pb-0.5 truncate">
+                        <div className="sticker-store-name text-[9px] font-extrabold text-slate-800 uppercase tracking-tight border-b border-slate-100 pb-0.5 truncate">
                           {settings.storeName}
                         </div>
                       )}
 
-                      <div className="text-[11px] font-bold text-slate-900 leading-snug line-clamp-2 mt-1">
+                      <div className="sticker-product-title text-[10px] font-bold text-slate-900 leading-tight line-clamp-2 mt-0.5">
                         {item.productName}
                       </div>
 
                       {showSku && (
-                        <div className="text-[9px] text-slate-500 font-mono mt-0.5 truncate">
+                        <div className="sticker-sku text-[8.5px] text-slate-500 font-mono mt-0.5 truncate">
                           SKU: {item.sku}
                         </div>
                       )}
@@ -1027,25 +1035,24 @@ export const BatchBarcodeModal: React.FC<BatchBarcodeModalProps> = ({
 
                     {/* Middle: Giant High-Resolution Barcode */}
                     <div 
-                      className="barcode-svg-wrapper my-1 w-full flex items-center justify-center flex-1 px-0.5"
+                      className="barcode-svg-wrapper my-0.5 w-full flex items-center justify-center flex-1 px-0.5 overflow-hidden"
                       style={{
-                        height: `${barcodeHeightMm * 3.78}px`,
-                        minHeight: `${barcodeHeightMm * 3.78}px`,
+                        maxHeight: `${Math.min(barcodeHeightMm, Math.round(heightMm * 0.40)) * 3.78}px`,
                         width: '98%'
                       }}
                       dangerouslySetInnerHTML={{ __html: getBarcodeSvgOrImg(item) }}
                     />
 
-                    {/* Bottom: Attributes & Price */}
-                    <div className="w-full flex items-center justify-between border-t border-slate-200 pt-1 text-[10px]">
+                    {/* Bottom: Attributes & Price (Never cut off!) */}
+                    <div className="sticker-footer w-full flex items-center justify-between border-t border-slate-300 pt-1 text-[9.5px] shrink-0 mt-auto">
                       {showAttributes ? (
-                        <span className="text-slate-600 font-sans truncate max-w-[90px]">
+                        <span className="text-slate-600 font-sans truncate max-w-[90px] text-[9px]">
                           {Object.values(item.attributes).join(' / ')}
                         </span>
                       ) : <span />}
 
                       {showPrice && (
-                        <span className="font-black font-mono text-slate-900 text-xs">
+                        <span className="sticker-price font-black font-mono text-slate-900 text-xs shrink-0">
                           ฿{item.salePrice.toLocaleString()}
                         </span>
                       )}
