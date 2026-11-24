@@ -8,7 +8,7 @@ import { ThermalPrinterService } from '../services/thermalPrinter';
 interface CustomOrderReceiptModalProps {
   isOpen: boolean;
   order: CustomMadeOrder | null;
-  settings: StoreSettings;
+  settings?: StoreSettings | null;
   paymentPhase?: 'DEPOSIT' | 'FINAL_PICKUP' | 'FULL';
   paidAmountThisTime?: number;
   paymentMethodThisTime?: 'PROMPTPAY' | 'CASH';
@@ -25,10 +25,17 @@ export const CustomOrderReceiptModal: React.FC<CustomOrderReceiptModalProps> = (
   onClose
 }) => {
   const [paperWidth, setPaperWidth] = useState<'58mm' | '80mm'>(() => {
-    return ThermalPrinterService.getStoredPaperWidth(settings.printerPaperWidth || '80mm');
+    return ThermalPrinterService.getStoredPaperWidth(settings?.printerPaperWidth || '80mm');
   });
 
   if (!isOpen || !order) return null;
+
+  const storeName = settings?.storeName || 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา';
+  const subTitle = settings?.subTitle || 'Haute Couture & Heritage Craft Boutique';
+  const address = settings?.address || 'เรือนโคราชเฉลิมวัฒนา ถ.จอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000';
+  const phone = settings?.phone || '044-123456 / 081-999-8888';
+  const taxId = settings?.taxId || '0305566001234';
+  const logoUrl = settings?.logoUrl;
 
   // Auto-detect payment phase if not explicitly provided
   const isFinalPickup = paymentPhase === 'FINAL_PICKUP' || 
@@ -158,26 +165,26 @@ export const CustomOrderReceiptModal: React.FC<CustomOrderReceiptModalProps> = (
         >
           {/* Store Logo & Header */}
           <div className="text-center pb-2.5 border-b border-dashed border-slate-400 space-y-1">
-            {settings.logoUrl && (
+            {logoUrl && (
               <img 
-                src={settings.logoUrl} 
+                src={logoUrl} 
                 alt="Logo" 
                 className="max-h-12 w-auto mx-auto object-contain filter grayscale contrast-200 mb-1" 
               />
             )}
             <div className="font-extrabold text-[13px] tracking-tight text-slate-950 uppercase leading-tight font-sans">
-              {settings.storeName}
+              {storeName}
             </div>
-            {settings.subTitle && (
+            {subTitle && (
               <div className="text-[9.5px] text-slate-600 font-sans leading-tight">
-                {settings.subTitle}
+                {subTitle}
               </div>
             )}
             <div className="text-[9px] text-slate-600 leading-tight">
-              {settings.address}
+              {address}
             </div>
             <div className="text-[9px] text-slate-600">
-              โทร: {settings.phone} | เลขผู้เสียภาษี: {settings.taxId}
+              โทร: {phone} | เลขผู้เสียภาษี: {taxId}
             </div>
           </div>
 
@@ -298,7 +305,7 @@ export const CustomOrderReceiptModal: React.FC<CustomOrderReceiptModalProps> = (
 
           {/* Footer note */}
           <div className="pt-1 text-center text-[8.5px] text-slate-400 border-t border-dashed border-slate-300">
-            เอกสารนี้ออกโดยระบบ POS Korat Cat • {settings.storeName}
+            เอกสารนี้ออกโดยระบบ POS Korat Cat • {storeName}
           </div>
         </div>
 

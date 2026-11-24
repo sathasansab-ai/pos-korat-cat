@@ -36,7 +36,8 @@ import type {
   Shift, 
   UserAccount, 
   Order,
-  GenderType
+  GenderType,
+  CustomOrderMeasurements
 } from '../types';
 import { GENDER_CONFIG } from '../types';
 import { CloudSync } from '../services/cloudSync';
@@ -58,19 +59,6 @@ const CATEGORY_OPTIONS = [
   { id: 'HAT', label: 'หมวก / อื่นๆ', icon: '🧢' },
   { id: 'OTHER', label: 'งานสั่งตัดอื่นๆ', icon: '✂️' }
 ];
-
-const defaultQueueStoreSettings: StoreSettings = {
-  storeName: 'KORAT CAT x เรือนโคราชเฉลิมวัฒนา',
-  subTitle: 'Haute Couture & Heritage Craft Boutique',
-  address: 'เรือนโคราชเฉลิมวัฒนา ถ.จอมพล ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000',
-  phone: '044-123456 / 081-999-8888',
-  taxId: '0305566001234',
-  promptPayId: '1509900443202',
-  vatRate: 7,
-  isVatEnabled: false,
-  vatType: 'INCLUSIVE',
-  printerPaperWidth: '80mm'
-};
 
 interface CustomOrderQueueModalProps {
   isOpen: boolean;
@@ -134,6 +122,10 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
   const [editTotalPrice, setEditTotalPrice] = useState<number>(0);
   const [editDepositAmount, setEditDepositAmount] = useState<number>(0);
   const [editNotes, setEditNotes] = useState('');
+
+  const updateEditMeasurement = (field: keyof CustomOrderMeasurements, val: string) => {
+    setEditMeasurements(prev => ({ ...prev, [field]: val }));
+  };
 
   const handleStartEditOrder = (order: CustomMadeOrder) => {
     setEditingOrder(order);
@@ -2244,7 +2236,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 30" หรือ 36"'
                               value={editMeasurements.chest || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, chest: e.target.value }))}
+                              onChange={e => updateEditMeasurement('chest', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2254,7 +2246,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 28"'
                               value={editMeasurements.waist || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, waist: e.target.value }))}
+                              onChange={e => updateEditMeasurement('waist', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-amber-500/50 rounded-lg text-amber-200 font-mono font-bold text-xs"
                             />
                           </div>
@@ -2264,7 +2256,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 16"'
                               value={editMeasurements.shoulder || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, shoulder: e.target.value }))}
+                              onChange={e => updateEditMeasurement('shoulder', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2274,7 +2266,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 16" หรือ 27"'
                               value={editMeasurements.shirtLength || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, shirtLength: e.target.value }))}
+                              onChange={e => updateEditMeasurement('shirtLength', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2284,7 +2276,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 22"'
                               value={editMeasurements.armLength || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, armLength: e.target.value }))}
+                              onChange={e => updateEditMeasurement('armLength', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2294,7 +2286,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 14"'
                               value={editMeasurements.armHole || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, armHole: e.target.value }))}
+                              onChange={e => updateEditMeasurement('armHole', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2304,7 +2296,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 15"'
                               value={editMeasurements.neck || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, neck: e.target.value }))}
+                              onChange={e => updateEditMeasurement('neck', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2314,7 +2306,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 8"'
                               value={editMeasurements.wrist || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, wrist: e.target.value }))}
+                              onChange={e => updateEditMeasurement('wrist', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2334,7 +2326,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 19" หรือ 32"'
                               value={editMeasurements.waistPants || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, waistPants: e.target.value }))}
+                              onChange={e => updateEditMeasurement('waistPants', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-emerald-500/50 rounded-lg text-emerald-200 font-mono font-bold text-xs"
                             />
                           </div>
@@ -2344,7 +2336,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 10" หรือ 38"'
                               value={editMeasurements.pantsLength || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, pantsLength: e.target.value }))}
+                              onChange={e => updateEditMeasurement('pantsLength', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2354,7 +2346,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 38"'
                               value={editMeasurements.hipsPants || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, hipsPants: e.target.value }))}
+                              onChange={e => updateEditMeasurement('hipsPants', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2364,7 +2356,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 22"'
                               value={editMeasurements.thigh || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, thigh: e.target.value }))}
+                              onChange={e => updateEditMeasurement('thigh', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2374,7 +2366,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 12"'
                               value={editMeasurements.crotch || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, crotch: e.target.value }))}
+                              onChange={e => updateEditMeasurement('crotch', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2384,7 +2376,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                               type="text"
                               placeholder='เช่น 14"'
                               value={editMeasurements.legOpening || ''}
-                              onChange={e => setEditMeasurements(prev => ({ ...prev, legOpening: e.target.value }))}
+                              onChange={e => updateEditMeasurement('legOpening', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
                             />
                           </div>
@@ -2617,7 +2609,7 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
         <CustomOrderReceiptModal
           isOpen={isReceiptModalOpen}
           order={receiptOrder}
-          settings={settings || defaultQueueStoreSettings}
+          settings={settings}
           paymentPhase={receiptPhase}
           paidAmountThisTime={
             receiptPhase === 'FINAL_PICKUP'
