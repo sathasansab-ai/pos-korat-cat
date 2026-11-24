@@ -34,6 +34,15 @@ interface SlipAuditModalProps {
   onOpenStandaloneTaxInvoice: () => void;
 }
 
+const DATE_FILTER_LABELS: Record<'TODAY' | 'YESTERDAY' | '7DAYS' | 'THIS_MONTH' | 'ALL' | 'CUSTOM', string> = {
+  TODAY: 'วันนี้',
+  YESTERDAY: 'เมื่อวาน',
+  '7DAYS': '7 วันล่าสุด',
+  THIS_MONTH: 'เดือนนี้',
+  ALL: 'ทั้งหมด',
+  CUSTOM: 'ระบุวันเอง'
+};
+
 export const SlipAuditModal: React.FC<SlipAuditModalProps> = ({
   isOpen,
   settings,
@@ -255,14 +264,6 @@ export const SlipAuditModal: React.FC<SlipAuditModalProps> = ({
                 <Calendar className="w-3.5 h-3.5 text-amber-600" /> วันที่:
               </span>
               {(['TODAY', 'YESTERDAY', '7DAYS', 'THIS_MONTH', 'ALL', 'CUSTOM'] as const).map(mode => {
-                const labels = {
-                  TODAY: 'วันนี้',
-                  YESTERDAY: 'เมื่อวาน',
-                  7DAYS: '7 วันล่าสุด',
-                  THIS_MONTH: 'เดือนนี้',
-                  ALL: 'ทั้งหมด',
-                  CUSTOM: 'ระบุวันเอง'
-                };
                 const isSel = dateFilter === mode;
                 return (
                   <button
@@ -273,7 +274,7 @@ export const SlipAuditModal: React.FC<SlipAuditModalProps> = ({
                       isSel ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    {labels[mode]}
+                    {DATE_FILTER_LABELS[mode]}
                   </button>
                 );
               })}
