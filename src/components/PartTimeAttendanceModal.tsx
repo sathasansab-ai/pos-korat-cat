@@ -525,11 +525,25 @@ export const PartTimeAttendanceModal: React.FC<PartTimeAttendanceModalProps> = (
 
   // Delete Staff (Owner Only)
   const handleDeleteStaff = async (staff: PartTimeStaff) => {
-    if (!window.confirm(`⚠️ ยืนยันการลบรายชื่อ "${staff.name}" ออกจากระบบ?\n(ประวัติการลงเวลาในอดีตจะยังคงถูกบันทึกไว้ในรายงาน)`)) {
+    if (!window.confirm(`⚠️ ยืนยันการลบรายชื่อ "${staff.name}" ออกจากระบบ?\n(ระบบจะลบข้อมูลทั้งในเครื่องนี้และบน Cloud ป้องกันไม่ให้ดึงข้อมูลเก่ากลับมาแสดงอีก)`)) {
       return;
     }
     await db.partTimeStaff.delete(staff.id);
-    await CloudSync.syncPartTimeStaffToCloud();
+    const s = await db.settings.get('current_store_settings');
+    if (s) {
+      const updatedDeletedIds = Array.from(new Set([...(s.deletedPartTimeStaffIds || []), staff.id]));
+      const updatedStaffList = (s.partTimeStaffList || []).filter(item => item.id !== staff.id);
+      const updatedSettings: StoreSettings = {
+        ...s,
+        isPartTimeStaffSeeded: true,
+        deletedPartTimeStaffIds: updatedDeletedIds,
+        partTimeStaffList: updatedStaffList,
+        updatedAt: new Date().toISOString()
+      };
+      await db.settings.put(updatedSettings);
+      setSettings(updatedSettings);
+    }
+    await CloudSync.syncPartTimeStaffToCloud(staff.id);
     SoundEffects.playSuccess();
     await loadAllData();
   };

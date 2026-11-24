@@ -452,9 +452,12 @@ export async function seedInitialData() {
     await db.consignors.bulkAdd(initialVendors);
   }
 
-  // 7. Seed Initial Part-Time Staff
+  // 7. Seed Initial Part-Time Staff (เฉพาะครั้งแรก และไม่สร้างซ้ำหากเคยลบออกไปแล้ว)
+  const currentSettings = await db.settings.get('current_store_settings');
+  const deletedPtStaffIds = new Set(currentSettings?.deletedPartTimeStaffIds || []);
   const partTimeCount = await db.partTimeStaff.count();
-  if (partTimeCount === 0) {
+  
+  if (partTimeCount === 0 && !currentSettings?.isPartTimeStaffSeeded && !deletedPtStaffIds.has('pt-001') && !deletedPtStaffIds.has('pt-002')) {
     const initialPartTimeStaff = [
       {
         id: 'pt-001',
@@ -478,5 +481,8 @@ export async function seedInitialData() {
       }
     ];
     await db.partTimeStaff.bulkAdd(initialPartTimeStaff);
+    if (currentSettings) {
+      await db.settings.update('current_store_settings', { isPartTimeStaffSeeded: true });
+    }
   }
 }

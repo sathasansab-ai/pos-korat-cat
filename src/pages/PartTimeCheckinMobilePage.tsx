@@ -52,10 +52,30 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
         if (cloudSettings) {
           setSettings(cloudSettings);
 
-          // ซิงค์รายชื่อพนักงานพาร์ทไทม์ทั้งหมดจาก Cloud ลง IndexedDB ในมือถือทันที
-          if (cloudSettings.partTimeStaffList && cloudSettings.partTimeStaffList.length > 0) {
+          // ซิงค์รายชื่อพนักงานพาร์ทไทม์ทั้งหมดจาก Cloud (ลบคนที่ไม่เกี่ยวข้องหรือที่ถูกลบออก)
+          const deletedPtStaffIds = new Set(cloudSettings.deletedPartTimeStaffIds || []);
+          if (deletedPtStaffIds.size > 0) {
+            for (const delId of deletedPtStaffIds) {
+              await db.partTimeStaff.delete(delId);
+            }
+          }
+
+          if (cloudSettings.partTimeStaffList && Array.isArray(cloudSettings.partTimeStaffList)) {
+            const validCloudStaffIds = new Set(
+              cloudSettings.partTimeStaffList
+                .filter(s => !deletedPtStaffIds.has(s.id))
+                .map(s => s.id)
+            );
+            const localStaff = await db.partTimeStaff.toArray();
+            for (const ls of localStaff) {
+              if (!validCloudStaffIds.has(ls.id) || deletedPtStaffIds.has(ls.id)) {
+                await db.partTimeStaff.delete(ls.id);
+              }
+            }
             for (const pts of cloudSettings.partTimeStaffList) {
-              await db.partTimeStaff.put(pts);
+              if (!deletedPtStaffIds.has(pts.id)) {
+                await db.partTimeStaff.put(pts);
+              }
             }
           }
 
@@ -70,11 +90,6 @@ export const PartTimeCheckinMobilePage: React.FC = () => {
 
       // 2. โหลดรายชื่อพนักงานจาก IndexedDB
       let st = await db.partTimeStaff.filter(p => p.isActive !== false).toArray();
-      if (st.length === 0) {
-        await seedInitialData();
-        st = await db.partTimeStaff.filter(p => p.isActive !== false).toArray();
-      }
-
       const s = await db.settings.get('current_store_settings');
       if (s) setSettings(s);
       setStaffList(st);

@@ -26,7 +26,8 @@ import {
   Download,
   Edit3,
   DollarSign,
-  TrendingUp
+  TrendingUp,
+  Trash2
 } from 'lucide-react';
 import { db } from '../db';
 import type { 
@@ -98,6 +99,10 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<CustomMadeOrder | null>(null);
   const [receiptPhase, setReceiptPhase] = useState<'DEPOSIT' | 'FINAL_PICKUP' | 'FULL'>('DEPOSIT');
+
+  // Delete Order modal state
+  const [orderToDelete, setOrderToDelete] = useState<CustomMadeOrder | null>(null);
+  const [isDeletingOrder, setIsDeletingOrder] = useState(false);
 
   // Edit Order modal state
   const [editingOrder, setEditingOrder] = useState<CustomMadeOrder | null>(null);
@@ -384,6 +389,131 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
     CloudSync.pushCustomOrder(updated);
     SoundEffects.playBeep();
     loadOrders();
+  };
+
+  // Delete Custom Order & Revert Payments from Active/Past Shifts & Sales Ledger
+  const handleConfirmDeleteOrder = async (order: CustomMadeOrder) => {
+    setIsDeletingOrder(true);
+    try {
+      // 1. ค้นหาบิลขายที่เกี่ยวข้องใน db.orders ทั้งหมด
+      const relatedOrders = await db.orders.filter(o => 
+        o.localOrderId === `DEP-${order.orderNo}` ||
+        o.localOrderId === `FULL-${order.orderNo}` ||
+        o.localOrderId === `FIN-${order.orderNo}` ||
+        Boolean(o.localOrderId && o.localOrderId.includes(order.orderNo)) ||
+        Boolean(o.items && o.items.some((it: any) => it.barcode === order.orderNo || it.sku?.startsWith(order.orderNo)))
+      ).toArray();
+
+      let totalDeductedCash = 0;
+      let totalDeductedPromptPay = 0;
+      const deletedBillOrderIds: string[] = [];
+
+      if (relatedOrders.length > 0) {
+        for (const ord of relatedOrders) {
+          deletedBillOrderIds.push(ord.id);
+          if (ord.localOrderId) deletedBillOrderIds.push(ord.localOrderId);
+
+          let ordCash = 0;
+          let ordPromptPay = 0;
+          if (ord.payments && ord.payments.length > 0) {
+            for (const p of ord.payments) {
+              if (p.method === 'CASH') ordCash += (p.amount || 0);
+              else ordPromptPay += (p.amount || 0);
+            }
+          } else {
+            if (ord.cashReceived && ord.cashReceived > 0) ordCash += (ord.netTotal || 0);
+            else ordPromptPay += (ord.netTotal || 0);
+          }
+
+          totalDeductedCash += ordCash;
+          totalDeductedPromptPay += ordPromptPay;
+
+          if (ord.shiftId) {
+            const shift = (activeShift && activeShift.id === ord.shiftId)
+              ? activeShift
+              : await db.shifts.get(ord.shiftId);
+            
+            if (shift) {
+              const updatedShift: Shift = {
+                ...shift,
+                totalCashSales: Math.max(0, (shift.totalCashSales || 0) - ordCash),
+                totalPromptPaySales: Math.max(0, (shift.totalPromptPaySales || 0) - ordPromptPay),
+                totalTransactions: Math.max(0, (shift.totalTransactions || 0) - 1)
+              };
+              await db.shifts.put(updatedShift);
+              CloudSync.pushShift(updatedShift).catch(() => {});
+            }
+          }
+
+          // ลบบิลขายออกจากระบบในเครื่องและ Cloud
+          await db.orders.delete(ord.id);
+          CloudSync.deleteOrder(ord.id, ord.localOrderId).catch(() => {});
+        }
+      } else {
+        // Fallback: หากไม่พบบิลใน db.orders แต่ order มีบันทึกมัดจำหรือยอดชำระไว้ และมีกะเปิดอยู่
+        if (activeShift) {
+          let depCash = 0;
+          let depPromptPay = 0;
+          if (order.depositAmount > 0) {
+            if (order.depositPaymentMethod === 'CASH') depCash += order.depositAmount;
+            else depPromptPay += order.depositAmount;
+          }
+          if ((order.finalPaidAmount || 0) > 0) {
+            if (order.finalPaymentMethod === 'CASH') depCash += (order.finalPaidAmount || 0);
+            else depPromptPay += (order.finalPaidAmount || 0);
+          }
+
+          if (depCash > 0 || depPromptPay > 0) {
+            const updatedShift: Shift = {
+              ...activeShift,
+              totalCashSales: Math.max(0, (activeShift.totalCashSales || 0) - depCash),
+              totalPromptPaySales: Math.max(0, (activeShift.totalPromptPaySales || 0) - depPromptPay),
+              totalTransactions: Math.max(0, (activeShift.totalTransactions || 0) - 1)
+            };
+            await db.shifts.put(updatedShift);
+            CloudSync.pushShift(updatedShift).catch(() => {});
+            totalDeductedCash += depCash;
+            totalDeductedPromptPay += depPromptPay;
+          }
+        }
+      }
+
+      // 2. ลบใบสั่งผลิตออกจากระบบในเครื่องและ Cloud
+      await db.customOrders.delete(order.id);
+      CloudSync.deleteCustomOrder(order.id, order.orderNo).catch(() => {});
+
+      // 3. บันทึก Tombstone ใน StoreSettings
+      const s = await db.settings.get('current_store_settings');
+      if (s) {
+        const nextDelCO = Array.from(new Set([...(s.deletedCustomOrderIds || []), order.id, order.orderNo]));
+        const nextDelOrd = Array.from(new Set([...(s.deletedOrderIds || []), ...deletedBillOrderIds]));
+        const updatedSettings: StoreSettings = {
+          ...s,
+          deletedCustomOrderIds: nextDelCO,
+          deletedOrderIds: nextDelOrd,
+          updatedAt: new Date().toISOString()
+        };
+        await db.settings.put(updatedSettings);
+        CloudSync.pushStoreSettings(updatedSettings).catch(() => {});
+      }
+
+      SoundEffects.playSuccess();
+      setOrderToDelete(null);
+      await loadOrders();
+      if (onShiftUpdated) onShiftUpdated();
+
+      alert(`✅ ลบออเดอร์ ${order.orderNo} สำเร็จเรียบร้อย!\n` +
+        (totalDeductedCash > 0 || totalDeductedPromptPay > 0
+          ? `• หักเงินสดออกจากกะ: ฿${totalDeductedCash.toLocaleString()} บาท\n` +
+            `• หักเงินโอน/พร้อมเพย์ออกจากกะ: ฿${totalDeductedPromptPay.toLocaleString()} บาท\n` +
+            `• ปรับปรุงกะแคชเชียร์และลบบิลออกจากยอดขายรวมเรียบร้อย`
+          : `• ไม่มียอดเงินที่ถูกบันทึกในกะ`));
+    } catch (err: any) {
+      console.error('Failed to delete custom order', err);
+      alert(`เกิดข้อผิดพลาดในการลบ: ${err.message}`);
+    } finally {
+      setIsDeletingOrder(false);
+    }
   };
 
   // Confirm Final Balance Settlement & Deliver Item
@@ -1541,6 +1671,16 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setOrderToDelete(order)}
+                          className="p-1.5 px-2 bg-rose-950/70 hover:bg-rose-900 text-rose-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition border border-rose-800/60 shadow-xs"
+                          title="ลบงานสั่งตัดนี้ (หักเงินออกจากกะและยอดขายรวม)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>ลบ</span>
+                        </button>
                       </div>
 
                       {/* Main Action Buttons */}
@@ -2046,6 +2186,19 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>📥 บันทึก PDF / HTML ลงเครื่อง</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const o = viewingMeasurementOrder;
+                    setViewingMeasurementOrder(null);
+                    setOrderToDelete(o);
+                  }}
+                  className="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-rose-800/70"
+                  title="ลบงานสั่งตัดนี้ (หักเงินออกจากกะและยอดขายรวม)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>ลบออเดอร์</span>
                 </button>
               </div>
 
@@ -2626,6 +2779,116 @@ export const CustomOrderQueueModal: React.FC<CustomOrderQueueModalProps> = ({
             setReceiptOrder(null);
           }}
         />
+      )}
+
+      {/* ======================================================== */}
+      {/* 5. MODAL: DELETE CUSTOM ORDER CONFIRMATION & CASH REVERT */}
+      {/* ======================================================== */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-80 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in zoom-in-95 duration-200">
+          <div className="bg-slate-900 border-2 border-rose-500/70 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden text-white my-auto flex flex-col">
+            
+            {/* Header */}
+            <div className="p-4 px-5 bg-gradient-to-r from-slate-950 via-slate-900 to-rose-950/80 border-b border-rose-500/30 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">ยืนยันลบออเดอร์สั่งตัด &amp; หักเงินออกจากกะ</h4>
+                  <p className="text-[11px] text-rose-300 font-mono">เลขที่สั่ง: {orderToDelete.orderNo}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isDeletingOrder}
+                onClick={() => setOrderToDelete(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-3.5 text-xs">
+              
+              {/* Order Info Summary */}
+              <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-slate-400">ลูกค้า:</span>
+                  <span className="font-bold text-white text-right">{orderToDelete.customerName} ({orderToDelete.customerPhone})</span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-slate-400">รายการ:</span>
+                  <span className="font-bold text-amber-300 text-right truncate max-w-[200px]">{orderToDelete.itemDescription}</span>
+                </div>
+                <div className="flex justify-between items-baseline border-t border-slate-800/80 pt-1.5">
+                  <span className="text-slate-400">ยอดสั่งตัดรวม:</span>
+                  <span className="font-mono font-bold text-white">฿{orderToDelete.totalPrice.toLocaleString()}</span>
+                </div>
+                
+                {/* Paid breakdown */}
+                {orderToDelete.depositAmount > 0 && (
+                  <div className="flex justify-between items-baseline text-emerald-400">
+                    <span>• เงินมัดจำที่รับแล้ว:</span>
+                    <span className="font-mono font-bold">
+                      ฿{orderToDelete.depositAmount.toLocaleString()} ({orderToDelete.depositPaymentMethod === 'CASH' ? 'เงินสด' : 'PromptPay'})
+                    </span>
+                  </div>
+                )}
+                {(orderToDelete.finalPaidAmount || 0) > 0 && (
+                  <div className="flex justify-between items-baseline text-emerald-400">
+                    <span>• ยอดคงเหลือรับชำระแล้ว:</span>
+                    <span className="font-mono font-bold">
+                      ฿{(orderToDelete.finalPaidAmount || 0).toLocaleString()} ({orderToDelete.finalPaymentMethod === 'CASH' ? 'เงินสด' : 'PromptPay'})
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Automatic Reversal Warning */}
+              <div className="p-3.5 bg-rose-950/40 border border-rose-500/40 rounded-2xl space-y-2 text-rose-200">
+                <div className="font-extrabold text-rose-300 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>ระบบจะปรับปรุงข้อมูลต่อไปนี้ให้อัตโนมัติ:</span>
+                </div>
+                <ul className="space-y-1 text-[11px] list-disc list-inside text-rose-300/90 leading-relaxed">
+                  <li>
+                    <b>หักเงินออกจากกะแคชเชียร์:</b> หักยอดเงินสด/โอน และลดจำนวนบิลในกะ เพื่อให้ยอดเงินในลิ้นชักตรงกับความเป็นจริง
+                  </li>
+                  <li>
+                    <b>ลบบิลขาย (Orders):</b> ลบบิลมัดจำและบิลส่งมอบออกจากประวัติการขาย และรายงานยอดขายรวม
+                  </li>
+                  <li>
+                    <b>ลบออกจาก Cloud:</b> ซิงค์การลบขึ้น Supabase และบันทึกประวัติลบ ป้องกันการดึงข้อมูลกลับมาซ้ำ
+                  </li>
+                </ul>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeletingOrder}
+                  onClick={() => setOrderToDelete(null)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition disabled:opacity-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingOrder}
+                  onClick={() => handleConfirmDeleteOrder(orderToDelete)}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white rounded-xl text-xs font-black shadow-lg transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingOrder ? 'กำลังหักยอดและลบ...' : 'ยืนยันลบออเดอร์และหักเงิน'}</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

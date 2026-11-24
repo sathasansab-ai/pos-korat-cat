@@ -79,6 +79,23 @@ class CloudSyncService {
         }
       }
 
+      // 0.2 Delete custom orders, orders, and part-time staff marked as deleted on Cloud
+      if (cloudSettings?.deletedCustomOrderIds && cloudSettings.deletedCustomOrderIds.length > 0) {
+        for (const delId of cloudSettings.deletedCustomOrderIds) {
+          await db.customOrders.delete(delId);
+        }
+      }
+      if (cloudSettings?.deletedOrderIds && cloudSettings.deletedOrderIds.length > 0) {
+        for (const delId of cloudSettings.deletedOrderIds) {
+          await db.orders.delete(delId);
+        }
+      }
+      if (cloudSettings?.deletedPartTimeStaffIds && cloudSettings.deletedPartTimeStaffIds.length > 0) {
+        for (const delId of cloudSettings.deletedPartTimeStaffIds) {
+          await db.partTimeStaff.delete(delId);
+        }
+      }
+
       // 1. Pull Variants
       const vRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/variants?select=*`, {
         headers: this.getHeaders()
@@ -220,7 +237,12 @@ class CloudSyncService {
       if (coRes.ok) {
         const cloudCO: any[] = await coRes.json();
         if (cloudCO && cloudCO.length > 0) {
+          const deletedCOIds = new Set(cloudSettings?.deletedCustomOrderIds || []);
           for (const co of cloudCO) {
+            if (deletedCOIds.has(co.id) || deletedCOIds.has(co.order_no)) {
+              await db.customOrders.delete(co.id);
+              continue;
+            }
             const localCO: CustomMadeOrder = {
               id: co.id,
               orderNo: co.order_no,
@@ -287,7 +309,12 @@ class CloudSyncService {
       if (oRes.ok) {
         const cloudOrders: any[] = await oRes.json();
         if (cloudOrders && cloudOrders.length > 0) {
+          const deletedOrdIds = new Set(cloudSettings?.deletedOrderIds || []);
           for (const co of cloudOrders) {
+            if (deletedOrdIds.has(co.id) || (co.local_order_id && deletedOrdIds.has(co.local_order_id))) {
+              await db.orders.delete(co.id);
+              continue;
+            }
             const localOrder: Order = {
               id: co.id,
               localOrderId: co.local_order_id,
@@ -956,6 +983,48 @@ class CloudSyncService {
   }
 
   /**
+   * ลบงานสั่งผลิตออกจากระบบ Cloud (Supabase)
+   */
+  public async deleteCustomOrder(id: string, orderNo?: string): Promise<void> {
+    try {
+      const h = this.getHeaders();
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/custom_orders?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: h
+      });
+      if (orderNo) {
+        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/custom_orders?order_no=eq.${orderNo}`, {
+          method: 'DELETE',
+          headers: h
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to delete custom order from cloud', e);
+    }
+  }
+
+  /**
+   * ลบบิลขายออกจากระบบ Cloud (Supabase)
+   */
+  public async deleteOrder(id: string, localOrderId?: string): Promise<void> {
+    try {
+      const h = this.getHeaders();
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: h
+      });
+      if (localOrderId) {
+        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/orders?local_order_id=eq.${localOrderId}`, {
+          method: 'DELETE',
+          headers: h
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to delete order from cloud', e);
+    }
+  }
+
+  /**
    * ส่งการตั้งค่าร้านค้า รูปภาพโลโก้ ภาพต้อนรับ และสไลด์โฆษณาขึ้น Cloud
    */
   public async pushStoreSettings(settings: StoreSettings): Promise<{ success: boolean; message?: string }> {
@@ -1013,7 +1082,7 @@ class CloudSyncService {
   /**
    * ซิงค์ข้อมูลพนักงานพาร์ทไทม์ทั้งหมดขึ้น Cloud ทันที เพื่อให้มือถือสแกนเห็นตรงกัน
    */
-  public async syncPartTimeStaffToCloud(): Promise<void> {
+  public async syncPartTimeStaffToCloud(deletedStaffId?: string): Promise<void> {
     try {
       const [allStaff, allAttendance, settings] = await Promise.all([
         db.partTimeStaff.toArray(),
@@ -1022,10 +1091,19 @@ class CloudSyncService {
       ]);
 
       const existingSettings = settings || (await db.settings.get('current_store_settings'));
+      const deletedStaffIds = new Set<string>(existingSettings?.deletedPartTimeStaffIds || []);
+      if (deletedStaffId) {
+        deletedStaffIds.add(deletedStaffId);
+      }
+
+      const cleanStaffList = allStaff.filter(s => !deletedStaffIds.has(s.id));
+
       if (existingSettings) {
         const updated: StoreSettings = {
           ...existingSettings,
-          partTimeStaffList: allStaff,
+          isPartTimeStaffSeeded: true,
+          deletedPartTimeStaffIds: Array.from(deletedStaffIds),
+          partTimeStaffList: cleanStaffList,
           partTimeAttendanceList: allAttendance,
           updatedAt: new Date().toISOString()
         };
@@ -1058,7 +1136,9 @@ class CloudSyncService {
           blackWisdomPointsThreshold: 150,
           blackWisdomSpentThreshold: 15000,
           blackWisdomDiscountPercent: 10,
-          partTimeStaffList: allStaff,
+          isPartTimeStaffSeeded: true,
+          deletedPartTimeStaffIds: Array.from(deletedStaffIds),
+          partTimeStaffList: cleanStaffList,
           partTimeAttendanceList: allAttendance,
           updatedAt: new Date().toISOString()
         };
@@ -1215,16 +1295,46 @@ class CloudSyncService {
         }
 
         // ซิงค์รายชื่อพนักงานพาร์ทไทม์ลงฐานข้อมูล Dexie ในเครื่องนี้/มือถืออัตโนมัติ
-        if (cloudSettings.partTimeStaffList && cloudSettings.partTimeStaffList.length > 0) {
+        const deletedPtStaffIds = new Set(cloudSettings.deletedPartTimeStaffIds || []);
+        if (deletedPtStaffIds.size > 0) {
+          for (const delId of deletedPtStaffIds) {
+            await db.partTimeStaff.delete(delId);
+          }
+        }
+
+        if (cloudSettings.partTimeStaffList && Array.isArray(cloudSettings.partTimeStaffList)) {
+          const validCloudStaffIds = new Set(
+            cloudSettings.partTimeStaffList
+              .filter(s => !deletedPtStaffIds.has(s.id))
+              .map(s => s.id)
+          );
+          const localStaff = await db.partTimeStaff.toArray();
+          for (const ls of localStaff) {
+            if (!validCloudStaffIds.has(ls.id) || deletedPtStaffIds.has(ls.id)) {
+              await db.partTimeStaff.delete(ls.id);
+            }
+          }
+
           for (const pts of cloudSettings.partTimeStaffList) {
-            await db.partTimeStaff.put(pts);
+            if (!deletedPtStaffIds.has(pts.id)) {
+              await db.partTimeStaff.put(pts);
+            }
           }
         }
 
         // ซิงค์บันทึกเวลาเข้า-ออกงานพาร์ทไทม์ลงฐานข้อมูล Dexie ในเครื่องนี้/มือถืออัตโนมัติ
+        const deletedPtAttIds = new Set(cloudSettings.deletedPartTimeAttendanceIds || []);
+        if (deletedPtAttIds.size > 0) {
+          for (const delId of deletedPtAttIds) {
+            await db.partTimeAttendance.delete(delId);
+          }
+        }
+
         if (cloudSettings.partTimeAttendanceList && cloudSettings.partTimeAttendanceList.length > 0) {
           for (const pta of cloudSettings.partTimeAttendanceList) {
-            await db.partTimeAttendance.put(pta);
+            if (!deletedPtAttIds.has(pta.id)) {
+              await db.partTimeAttendance.put(pta);
+            }
           }
         }
 
