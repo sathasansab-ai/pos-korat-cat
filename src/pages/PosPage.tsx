@@ -58,6 +58,7 @@ import { SoundEffects } from '../services/soundEffects';
 import { PinModal } from '../components/PinModal';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { TaxInvoiceModal } from '../components/TaxInvoiceModal';
+import { SlipAuditModal } from '../components/SlipAuditModal';
 import { DigitalPassModal } from '../components/DigitalPassModal';
 import { CustomOrderModal } from '../components/CustomOrderModal';
 import { CustomOrderQueueModal } from '../components/CustomOrderQueueModal';
@@ -149,10 +150,10 @@ export const PosPage: React.FC<PosPageProps> = ({
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isTaxInvoiceModalOpen, setIsTaxInvoiceModalOpen] = useState(false);
+  const [isStandaloneTaxInvoice, setIsStandaloneTaxInvoice] = useState(false);
 
-  // Recent Orders Modal (Cashier can view/reprint or issue tax invoice anytime)
+  // Recent Orders / Slip Audit Modal (Cashier can view/reprint or issue retroactive/standalone tax invoice anytime)
   const [isRecentOrdersModalOpen, setIsRecentOrdersModalOpen] = useState(false);
-  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [isCustomOrderModalOpen, setIsCustomOrderModalOpen] = useState(false);
   const [isCustomOrderQueueOpen, setIsCustomOrderQueueOpen] = useState(false);
   const [selectedCustomOrderForPickup, setSelectedCustomOrderForPickup] = useState<CustomMadeOrder | null>(null);
@@ -1143,9 +1144,7 @@ export const PosPage: React.FC<PosPageProps> = ({
     }
   };
 
-  const handleOpenRecentOrders = async () => {
-    const list = await db.orders.orderBy('timestamp').reverse().limit(15).toArray();
-    setRecentOrders(list);
+  const handleOpenRecentOrders = () => {
     setIsRecentOrdersModalOpen(true);
   };
 
@@ -1193,10 +1192,24 @@ export const PosPage: React.FC<PosPageProps> = ({
               type="button"
               onClick={handleOpenRecentOrders}
               className="px-3 py-1.5 bg-white hover:bg-slate-50 active:scale-95 text-slate-800 border border-slate-300 rounded-xl font-bold flex items-center gap-1 shadow-2xs transition text-xs whitespace-nowrap"
-              title="ดูประวัติสลิปใบเสร็จ / บิลล่าสุด เพื่อพิมพ์ซ้ำ หรือออกใบกำกับภาษี"
+              title="ตรวจสอบสลิปย้อนหลัง ค้นหาตามเลขบิล ชื่อลูกค้า หรือพิมพ์ซ้ำ/ออกใบกำกับภาษี"
             >
               <Receipt className="w-3.5 h-3.5 text-amber-600" />
-              <span>สลิป/บิลล่าสุด</span>
+              <span>สลิป/บิลย้อนหลัง</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCompletedOrder(null);
+                setIsStandaloneTaxInvoice(true);
+                setIsTaxInvoiceModalOpen(true);
+              }}
+              className="px-3 py-1.5 bg-white hover:bg-amber-50 active:scale-95 text-amber-900 border border-amber-300 rounded-xl font-bold flex items-center gap-1 shadow-2xs transition text-xs whitespace-nowrap"
+              title="ออกใบกำกับภาษีเต็มรูปขนาด A4 แยกต่างหาก (โดยไม่ต้องอิงบิลหน้าร้านเดิม)"
+            >
+              <FileText className="w-3.5 h-3.5 text-amber-600" />
+              <span>ออกใบกำกับภาษีแยก</span>
             </button>
 
             <button
@@ -2711,102 +2724,52 @@ export const PosPage: React.FC<PosPageProps> = ({
           onClose={() => setIsReceiptModalOpen(false)}
           onOpenTaxInvoice={() => {
             setIsReceiptModalOpen(false);
+            setIsStandaloneTaxInvoice(false);
             setIsTaxInvoiceModalOpen(true);
           }}
         />
       )}
 
-      {/* FULL TAX INVOICE MODAL */}
+      {/* FULL TAX INVOICE MODAL (Supports attached order & standalone mode) */}
       {settings && (
         <TaxInvoiceModal
           isOpen={isTaxInvoiceModalOpen}
           order={completedOrder}
+          isStandalone={isStandaloneTaxInvoice}
           settings={settings}
-          onClose={() => setIsTaxInvoiceModalOpen(false)}
+          currentUser={currentUser}
+          onClose={() => {
+            setIsTaxInvoiceModalOpen(false);
+            setIsStandaloneTaxInvoice(false);
+          }}
+          onSaved={() => {
+            loadQuickData();
+          }}
         />
       )}
 
-      {/* RECENT ORDERS MODAL (For Cashier Reprint / Tax Invoice) */}
-      {isRecentOrdersModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Receipt className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-sm">ประวัติบิลล่าสุด (พิมพ์สลิปซ้ำ / ออกใบกำกับภาษี)</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsRecentOrdersModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto divide-y divide-slate-100 flex-1">
-              {recentOrders.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-xs">
-                  ยังไม่มีประวัติการขายในระบบ
-                </div>
-              ) : (
-                recentOrders.map(ord => (
-                  <div key={ord.id} className="py-3 flex items-center justify-between gap-3 hover:bg-slate-50 px-2 rounded-xl transition">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-slate-900 text-xs">{ord.localOrderId}</span>
-                        <span className="text-[10px] text-slate-400">
-                          {new Date(ord.timestamp).toLocaleTimeString('th-TH')} ({new Date(ord.timestamp).toLocaleDateString('th-TH')})
-                        </span>
-                        {ord.customerName && (
-                          <span className="text-[10px] bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded font-medium">
-                            {ord.customerName}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 max-w-md truncate">
-                        {ord.items.map(i => `${i.productName} (x${i.qty})`).join(', ')}
-                      </div>
-                      <div className="text-xs font-mono font-extrabold text-amber-800 mt-0.5">
-                        ฿{ord.netTotal.toLocaleString()}
-                        <span className="text-[10px] font-sans text-slate-400 font-normal ml-2">
-                          (ชำระ: {ord.payments.map(p => p.method).join(' + ')})
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCompletedOrder(ord);
-                          setIsRecentOrdersModalOpen(false);
-                          setIsReceiptModalOpen(true);
-                        }}
-                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1 transition"
-                      >
-                        <Printer className="w-3.5 h-3.5 text-slate-600" />
-                        <span>สลิป</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCompletedOrder(ord);
-                          setIsRecentOrdersModalOpen(false);
-                          setIsTaxInvoiceModalOpen(true);
-                        }}
-                        className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1 transition shadow-xs"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-amber-600" />
-                        <span>ใบกำกับภาษี (A4)</span>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+      {/* SLIP AUDIT & RETROACTIVE TAX INVOICE MODAL */}
+      {settings && (
+        <SlipAuditModal
+          isOpen={isRecentOrdersModalOpen}
+          settings={settings}
+          currentUser={currentUser}
+          onClose={() => setIsRecentOrdersModalOpen(false)}
+          onOpenReceipt={(ord) => {
+            setCompletedOrder(ord);
+            setIsReceiptModalOpen(true);
+          }}
+          onOpenTaxInvoice={(ord) => {
+            setCompletedOrder(ord);
+            setIsStandaloneTaxInvoice(false);
+            setIsTaxInvoiceModalOpen(true);
+          }}
+          onOpenStandaloneTaxInvoice={() => {
+            setCompletedOrder(null);
+            setIsStandaloneTaxInvoice(true);
+            setIsTaxInvoiceModalOpen(true);
+          }}
+        />
       )}
 
       {/* HELD BILLS MODAL (บิลที่พักไว้) */}

@@ -54,9 +54,10 @@ export const ReportsPage: React.FC = () => {
   const [newVendorAccountNo, setNewVendorAccountNo] = useState('');
   const [newVendorDefaultGp, setNewVendorDefaultGp] = useState<number>(20);
   
-  // Tax Invoice & Receipt Modal States (For Reprinting)
+  // Tax Invoice & Receipt Modal States (For Reprinting & Standalone)
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<Order | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isStandaloneTaxModalOpen, setIsStandaloneTaxModalOpen] = useState(false);
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<Order | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isPartTimeModalOpen, setIsPartTimeModalOpen] = useState(false);
@@ -1286,6 +1287,19 @@ export const ReportsPage: React.FC = () => {
           >
             <FileText className="w-3.5 h-3.5 text-amber-600" />
             <span>ภ.พ.30 ภาษีขาย</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedOrderForInvoice(null);
+              setIsStandaloneTaxModalOpen(true);
+            }}
+            className="px-3 py-2 bg-amber-50 hover:bg-amber-100 active:scale-95 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
+            title="ออกใบกำกับภาษีเต็มรูปขนาด A4 แยกต่างหาก (โดยไม่ต้องอิงบิลเดิม)"
+          >
+            <FileText className="w-3.5 h-3.5 text-amber-700" />
+            <span>+ ออกใบกำกับภาษีแยก</span>
           </button>
 
           <button
@@ -3111,14 +3125,16 @@ export const ReportsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tax Invoice Modal */}
-      {selectedOrderForInvoice && settings && (
+      {/* Tax Invoice Modal (Attached Slip or Standalone) */}
+      {(selectedOrderForInvoice || isStandaloneTaxModalOpen) && settings && (
         <TaxInvoiceModal
-          isOpen={isInvoiceModalOpen}
+          isOpen={isInvoiceModalOpen || isStandaloneTaxModalOpen}
           order={selectedOrderForInvoice}
+          isStandalone={isStandaloneTaxModalOpen}
           settings={settings}
           onClose={() => {
             setIsInvoiceModalOpen(false);
+            setIsStandaloneTaxModalOpen(false);
             setSelectedOrderForInvoice(null);
           }}
           onSaved={loadData}
