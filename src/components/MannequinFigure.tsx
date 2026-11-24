@@ -103,11 +103,6 @@ export function renderMannequinSvgHtml(
           <path d="M 106 288 Q 110 291 114 288 M 126 288 Q 130 291 134 288" fill="none" stroke="#94a3b8" stroke-width="1.3" />
         </g>
       `}
-          
-          <!-- Knee Contours -->
-          <path d="M 106 288 Q 110 291 114 288 M 126 288 Q 130 291 134 288" fill="none" stroke="#94a3b8" stroke-width="1.3" />
-        </g>
-      `}
 
       <!-- ================= MEASUREMENT CALLOUT BADGES (SOLID PRINTABLE) ================= -->
       ${m.shoulder ? `
@@ -426,7 +421,7 @@ export const MannequinFigure: React.FC<MannequinFigureProps> = ({
           fontFamily="sans-serif"
           letterSpacing="0.5"
         >
-          ${isFemale ? 'FEMALE SILHOUETTE (หุ่นสตรี)' : 'MALE SILHOUETTE (หุ่นบุรุษ)'}
+          {isFemale ? 'FEMALE SILHOUETTE (หุ่นสตรี)' : 'MALE SILHOUETTE (หุ่นบุรุษ)'}
         </text>
       </svg>
     </div>
