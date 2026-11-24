@@ -121,11 +121,19 @@ export function renderMannequinSvgHtml(
         </g>
       ` : ''}
 
-      ${(m.waist || m.waistPants) ? `
-        <line x1="${isFemale ? 104 : 98}" y1="170" x2="${isFemale ? 136 : 142}" y2="170" stroke="#047857" stroke-width="1.8" stroke-dasharray="3,2" />
-        <g transform="translate(${isFemale ? 142 : 148}, 160)">
-          <rect width="72" height="18" rx="4" fill="#047857" />
-          <text x="36" y="12.5" fill="#ffffff" font-size="9" font-weight="bold" text-anchor="middle" font-family="sans-serif">เอว: ${m.waist || m.waistPants}</text>
+      ${m.waist ? `
+        <line x1="${isFemale ? 104 : 98}" y1="165" x2="${isFemale ? 136 : 142}" y2="165" stroke="#047857" stroke-width="1.8" stroke-dasharray="3,2" />
+        <g transform="translate(${isFemale ? 142 : 148}, 155)">
+          <rect width="76" height="18" rx="4" fill="#047857" />
+          <text x="38" y="12.5" fill="#ffffff" font-size="8.5" font-weight="bold" text-anchor="middle" font-family="sans-serif">เอวเสื้อ: ${m.waist}</text>
+        </g>
+      ` : ''}
+
+      ${m.waistPants ? `
+        <line x1="${isFemale ? 102 : 96}" y1="${m.waist ? 190 : 170}" x2="${isFemale ? 138 : 144}" y2="${m.waist ? 190 : 170}" stroke="#059669" stroke-width="1.8" stroke-dasharray="3,2" />
+        <g transform="translate(${isFemale ? 142 : 148}, ${m.waist ? 180 : 160})">
+          <rect width="80" height="18" rx="4" fill="#059669" />
+          <text x="40" y="12.5" fill="#ffffff" font-size="8.5" font-weight="bold" text-anchor="middle" font-family="sans-serif">เอวกางเกง: ${m.waistPants}</text>
         </g>
       ` : ''}
 
@@ -309,16 +317,31 @@ export const MannequinFigure: React.FC<MannequinFigureProps> = ({
           </g>
         )}
 
-        {/* 3. WAIST (รอบเอว) */}
-        {(m.waist || m.waistPants) && (
+        {/* 3. SHIRT WAIST (รอบเอวเสื้อ) */}
+        {m.waist && (
           <g>
-            <line x1={isFemale ? 104 : 98} y1="170" x2={isFemale ? 136 : 142} y2="170" stroke="#10b981" strokeWidth="2" strokeDasharray="3,2" />
-            <circle cx={isFemale ? 104 : 98} cy="170" r="3.5" fill="#10b981" />
-            <circle cx={isFemale ? 136 : 142} cy="170" r="3.5" fill="#10b981" />
-            <g transform={`translate(${isFemale ? 142 : 148}, 160)`} filter="url(#badgeShadow)">
-              <rect width="72" height="20" rx="5" fill="#10b981" />
-              <text x="36" y="14" fill="#ffffff" fontSize="10" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">
-                เอว: {m.waist || m.waistPants}
+            <line x1={isFemale ? 104 : 98} y1="165" x2={isFemale ? 136 : 142} y2="165" stroke="#10b981" strokeWidth="2" strokeDasharray="3,2" />
+            <circle cx={isFemale ? 104 : 98} cy="165" r="3.5" fill="#10b981" />
+            <circle cx={isFemale ? 136 : 142} cy="165" r="3.5" fill="#10b981" />
+            <g transform={`translate(${isFemale ? 142 : 148}, 155)`} filter="url(#badgeShadow)">
+              <rect width="78" height="20" rx="5" fill="#10b981" />
+              <text x="39" y="14" fill="#ffffff" fontSize="9.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">
+                เอวเสื้อ: {m.waist}
+              </text>
+            </g>
+          </g>
+        )}
+
+        {/* 3.1 PANTS WAIST (รอบเอวกางเกง) */}
+        {m.waistPants && (
+          <g>
+            <line x1={isFemale ? 102 : 96} y1={m.waist ? 190 : 170} x2={isFemale ? 138 : 144} y2={m.waist ? 190 : 170} stroke="#059669" strokeWidth="2" strokeDasharray="3,2" />
+            <circle cx={isFemale ? 102 : 96} cy={m.waist ? 190 : 170} r="3.5" fill="#059669" />
+            <circle cx={isFemale ? 138 : 144} cy={m.waist ? 190 : 170} r="3.5" fill="#059669" />
+            <g transform={`translate(${isFemale ? 142 : 148}, ${m.waist ? 180 : 160})`} filter="url(#badgeShadow)">
+              <rect width="82" height="20" rx="5" fill="#059669" />
+              <text x="41" y="14" fill="#ffffff" fontSize="9.5" fontWeight="900" textAnchor="middle" fontFamily="sans-serif">
+                เอวกางเกง: {m.waistPants}
               </text>
             </g>
           </g>

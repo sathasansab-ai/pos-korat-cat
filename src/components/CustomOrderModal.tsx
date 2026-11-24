@@ -44,6 +44,7 @@ import { DualMonitorSync } from '../services/dualMonitorSync';
 import { BarcodeGenerator } from '../services/barcodeGenerator';
 import { MannequinFigure, renderMannequinSvgHtml } from './MannequinFigure';
 import { lookupThaiPostalCode } from '../services/thaiPostalCode';
+import { CustomOrderReceiptModal } from './CustomOrderReceiptModal';
 
 interface CustomOrderModalProps {
   isOpen: boolean;
@@ -58,10 +59,12 @@ interface CustomOrderModalProps {
 const CATEGORY_OPTIONS: { id: CustomOrderCategory; label: string; icon: string }[] = [
   { id: 'SHIRT', label: 'เสื้อ (Shirt/Top)', icon: '👔' },
   { id: 'PANTS', label: 'กางเกง (Pants/Bottom)', icon: '👖' },
+  { id: 'SET', label: 'ชุดเซ็ท (เสื้อ + กางเกง)', icon: '✨' },
+  { id: 'DRESS', label: 'เดรส / ชุดกระโปรง', icon: '👗' },
   { id: 'JACKET', label: 'แจ็กเก็ต / สูท', icon: '🧥' },
   { id: 'BAG', label: 'กระเป๋าผ้า / ย่าม', icon: '👜' },
   { id: 'HAT', label: 'หมวกแก๊ป / บักเก็ต', icon: '🧢' },
-  { id: 'OTHER', label: 'งานสั่งทำอื่นๆ', icon: '✨' }
+  { id: 'OTHER', label: 'งานสั่งทำอื่นๆ', icon: '✂️' }
 ];
 
 export const STANDARD_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Free Size'];
@@ -220,6 +223,9 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
   const [viewState, setViewState] = useState<'FORM' | 'SUCCESS_VIEW'>('FORM');
   const [savedOrder, setSavedOrder] = useState<CustomMadeOrder | null>(null);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [showPantsSection, setShowPantsSection] = useState(false);
+  const [showShirtSection, setShowShirtSection] = useState(false);
 
   // Dynamic PromptPay QR Payload for deposit
   const promptPayPayload = (settings?.promptPayId && depositAmount > 0)
@@ -725,21 +731,29 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
     // Code 128 Barcode for quick scanning at POS when customer picks up
     const orderBarcodeDataUrl = BarcodeGenerator.generateDataUrl(order.orderNo, { height: 40, showText: false });
 
-    // Generate Measurement rows
-    const measurementRows: string[] = [];
-    if (meas.chest) measurementRows.push(`<tr><td>รอบอก</td><td class="bold">${meas.chest}</td></tr>`);
-    if (meas.waist || meas.waistPants) measurementRows.push(`<tr><td>รอบเอว</td><td class="bold">${meas.waist || meas.waistPants}</td></tr>`);
-    if (meas.hips || meas.hipsPants) measurementRows.push(`<tr><td>รอบสะโพก</td><td class="bold">${meas.hips || meas.hipsPants}</td></tr>`);
-    if (meas.shoulder) measurementRows.push(`<tr><td>ไหล่กว้าง</td><td class="bold">${meas.shoulder}</td></tr>`);
-    if (meas.shirtLength) measurementRows.push(`<tr><td>ความยาวเสื้อ</td><td class="bold">${meas.shirtLength}</td></tr>`);
-    if (meas.armLength) measurementRows.push(`<tr><td>ความยาวแขน</td><td class="bold">${meas.armLength}</td></tr>`);
-    if (meas.armHole) measurementRows.push(`<tr><td>รอบวงแขน/ต้นแขน</td><td class="bold">${meas.armHole}</td></tr>`);
-    if (meas.neck) measurementRows.push(`<tr><td>รอบคอ</td><td class="bold">${meas.neck}</td></tr>`);
-    if (meas.pantsLength) measurementRows.push(`<tr><td>ความยาวกางเกง</td><td class="bold">${meas.pantsLength}</td></tr>`);
-    if (meas.thigh) measurementRows.push(`<tr><td>รอบต้นขา</td><td class="bold">${meas.thigh}</td></tr>`);
-    if (meas.crotch) measurementRows.push(`<tr><td>เป้ากางเกง</td><td class="bold">${meas.crotch}</td></tr>`);
-    if (meas.legOpening) measurementRows.push(`<tr><td>ปลายขา</td><td class="bold">${meas.legOpening}</td></tr>`);
-    if (meas.customDimension) measurementRows.push(`<tr><td>มิติสัดส่วนพิเศษ</td><td class="bold">${meas.customDimension}</td></tr>`);
+    // Generate Measurement rows - แยกสัดส่วนเสื้อ กับ กางเกง ออกจากกันอย่างชัดเจน ป้องกันการจำสลับ
+    const shirtRows: string[] = [];
+    const pantsRows: string[] = [];
+    const otherRows: string[] = [];
+
+    if (meas.chest) shirtRows.push(`<tr><td>รอบอก (Chest)</td><td class="bold">${meas.chest}</td></tr>`);
+    if (meas.shirtLength) shirtRows.push(`<tr><td>ความยาวเสื้อ (Length)</td><td class="bold">${meas.shirtLength}</td></tr>`);
+    if (meas.shoulder) shirtRows.push(`<tr><td>ไหล่กว้าง (Shoulder)</td><td class="bold">${meas.shoulder}</td></tr>`);
+    if (meas.armLength) shirtRows.push(`<tr><td>ความยาวแขน (Arm Length)</td><td class="bold">${meas.armLength}</td></tr>`);
+    if (meas.armHole) shirtRows.push(`<tr><td>รอบวงแขน/ต้นแขน (Armhole)</td><td class="bold">${meas.armHole}</td></tr>`);
+    if (meas.waist) shirtRows.push(`<tr><td>รอบเอวเสื้อ (Shirt Waist)</td><td class="bold">${meas.waist}</td></tr>`);
+    if (meas.neck) shirtRows.push(`<tr><td>รอบคอ (Neck)</td><td class="bold">${meas.neck}</td></tr>`);
+    if (meas.wrist) shirtRows.push(`<tr><td>รอบปลายแขน/ข้อมือ (Wrist)</td><td class="bold">${meas.wrist}</td></tr>`);
+    if (meas.hips) shirtRows.push(`<tr><td>สะโพก/ชายเสื้อ (Hips)</td><td class="bold">${meas.hips}</td></tr>`);
+
+    if (meas.waistPants) pantsRows.push(`<tr><td>รอบเอวกางเกง (Pants Waist)</td><td class="bold">${meas.waistPants}</td></tr>`);
+    if (meas.pantsLength) pantsRows.push(`<tr><td>ความยาวกางเกง (Length)</td><td class="bold">${meas.pantsLength}</td></tr>`);
+    if (meas.hipsPants) pantsRows.push(`<tr><td>รอบสะโพกกางเกง (Hips)</td><td class="bold">${meas.hipsPants}</td></tr>`);
+    if (meas.thigh) pantsRows.push(`<tr><td>รอบต้นขา (Thigh)</td><td class="bold">${meas.thigh}</td></tr>`);
+    if (meas.crotch) pantsRows.push(`<tr><td>เป้ากางเกง (Crotch)</td><td class="bold">${meas.crotch}</td></tr>`);
+    if (meas.legOpening) pantsRows.push(`<tr><td>ปลายขากางเกง (Leg Opening)</td><td class="bold">${meas.legOpening}</td></tr>`);
+
+    if (meas.customDimension) otherRows.push(`<tr><td>มิติสัดส่วนพิเศษ</td><td class="bold">${meas.customDimension}</td></tr>`);
 
     const printContent = `
       <!DOCTYPE html>
@@ -840,21 +854,83 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
           <table class="tailoring-grid">
             <tr>
               ${hasMeasurements ? `
-                <!-- กรณีมีสัดส่วนวัดตัวเฉพาะบุคคล: แสดงตารางสัดส่วนด้านซ้าย และหุ่นจำลองด้านขวา -->
-                <td style="width: 54%; padding-right: 8px;">
+                <!-- กรณีมีสัดส่วนวัดตัวเฉพาะบุคคล: แสดงตารางสัดส่วนด้านซ้าย (แยกเสื้อ/กางเกง) และหุ่นจำลองด้านขวา -->
+                <td style="width: 54%; padding-right: 8px; vertical-align: top;">
                   <div style="font-weight: 700; font-size: 10.5px; margin-bottom: 4px; color: #0f172a;">
                     📐 ตารางสัดส่วนการวัดตัว (Body Measurements):
                   </div>
-                  <table class="measurement-table">
-                    <thead>
-                      <tr><th>จุดวัดสัดส่วน</th><th>ขนาดที่วัดได้</th></tr>
-                    </thead>
-                    <tbody>
-                      ${measurementRows.join('')}
-                    </tbody>
-                  </table>
 
-                  <div style="margin-top: 6px; font-size: 10px;">
+                  ${shirtRows.length > 0 && pantsRows.length > 0 ? `
+                    <!-- แสดงแยกตารางเสื้อ และ กางเกง ออกจากกันอย่างชัดเจน ป้องกันจำสลับ -->
+                    <table class="measurement-table" style="margin-bottom: 5px;">
+                      <thead>
+                        <tr style="background: #fef3c7; color: #92400e;">
+                          <th colspan="2" style="padding: 2.5px 6px; font-weight: 800; font-size: 10px; border: 1px solid #fcd34d;">
+                            👔 สัดส่วนเสื้อ / ท่อนบน (SHIRT)
+                          </th>
+                        </tr>
+                        <tr><th style="width: 55%;">จุดวัดสัดส่วน</th><th>ขนาดที่วัดได้</th></tr>
+                      </thead>
+                      <tbody>
+                        ${shirtRows.join('')}
+                      </tbody>
+                    </table>
+
+                    <table class="measurement-table" style="margin-bottom: 4px;">
+                      <thead>
+                        <tr style="background: #ecfdf5; color: #065f46;">
+                          <th colspan="2" style="padding: 2.5px 6px; font-weight: 800; font-size: 10px; border: 1px solid #a7f3d0;">
+                            👖 สัดส่วนกางเกง / ท่อนล่าง (PANTS)
+                          </th>
+                        </tr>
+                        <tr><th style="width: 55%;">จุดวัดสัดส่วน</th><th>ขนาดที่วัดได้</th></tr>
+                      </thead>
+                      <tbody>
+                        ${pantsRows.join('')}
+                      </tbody>
+                    </table>
+                  ` : shirtRows.length > 0 ? `
+                    <table class="measurement-table" style="margin-bottom: 4px;">
+                      <thead>
+                        <tr style="background: #fef3c7; color: #92400e;">
+                          <th colspan="2" style="padding: 2.5px 6px; font-weight: 800; font-size: 10px; border: 1px solid #fcd34d;">
+                            👔 สัดส่วนเสื้อ / ท่อนบน (SHIRT)
+                          </th>
+                        </tr>
+                        <tr><th style="width: 55%;">จุดวัดสัดส่วน</th><th>ขนาดที่วัดได้</th></tr>
+                      </thead>
+                      <tbody>
+                        ${shirtRows.join('')}
+                      </tbody>
+                    </table>
+                  ` : pantsRows.length > 0 ? `
+                    <table class="measurement-table" style="margin-bottom: 4px;">
+                      <thead>
+                        <tr style="background: #ecfdf5; color: #065f46;">
+                          <th colspan="2" style="padding: 2.5px 6px; font-weight: 800; font-size: 10px; border: 1px solid #a7f3d0;">
+                            👖 สัดส่วนกางเกง / ท่อนล่าง (PANTS)
+                          </th>
+                        </tr>
+                        <tr><th style="width: 55%;">จุดวัดสัดส่วน</th><th>ขนาดที่วัดได้</th></tr>
+                      </thead>
+                      <tbody>
+                        ${pantsRows.join('')}
+                      </tbody>
+                    </table>
+                  ` : ''}
+
+                  ${otherRows.length > 0 ? `
+                    <table class="measurement-table" style="margin-top: 4px;">
+                      <thead>
+                        <tr><th>จุดวัดสัดส่วนพิเศษ</th><th>ขนาด</th></tr>
+                      </thead>
+                      <tbody>
+                        ${otherRows.join('')}
+                      </tbody>
+                    </table>
+                  ` : ''}
+
+                  <div style="margin-top: 5px; font-size: 9.5px;">
                     ${order.fabricType ? `<div><b>ชนิดผ้า:</b> ${order.fabricType}</div>` : ''}
                     ${order.specialInstructions ? `<div><b>เทคนิค/ตำแหน่งปัก:</b> ${order.specialInstructions}</div>` : ''}
                   </div>
@@ -1216,6 +1292,15 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
                   type="button"
+                  onClick={() => setIsReceiptModalOpen(true)}
+                  className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>🧾 พิมพ์สลิปใบเสร็จ (58/80mm)</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => handlePrintA4(savedOrder)}
                   className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
                 >
@@ -1546,158 +1631,215 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
                         </p>
                       </div>
                     ) : (
-                      /* If CUSTOM MEASUREMENTS */
+                      /* If CUSTOM MEASUREMENTS - แยกสัดส่วนเสื้อ กับ กางเกง ออกจากกันชัดเจน */
                       <div className="space-y-3 pt-1">
                         <div className="text-[10px] text-slate-400">กรอกสัดส่วนการวัดตัว (หน่วย: นิ้ว หรือ ซม.) - ตัวเลขจะขึ้นบนหุ่นขวามือทันที:</div>
-                        {((currentItem.categoryType || 'SHIRT') === 'SHIRT' || currentItem.categoryType === 'JACKET' || currentItem.categoryType === 'OTHER') && (
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+
+                        {/* แจ้งเตือนชุดเซ็ท เสื้อ+กางเกง */}
+                        {(currentItem.categoryType === 'SET' || (currentItem.itemDescription && currentItem.itemDescription.includes('เซ็ท'))) && (
+                          <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-200 flex items-center gap-2">
+                            <span className="text-base">✨</span>
                             <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบอก</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 36"'
-                                value={currentItem.measurements?.chest || ''}
-                                onChange={e => updateActiveMeasurement('chest', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบเอว</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 28"'
-                                value={currentItem.measurements?.waist || ''}
-                                onChange={e => updateActiveMeasurement('waist', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ไหล่กว้าง</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 16"'
-                                value={currentItem.measurements?.shoulder || ''}
-                                onChange={e => updateActiveMeasurement('shoulder', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ความยาวเสื้อ</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 27"'
-                                value={currentItem.measurements?.shirtLength || ''}
-                                onChange={e => updateActiveMeasurement('shirtLength', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ความยาวแขน</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 22"'
-                                value={currentItem.measurements?.armLength || ''}
-                                onChange={e => updateActiveMeasurement('armLength', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบวงแขน/ต้นแขน</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 14"'
-                                value={currentItem.measurements?.armHole || ''}
-                                onChange={e => updateActiveMeasurement('armHole', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบคอ</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 15"'
-                                value={currentItem.measurements?.neck || ''}
-                                onChange={e => updateActiveMeasurement('neck', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบข้อมือ/ปลายแขน</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 8"'
-                                value={currentItem.measurements?.wrist || ''}
-                                onChange={e => updateActiveMeasurement('wrist', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
+                              <span className="font-bold">รายการนี้คือชุดเซ็ท (เสื้อ + กางเกง):</span> กรุณากรอกสัดส่วนแยกกันตามหมวดเสื้อ และหมวดกางเกงด้านล่าง
                             </div>
                           </div>
                         )}
 
-                        {((currentItem.categoryType || 'SHIRT') === 'PANTS' || currentItem.categoryType === 'OTHER') && (
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1 border-t border-slate-800">
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">เอวกางเกง</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 32"'
-                                value={currentItem.measurements?.waistPants || ''}
-                                onChange={e => updateActiveMeasurement('waistPants', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
+                        {/* CARD 1: สัดส่วนเสื้อ / ท่อนบน (Shirt / Top) */}
+                        {((currentItem.categoryType === 'SET' || (currentItem.categoryType || 'SHIRT') === 'SHIRT' || currentItem.categoryType === 'JACKET' || currentItem.categoryType === 'DRESS' || currentItem.categoryType === 'OTHER') ||
+                          Boolean(currentItem.measurements?.chest || currentItem.measurements?.shirtLength || currentItem.measurements?.shoulder || currentItem.measurements?.armLength || currentItem.measurements?.armHole || currentItem.measurements?.waist || currentItem.measurements?.neck || currentItem.measurements?.wrist || currentItem.measurements?.hips) ||
+                          showShirtSection) && (
+                          <div className="p-3 bg-amber-950/20 border border-amber-500/40 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between pb-1.5 border-b border-amber-500/30">
+                              <span className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
+                                👔 สัดส่วนเสื้อ / ท่อนบน (Shirt / Top)
+                              </span>
+                              <span className="text-[10px] text-amber-400/80">วัดตัวท่อนบน</span>
                             </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบสะโพก</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 38"'
-                                value={currentItem.measurements?.hipsPants || ''}
-                                onChange={e => updateActiveMeasurement('hipsPants', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ความยาวกางเกง</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 38"'
-                                value={currentItem.measurements?.pantsLength || ''}
-                                onChange={e => updateActiveMeasurement('pantsLength', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">รอบต้นขา</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 22"'
-                                value={currentItem.measurements?.thigh || ''}
-                                onChange={e => updateActiveMeasurement('thigh', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">เป้ากางเกง</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 12"'
-                                value={currentItem.measurements?.crotch || ''}
-                                onChange={e => updateActiveMeasurement('crotch', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 font-bold mb-0.5">ปลายขา</label>
-                              <input
-                                type="text"
-                                placeholder='เช่น 14"'
-                                value={currentItem.measurements?.legOpening || ''}
-                                onChange={e => updateActiveMeasurement('legOpening', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
-                              />
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                              <div>
+                                <label className="block text-[10px] text-amber-200 font-bold mb-0.5">รอบอก (Chest)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 30" หรือ 36"'
+                                  value={currentItem.measurements?.chest || ''}
+                                  onChange={e => updateActiveMeasurement('chest', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-amber-300 font-extrabold mb-0.5">รอบเอวเสื้อ (Shirt Waist)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 28"'
+                                  value={currentItem.measurements?.waist || ''}
+                                  onChange={e => updateActiveMeasurement('waist', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-amber-500/50 rounded-lg text-amber-200 font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-300 font-bold mb-0.5">ไหล่กว้าง (Shoulder)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 16"'
+                                  value={currentItem.measurements?.shoulder || ''}
+                                  onChange={e => updateActiveMeasurement('shoulder', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-amber-200 font-bold mb-0.5">ความยาวเสื้อ (Length)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 16" หรือ 27"'
+                                  value={currentItem.measurements?.shirtLength || ''}
+                                  onChange={e => updateActiveMeasurement('shirtLength', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-300 font-bold mb-0.5">ความยาวแขน (Arm Length)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 22"'
+                                  value={currentItem.measurements?.armLength || ''}
+                                  onChange={e => updateActiveMeasurement('armLength', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-300 font-bold mb-0.5">รอบวงแขน/ต้นแขน</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 14"'
+                                  value={currentItem.measurements?.armHole || ''}
+                                  onChange={e => updateActiveMeasurement('armHole', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-300 font-bold mb-0.5">รอบคอ (Neck)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 15"'
+                                  value={currentItem.measurements?.neck || ''}
+                                  onChange={e => updateActiveMeasurement('neck', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-300 font-bold mb-0.5">รอบข้อมือ/ปลายแขน</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 8"'
+                                  value={currentItem.measurements?.wrist || ''}
+                                  onChange={e => updateActiveMeasurement('wrist', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
                             </div>
                           </div>
                         )}
+
+                        {/* CARD 2: สัดส่วนกางเกง / ท่อนล่าง (Pants / Bottom) */}
+                        {((currentItem.categoryType === 'SET' || (currentItem.categoryType || 'SHIRT') === 'PANTS' || currentItem.categoryType === 'DRESS' || currentItem.categoryType === 'OTHER') ||
+                          Boolean(currentItem.measurements?.waistPants || currentItem.measurements?.pantsLength || currentItem.measurements?.hipsPants || currentItem.measurements?.thigh || currentItem.measurements?.crotch || currentItem.measurements?.legOpening) ||
+                          showPantsSection) && (
+                          <div className="p-3 bg-emerald-950/20 border border-emerald-500/40 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between pb-1.5 border-b border-emerald-500/30">
+                              <span className="font-bold text-emerald-300 text-xs flex items-center gap-1.5">
+                                👖 สัดส่วนกางเกง / ท่อนล่าง (Pants / Bottom)
+                              </span>
+                              <span className="text-[10px] text-emerald-400/80">วัดตัวท่อนล่าง</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                              <div>
+                                <label className="block text-[10px] text-emerald-300 font-extrabold mb-0.5">รอบเอวกางเกง (Pants Waist)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 19" หรือ 32"'
+                                  value={currentItem.measurements?.waistPants || ''}
+                                  onChange={e => updateActiveMeasurement('waistPants', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-emerald-500/50 rounded-lg text-emerald-200 font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-emerald-200 font-bold mb-0.5">ความยาวกางเกง (Length)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 10" หรือ 38"'
+                                  value={currentItem.measurements?.pantsLength || ''}
+                                  onChange={e => updateActiveMeasurement('pantsLength', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-300 font-bold mb-0.5">รอบสะโพกกางเกง (Hips)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 38"'
+                                  value={currentItem.measurements?.hipsPants || ''}
+                                  onChange={e => updateActiveMeasurement('hipsPants', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-300 font-bold mb-0.5">รอบต้นขา (Thigh)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 22"'
+                                  value={currentItem.measurements?.thigh || ''}
+                                  onChange={e => updateActiveMeasurement('thigh', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-300 font-bold mb-0.5">เป้ากางเกง (Crotch)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 12"'
+                                  value={currentItem.measurements?.crotch || ''}
+                                  onChange={e => updateActiveMeasurement('crotch', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-slate-300 font-bold mb-0.5">ปลายขา (Leg Opening)</label>
+                                <input
+                                  type="text"
+                                  placeholder='เช่น 14"'
+                                  value={currentItem.measurements?.legOpening || ''}
+                                  onChange={e => updateActiveMeasurement('legOpening', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Toggle Buttons to add missing section if not already shown */}
+                        <div className="flex gap-2">
+                          {!showShirtSection && currentItem.categoryType === 'PANTS' && !Boolean(currentItem.measurements?.chest || currentItem.measurements?.shirtLength) && (
+                            <button
+                              type="button"
+                              onClick={() => setShowShirtSection(true)}
+                              className="px-3 py-1.5 bg-amber-950/30 hover:bg-amber-900/40 text-amber-300 border border-dashed border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ เพิ่มสัดส่วนเสื้อ / ท่อนบน (Shirt)</span>
+                            </button>
+                          )}
+                          {!showPantsSection && (currentItem.categoryType === 'SHIRT' || currentItem.categoryType === 'JACKET') && !Boolean(currentItem.measurements?.waistPants || currentItem.measurements?.pantsLength) && (
+                            <button
+                              type="button"
+                              onClick={() => setShowPantsSection(true)}
+                              className="px-3 py-1.5 bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-300 border border-dashed border-emerald-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ เพิ่มสัดส่วนกางเกง / ท่อนล่าง (Pants)</span>
+                            </button>
+                          )}
+                        </div>
 
                         {(currentItem.categoryType === 'BAG' || currentItem.categoryType === 'HAT') && (
                           <div>
@@ -2179,6 +2321,18 @@ export const CustomOrderModal: React.FC<CustomOrderModalProps> = ({
         </div>
 
       </div>
+
+      {savedOrder && settings && (
+        <CustomOrderReceiptModal
+          isOpen={isReceiptModalOpen}
+          order={savedOrder}
+          settings={settings}
+          paymentPhase={savedOrder.paymentType === 'FULL' ? 'FULL' : 'DEPOSIT'}
+          paidAmountThisTime={savedOrder.paymentType === 'FULL' ? savedOrder.totalPrice : savedOrder.depositAmount}
+          paymentMethodThisTime={savedOrder.depositPaymentMethod}
+          onClose={() => setIsReceiptModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

@@ -341,7 +341,7 @@ export const AGE_RANGE_CONFIG: Record<AgeRangeType, { label: string; short: stri
   UNSPECIFIED: { label: 'ไม่ระบุ', short: 'ไม่ระบุ' }
 };
 
-export type CustomOrderCategory = 'SHIRT' | 'PANTS' | 'JACKET' | 'BAG' | 'HAT' | 'OTHER';
+export type CustomOrderCategory = 'SHIRT' | 'PANTS' | 'SET' | 'DRESS' | 'JACKET' | 'BAG' | 'HAT' | 'OTHER';
 
 export interface CustomOrderMeasurements {
   // เสื้อ & แจ็กเก็ต
